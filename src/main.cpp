@@ -56,7 +56,6 @@ int main(int argc, char* argv[]) {
   game.set(StartFEN, &states->back());
   
   auto search = std::make_unique<UCTSearch>(game, states);
-  search->set_playout_limit(800);
   search->think();
 
 
