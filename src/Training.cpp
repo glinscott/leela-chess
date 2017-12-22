@@ -145,7 +145,7 @@ void Training::dump_training(Color winner_color, const std::string& out_filename
 void Training::dump_training(Color winner_color, OutputChunker& outchunk) {
     for (const auto& step : m_data) {
         auto out = std::stringstream{};
-        for (auto p = size_t{0}; p < 117; p++) {  //--note...hardcoding in 117 (I'm ignoring halfmove and fullmove clocks).
+        for (auto p = size_t{0}; p < Network::INPUT_CHANNELS; p++) {
             const auto& plane = step.planes[p];
             // Write it out as a string of hex characters
             for (auto bit = size_t{0}; bit + 3 < plane.size(); bit += 4) {
