@@ -425,93 +425,93 @@ Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& p
 
 void Network::gather_features(Position* pos, NNPlanes& planes) {
     planes.resize(INPUT_CHANNELS);
-	Color side = pos->side_to_move();
-	//--ignoring halfmove clock feature.
-	if (pos->can_castle(BLACK_OOO)) planes[0].set();
-	if (pos->can_castle(BLACK_OO)) planes[1].set();
-	if (pos->can_castle(WHITE_OOO)) planes[2].set();
-	if (pos->can_castle(WHITE_OO)) planes[3].set();
-	//--ignoring fullmove number feature.
-	if (side == BLACK) planes[4].set();
-	
-	std::stack<StateInfo*> states;
-	int backtracks;
-	for (backtracks = 0; backtracks < T_HISTORY; backtracks++) {
-		const Square* squares;  //--tried doing the following by iterating over enums, but pos->squares didn't like being specialized by a static_cast.
-		squares = pos->squares<PAWN>(side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 1][(int) squares[i]] = true;
-		}
-		squares = pos->squares<KNIGHT>(side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 2][(int) squares[i]] = true;
-		}
-		squares = pos->squares<BISHOP>(side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 3][(int) squares[i]] = true;
-		}
-		squares = pos->squares<ROOK>(side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 4][(int) squares[i]] = true;
-		}
-		squares = pos->squares<QUEEN>(side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 5][(int) squares[i]] = true;
-		}
-		squares = pos->squares<KING>(side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 6][(int) squares[i]] = true;
-		}
-		Color not_side = side == WHITE ? BLACK : WHITE;
-		squares = pos->squares<PAWN>(not_side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 7][(int) squares[i]] = true;
-		}
-		squares = pos->squares<KNIGHT>(not_side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 8][(int) squares[i]] = true;
-		}
-		squares = pos->squares<BISHOP>(not_side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 9][(int) squares[i]] = true;
-		}
-		squares = pos->squares<ROOK>(not_side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 10][(int) squares[i]] = true;
-		}
-		squares = pos->squares<QUEEN>(not_side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 11][(int) squares[i]] = true;
-		}
-		squares = pos->squares<KING>(not_side);
-		for (int i = 0; i < 16; i++) {
-			if (squares[i] == SQ_NONE) break;
-			planes[INPUT_CHANNELS - backtracks * 7 - 12][(int) squares[i]] = true;
-		}
-		int repetitions = pos->repetitions_count();
-		if (repetitions >= 3) planes[INPUT_CHANNELS - backtracks * 7 - 13].set();
-		if (repetitions >= 2) planes[INPUT_CHANNELS - backtracks * 7 - 14].set();
-		
-		StateInfo* state = pos->get_state();
-		if (state->move == MOVE_NONE) break;
-		states.push(state);
-		pos->undo_move(state->move);
-	}
-	
-	for (int h = 0; h < backtracks; h++) {
-		StateInfo* state = states.top();
-		states.pop();
-		pos->do_move(state->move, *state); //this should leave *state just as it was before... :(
-	}
+    Color side = pos->side_to_move();
+    //--ignoring halfmove clock feature.
+    if (pos->can_castle(BLACK_OOO)) planes[0].set();
+    if (pos->can_castle(BLACK_OO)) planes[1].set();
+    if (pos->can_castle(WHITE_OOO)) planes[2].set();
+    if (pos->can_castle(WHITE_OO)) planes[3].set();
+    //--ignoring fullmove number feature.
+    if (side == BLACK) planes[4].set();
+    
+    std::stack<StateInfo*> states;
+    int backtracks;
+    for (backtracks = 0; backtracks < T_HISTORY; backtracks++) {
+        const Square* squares;  //--tried doing the following by iterating over enums, but pos->squares didn't like being specialized by a static_cast.
+        squares = pos->squares<PAWN>(side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 1][(int) squares[i]] = true;
+        }
+        squares = pos->squares<KNIGHT>(side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 2][(int) squares[i]] = true;
+        }
+        squares = pos->squares<BISHOP>(side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 3][(int) squares[i]] = true;
+        }
+        squares = pos->squares<ROOK>(side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 4][(int) squares[i]] = true;
+        }
+        squares = pos->squares<QUEEN>(side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 5][(int) squares[i]] = true;
+        }
+        squares = pos->squares<KING>(side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 6][(int) squares[i]] = true;
+        }
+        Color not_side = side == WHITE ? BLACK : WHITE;
+        squares = pos->squares<PAWN>(not_side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 7][(int) squares[i]] = true;
+        }
+        squares = pos->squares<KNIGHT>(not_side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 8][(int) squares[i]] = true;
+        }
+        squares = pos->squares<BISHOP>(not_side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 9][(int) squares[i]] = true;
+        }
+        squares = pos->squares<ROOK>(not_side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 10][(int) squares[i]] = true;
+        }
+        squares = pos->squares<QUEEN>(not_side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 11][(int) squares[i]] = true;
+        }
+        squares = pos->squares<KING>(not_side);
+        for (int i = 0; i < 16; i++) {
+            if (squares[i] == SQ_NONE) break;
+            planes[INPUT_CHANNELS - backtracks * 7 - 12][(int) squares[i]] = true;
+        }
+        int repetitions = pos->repetitions_count();
+        if (repetitions >= 3) planes[INPUT_CHANNELS - backtracks * 7 - 13].set();
+        if (repetitions >= 2) planes[INPUT_CHANNELS - backtracks * 7 - 14].set();
+        
+        StateInfo* state = pos->get_state();
+        if (state->move == MOVE_NONE) break;
+        states.push(state);
+        pos->undo_move(state->move);
+    }
+
+    for (int h = 0; h < backtracks; h++) {
+        StateInfo* state = states.top();
+        states.pop();
+        pos->do_move(state->move, *state); //this should leave *state just as it was before... :(
+    }
 }

@@ -184,14 +184,14 @@ std::string UCTSearch::get_pv(Position& state, UCTNode& parent) {
     auto best_move = best_child->get_move();
 	auto res = UCI::move(best_move);
 
-	StateInfo st;
+    StateInfo st;
     state.do_move(best_move, st);
 
     auto next = get_pv(state, *best_child);
     if (!next.empty()) {
         res.append(" ").append(next);
     }
-	state.undo_move(best_move);
+    state.undo_move(best_move);
     return res;
 }
 
@@ -218,7 +218,7 @@ bool UCTSearch::playout_limit_reached() const {
 
 void UCTWorker::operator()() {
     do {
-		auto currstate = Position::duplicate(m_rootstate, m_statelist);
+        auto currstate = Position::duplicate(m_rootstate, m_statelist);
         auto result = m_search->play_simulation(*currstate, m_root);
         if (result.valid()) {
             m_search->increment_playouts();
@@ -283,7 +283,7 @@ Move UCTSearch::think() {
     m_run = false;
     tg.wait_all();
     if (!m_root.has_children()) {
-		return MOVE_NONE;
+        return MOVE_NONE;
     }
 
     // display search info
@@ -315,7 +315,7 @@ void UCTSearch::ponder() {
         tg.add_task(UCTWorker(m_rootstate, m_statelist, this, &m_root));
     }
     do {
-		auto currstate = Position::duplicate(m_rootstate, m_statelist);
+        auto currstate = Position::duplicate(m_rootstate, m_statelist);
         auto result = play_simulation(*currstate, &m_root);
         if (result.valid()) {
             increment_playouts();

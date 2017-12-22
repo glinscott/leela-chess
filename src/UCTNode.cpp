@@ -85,7 +85,7 @@ bool UCTNode::create_children(std::atomic<int>& nodecount, Position& state, floa
 	bool drawn = state.is_draw(); //--figure out _ply_ parameter for is_draw...
 	MoveList<LEGAL> moves(state);
 	if (drawn || !moves.size()) {  //--this check should only be necessary in the case this routine is called by _think_.
-		return false;
+        return false;
 	}
     // check whether somebody beat us to it (after taking the lock)
     if (has_children()) {
@@ -99,7 +99,7 @@ bool UCTNode::create_children(std::atomic<int>& nodecount, Position& state, floa
     m_is_expanding = true;
     lock.unlock();
 
-	auto raw_netlist = Network::get_scored_moves(&state);  //--CRUCIAL: assuming that raw_netlist.first is sorted along _second_ (so that .second isn't really necessary...)
+    auto raw_netlist = Network::get_scored_moves(&state);  //--CRUCIAL: assuming that raw_netlist.first is sorted along _second_ (so that .second isn't really necessary...)
 
     // DCNN returns winrate as side to move
     auto net_eval = raw_netlist.second;
@@ -110,14 +110,14 @@ bool UCTNode::create_children(std::atomic<int>& nodecount, Position& state, floa
     }
     eval = net_eval;
 
-	std::vector<std::pair<float, Move>> nodelist;
+    std::vector<std::pair<float, Move>> nodelist;
 
     auto legal_sum = 0.0f;
-	for (Move move : moves) {
-		auto node = raw_netlist.first[UCTSearch::move_lookup[move]];
-		nodelist.emplace_back(node.first, move);
-		legal_sum += node.first;
-	}
+    for (Move move : moves) {
+        auto node = raw_netlist.first[UCTSearch::move_lookup[move]];
+        nodelist.emplace_back(node.first, move);
+        legal_sum += node.first;
+    }
 
     // If the sum is 0 or a denormal, then don't try to normalize.
     if (legal_sum > std::numeric_limits<float>::min()) {
@@ -299,7 +299,7 @@ float UCTNode::get_eval(int tomove) const {
     auto visits = get_visits() + virtual_loss;
     if (visits > 0) {
         auto whiteeval = get_whiteevals();
-		if (tomove == BLACK) {
+        if (tomove == BLACK) {
             whiteeval += static_cast<double>(virtual_loss);  //--why do this...?
         }
         auto score = static_cast<float>(whiteeval / (double)visits);
@@ -310,7 +310,7 @@ float UCTNode::get_eval(int tomove) const {
     } else {
         // If a node has not been visited yet, the eval is that of the parent.
         auto eval = m_init_eval;
-		if (tomove == BLACK) {
+        if (tomove == BLACK) {
             eval = 1.0f - eval;
         }
         return eval;
