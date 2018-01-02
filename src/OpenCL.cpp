@@ -82,18 +82,18 @@ static std::string sourceCode_convolve1 = R"(
         // weights = output * channels * filter
         // merge = channels * outputs * height * width
 
-        const int width = 19;
-        const int height = 19;
+        const int width = 8;
+        const int height = 8;
         const int strip_size = width;
 
         // Copy the input channels (strips) locally
-        if (out_buff_size < 19 && ly == 0) {
+        if (out_buff_size < 8 && ly == 0) {
             // strip-row
             for (int w = 0; w < width; w++) {
                 channel_buff[lx * width + w] =
                     vload_net_t((c * height + row) * width + w, in);
             }
-        } else if (out_buff_size >= 19 && ly < 19) {
+        } else if (out_buff_size >= 8 && ly < 8) {
             // Every thread copies a column
             channel_buff[lx * width + ly] = vload_net_t((c * height + row) * width + ly, in);
         }
@@ -160,8 +160,8 @@ static std::string sourceCode_convolve3 = R"(
         const int ly = get_local_id(1);
 
         const int out_buff_size  = get_local_size(1);
-        const int width = 19;
-        const int height = 19;
+        const int width = 8;
+        const int height = 8;
 
         const int filter_size = 3;
         const int filter_len = filter_size * filter_size;
@@ -186,10 +186,10 @@ static std::string sourceCode_convolve3 = R"(
 
         for (int tile = 0; tile < row_tile_size; tile++) {
             int row = r * row_tile_size + tile;
-            if (row > 18) break;
+            if (row >= 8) break;
 
             // Copy the input channels (strips) locally
-            if (out_buff_size < 21 && ly == 0) {
+            if (out_buff_size < 10 && ly == 0) {
                 // strip-row
                 for (int srow = 0; srow < filter_size; srow++) {
                     int in_row = row - extent + srow;
@@ -206,15 +206,15 @@ static std::string sourceCode_convolve3 = R"(
                     }
                     channel_buff[(lx * pad_width + pad_width - 1) * filter_size + srow] = 0.0f;
                 }
-            } else if (out_buff_size >= 21 && ly < 21) {
+            } else if (out_buff_size >= 10 && ly < 10) {
                 // Every thread copies a column
                 int copy_idx = (lx * pad_width + ly) * filter_size;
-                if (tile == 0 || row == 18) {
+                if (tile == 0 || row == 7) {
                     // Every thread copies a column
                     for (int srow = 0; srow < filter_size; srow++) {
                         int in_row = row - extent + srow;
                         float val = 0.0f;
-                        if ((unsigned)in_row < height && ly >= 1 && ly <= 19) {
+                        if ((unsigned)in_row < height && ly >= 1 && ly <= 8) {
                             val = vload_net_t((c * height + in_row) * width + ly - 1, in);
                         }
                         channel_buff[copy_idx + srow] = val;
@@ -225,7 +225,7 @@ static std::string sourceCode_convolve3 = R"(
                 } else {
                     int in_row = row - extent + 2;
                     float val = 0.0f;
-                    if (ly >= 1 && ly <= 19) {
+                    if (ly >= 1 && ly <= 8) {
                         val = vload_net_t((c * height + in_row) * width + ly - 1, in);
                     }
                     channel_buff[copy_idx + 0] = chan_cache[0];
@@ -308,7 +308,7 @@ static std::string sourceCode_utility = R"(
                         __constant const net_t * biases,
                         __private const int channels) {
 
-        // cl::NDRange global(outputs, 19*19);
+        // cl::NDRange global(outputs, 8*8);
         const int gx = get_global_id(0);
         const int gy = get_global_id(1);
 
@@ -316,8 +316,8 @@ static std::string sourceCode_utility = R"(
         const int b = gy;
         const int outputs = get_global_size(0);
 
-        const int width = 19;
-        const int height = 19;
+        const int width = 8;
+        const int height = 8;
         const int boardsize = width * height;
 
         const int o = output;
@@ -337,7 +337,7 @@ static std::string sourceCode_utility = R"(
                         __constant const net_t * means,
                         __constant const net_t * variances) {
 
-        // cl::NDRange global(outputs, 19*19);
+        // cl::NDRange global(outputs, 8*8);
         const int gx = get_global_id(0);
         const int gy = get_global_id(1);
 
@@ -406,8 +406,8 @@ void OpenCL_Network::add_weights(size_t layer,
 
 void OpenCL_Network::forward(const std::vector<net_t>& input,
                              std::vector<net_t>& output) {
-    constexpr auto width = 19;
-    constexpr auto height = 19;
+    constexpr auto width = 8;
+    constexpr auto height = 8;
     constexpr auto one_plane = width * height * sizeof(net_t);
 
     opencl.ensure_thread_initialized();
@@ -474,7 +474,7 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                      conv1_weights);
             std::swap(inBuffer, tmpBuffer);
             batchnorm(layer.outputs,
-                      361,
+                      64,
                       inBuffer,
                       tmpBuffer,
                       nullptr,
@@ -489,7 +489,7 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                      conv2_weights);
             std::swap(inBuffer, tmpBuffer);
             batchnorm(layer.outputs,
-                      361,
+                      64,
                       inBuffer,
                       tmpBuffer,
                       &residualBuffer,
@@ -519,9 +519,9 @@ void OpenCL_Network::convolve(int filter_size, int channels, int outputs,
                               cl::Buffer& bufferOutput,
                               cl::Buffer& bufferMerge,
                               std::vector<cl::Buffer>& weights) {
-    // fixed for 19x19
-    constexpr int width = 19;
-    constexpr int height = 19;
+    // fixed for 8x8
+    constexpr int width = 8;
+    constexpr int height = 8;
     constexpr int boardsize = width * height;
 
     cl::Kernel * m_convolve_kernel = nullptr;
@@ -538,6 +538,7 @@ void OpenCL_Network::convolve(int filter_size, int channels, int outputs,
 
     // Input layer is not a multiple of 8
     if (channels % 8 != 0) {
+        fprintf(stderr, "channels %d\n", channels);
         assert(channels % 2 == 0);
         channelGroup = 2;
         channelShift = 1;
@@ -562,11 +563,11 @@ void OpenCL_Network::convolve(int filter_size, int channels, int outputs,
     if (filter_size == 3) {
         stripSize = filter_size * (width + (filter_size - 1)) * sizeof(float);
         rowTiles    =  cfg_rowtiles;
-        rowTileSize =  (19 + rowTiles - 1) / rowTiles;
+        rowTileSize =  (8 + rowTiles - 1) / rowTiles;
     } else {
         assert(filter_size == 1);
         stripSize = width * sizeof(float);
-        rowTiles    = 19;
+        rowTiles    = 8;
         rowTileSize =  1;
         assert(channelGroup == 8); // hardcoded in kernel
     }
@@ -609,7 +610,7 @@ void OpenCL_Network::convolve(int filter_size, int channels, int outputs,
 
         queue.enqueueNDRangeKernel(merge_kernel, cl::NullRange,
                                    cl::NDRange(outputs, boardsize),
-                                   cl::NDRange(std::min(8, outputs), 19));
+                                   cl::NDRange(std::min(8, outputs), 8));
     } catch (const cl::Error &e) {
         std::cerr << "Error in merge: " << e.what() << ": "
 	        << e.err() << std::endl;
@@ -628,8 +629,8 @@ void OpenCL_Network::batchnorm(int outputs,
     cl::Kernel & batchnorm_kernel = opencl_thread_data.m_batchnorm_kernel;
 
     size_t channelGroup = 1;
-    if (channel_size == 361) {
-        channelGroup = 19;
+    if (channel_size == 64) {
+        channelGroup = 8;
     }
 
     try {

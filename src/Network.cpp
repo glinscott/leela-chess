@@ -52,8 +52,12 @@
 #include "Utils.h"
 #include "Parameters.h"
 #include "Timing.h"
+#include "Movegen.h"
 
 using namespace Utils;
+
+std::unordered_map<Move, int> Network::move_lookup;
+std::array<Move, Network::NUM_OUTPUT_POLICY> Network::rev_move_lookup;
 
 // Input + residual block tower
 static std::vector<std::vector<float>> conv_weights;
@@ -67,8 +71,8 @@ static std::vector<float> conv_pol_b;
 static std::array<float, 2> bn_pol_w1;
 static std::array<float, 2> bn_pol_w2;
 
-static std::array<float, 261364> ip_pol_w;
-static std::array<float, 362> ip_pol_b;
+static std::array<float, Network::NUM_OUTPUT_POLICY*8*8*2> ip_pol_w;
+static std::array<float, Network::NUM_OUTPUT_POLICY> ip_pol_b;
 
 // Value head
 static std::vector<float> conv_val_w;
@@ -76,15 +80,16 @@ static std::vector<float> conv_val_b;
 static std::array<float, 1> bn_val_w1;
 static std::array<float, 1> bn_val_w2;
 
-static std::array<float, 92416> ip1_val_w;
-static std::array<float, 256> ip1_val_b;
+static std::array<float, Network::NUM_VALUE_CHANNELS*8*8> ip1_val_w;
+static std::array<float, Network::NUM_VALUE_CHANNELS> ip1_val_b;
 
-static std::array<float, 256> ip2_val_w;
+static std::array<float, Network::NUM_VALUE_CHANNELS> ip2_val_w;
 static std::array<float, 1> ip2_val_b;
 
 //void Network::benchmark(Position* pos, int iterations) //--temporarily (?) killed.
 
 void Network::init() {
+    init_move_map();
 #ifdef USE_OPENCL
     myprintf("Initializing OpenCL\n");
     opencl.initialize();
@@ -195,7 +200,7 @@ void Network::init() {
     size_t weight_index = 0;
     opencl_net.push_convolve(3, conv_weights[weight_index],
                                 conv_biases[weight_index]);
-    opencl_net.push_batchnorm(361, batchnorm_means[weight_index],
+    opencl_net.push_batchnorm(64, batchnorm_means[weight_index],
                                    batchnorm_variances[weight_index]);
     weight_index++;
 
@@ -230,6 +235,41 @@ void Network::init() {
 #endif
 }
 
+void Network::init_move_map() {
+  Position p;
+  std::vector<Move> moves;
+  for (Square s = SQ_A1; s <= SQ_H8; ++s) {
+    // Queen and knight moves
+    Bitboard b = p.attacks_from<QUEEN>(s) | p.attacks_from<KNIGHT>(s);
+    while (b) {
+      moves.push_back(make_move(s, pop_lsb(&b)));
+    }
+  }
+
+  // Pawn promotions
+  for (Color c = WHITE; c <= BLACK; ++c) {
+    for (int c_from = 0; c_from < 8; ++c_from) {
+      for (int c_to = c_from - 1; c_to <= c_from + 1; ++c_to) {
+        if (c_to < 0 || c_to >= 8) {
+          continue;
+        }
+        Square from = make_square(File(c_from), c == WHITE? RANK_7 : RANK_2);
+        Square to = make_square(File(c_to), c == WHITE ? RANK_8 : RANK_1);
+        moves.push_back(make<PROMOTION>(from, to, QUEEN));
+        moves.push_back(make<PROMOTION>(from, to, ROOK));
+        moves.push_back(make<PROMOTION>(from, to, BISHOP));
+        // Don't need knight, as it's equivalent to pawn push to final rank.
+      }
+    }
+  }
+
+  for (size_t i = 0; i < moves.size(); ++i) {
+    move_lookup[moves[i]] = i;
+    rev_move_lookup[i] = moves[i];
+  }
+  printf("Generated %lu moves\n", moves.size());
+}
+
 #ifdef USE_BLAS
 template<unsigned int filter_size,
          unsigned int outputs>
@@ -237,9 +277,9 @@ void convolve(const std::vector<net_t>& input,
               const std::vector<float>& weights,
               const std::vector<float>& biases,
               std::vector<float>& output) {
-    // fixed for 19x19
-    constexpr unsigned int width = 19;
-    constexpr unsigned int height = 19;
+    // fixed for 8x8
+    constexpr unsigned int width = 8;
+    constexpr unsigned int height = 8;
     constexpr unsigned int board_squares = width * height;
     constexpr unsigned int filter_len = filter_size * filter_size;
     const auto input_channels = weights.size() / (biases.size() * filter_len);
@@ -251,7 +291,7 @@ void convolve(const std::vector<net_t>& input,
 
     // Weight shape (output, input, filter_size, filter_size)
     // 96 22 3 3
-    // outputs[96,19x19] = weights[96,22x3x3] x col[22x3x3,19x19]
+    // outputs[96,8x8] = weights[96,22x3x3] x col[22x3x3,8x8]
     // C←αAB + βC
     // M Number of rows in matrices A and C.
     // N Number of columns in matrices B and C.
@@ -344,19 +384,15 @@ void Network::softmax(const std::vector<float>& input, std::vector<float>& outpu
 }
 
 Network::Netresult Network::get_scored_moves(Position* pos) {
-    Netresult result;
     NNPlanes planes;
     gather_features(pos, planes);
-
-	result = get_scored_moves_internal(pos, planes);
-
-    return result;
+    return get_scored_moves_internal(pos, planes);
 }
 
-Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& planes) { //--must fix this!
-    assert(INPUT_CHANNELS == planes.size());
-    constexpr int width = 19;
-    constexpr int height = 19;
+Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& planes) {
+    assert(INPUT_CHANNELS == planes.bit.size()+3);
+    constexpr int width = 8;
+    constexpr int height = 8;
     const auto convolve_channels = conv_pol_w.size() / conv_pol_b.size();
     std::vector<net_t> input_data;
     std::vector<net_t> output_data(convolve_channels * width * height);
@@ -364,33 +400,41 @@ Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& p
     std::vector<float> policy_data_2(2 * width * height);
     std::vector<float> value_data_1(1 * width * height);
     std::vector<float> value_data_2(1 * width * height);
-    std::vector<float> policy_out((width * height) + 1);
-    std::vector<float> softmax_data((width * height) + 1);
-    std::vector<float> winrate_data(256);
+    std::vector<float> policy_out(Network::NUM_OUTPUT_POLICY);
+    std::vector<float> softmax_data(Network::NUM_OUTPUT_POLICY);
+    std::vector<float> winrate_data(Network::NUM_VALUE_CHANNELS);
     std::vector<float> winrate_out(1);
     // Data layout is input_data[(c * height + h) * width + w]
     input_data.reserve(INPUT_CHANNELS * width * height);
-    for (int c = 0; c < INPUT_CHANNELS; ++c) {
-        for (int h = 0; h < height; ++h) {
-            for (int w = 0; w < width; ++w) {
-                input_data.emplace_back(net_t(planes[c][h*8 + w]));
-            }
+    for (int c = 0; c < INPUT_CHANNELS - 3; ++c) {
+        for (int i = 0; i < 64; ++i) {
+            input_data.emplace_back(net_t(planes.bit[c][i]));
         }
     }
+    for (int i = 0; i < 64; ++i) {
+        input_data.emplace_back(net_t(planes.rule50_count));
+    }
+    for (int i = 0; i < 64; ++i) {
+        input_data.emplace_back(net_t(planes.move_count));
+    }
+    for (int i = 0; i < 64; ++i) {
+        input_data.emplace_back(net_t(0.0));
+    }
+    assert(input_data.size() == INPUT_CHANNELS * width * height);
 #ifdef USE_OPENCL
     opencl_net.forward(input_data, output_data);
     // Get the moves
     convolve<1, 2>(output_data, conv_pol_w, conv_pol_b, policy_data_1);
-    batchnorm<2, 361>(policy_data_1, bn_pol_w1, bn_pol_w2, policy_data_2);
-    innerproduct<2*361, 362>(policy_data_2, ip_pol_w, ip_pol_b, policy_out);
+    batchnorm<2, width*height>(policy_data_1, bn_pol_w1, bn_pol_w2, policy_data_2);
+    innerproduct<2*width*height, Network::NUM_OUTPUT_POLICY>(policy_data_2, ip_pol_w, ip_pol_b, policy_out);
     softmax(policy_out, softmax_data, cfg_softmax_temp);
     std::vector<float>& outputs = softmax_data;
 
     // Now get the score
     convolve<1, 1>(output_data, conv_val_w, conv_val_b, value_data_1);
-    batchnorm<1, 361>(value_data_1, bn_val_w1, bn_val_w2, value_data_2);
-    innerproduct<361, 256>(value_data_2, ip1_val_w, ip1_val_b, winrate_data);
-    innerproduct<256, 1>(winrate_data, ip2_val_w, ip2_val_b, winrate_out);
+    batchnorm<1, width*height>(value_data_1, bn_val_w1, bn_val_w2, value_data_2);
+    innerproduct<width*height, NUM_VALUE_CHANNELS>(value_data_2, ip1_val_w, ip1_val_b, winrate_data);
+    innerproduct<NUM_VALUE_CHANNELS, 1>(winrate_data, ip2_val_w, ip2_val_b, winrate_out);
 
     // Sigmoid
     float winrate_sig = (1.0f + std::tanh(winrate_out[0])) / 2.0f;
@@ -402,20 +446,11 @@ Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& p
     // Move scores
     std::vector<float>& outputs = softmax_data;
 #endif
+
+    MoveList<LEGAL> moves(*pos);
     std::vector<scored_node> result;
-    for (size_t idx = 0; idx < outputs.size(); idx++) {
-        if (idx < 19*19) {
-            auto val = outputs[idx];
-            auto rot_idx = rotate_nn_idx(idx, rotation);
-            int x = rot_idx % 19;
-            int y = rot_idx / 19;
-            int rot_vtx = state->board.get_vertex(x, y);
-            if (state->board.get_square(rot_vtx) == FastBoard::EMPTY) {
-                result.emplace_back(val, rot_vtx);
-            }
-        } else {
-            result.emplace_back(outputs[idx], FastBoard::PASS);
-        }
+    for (Move move : moves) {
+        result.emplace_back(outputs[move_lookup[move]], move);
     }
 
     return std::make_pair(result, winrate_sig);
@@ -423,86 +458,40 @@ Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& p
 
 //void Network::show_heatmap(Position* state, Netresult& result, bool topmoves) { //--killed.
 
+template<PieceType Pt>
+void addPieces(Position* pos, Color side, Network::NNPlanes& planes, int plane_idx) {
+  // TODO(gary): Need to flip this to be relative to player to move?
+  const Square* squares = pos->squares<Pt>(side);
+  while (*squares != SQ_NONE) {
+    planes.bit[plane_idx][*squares] = true;
+    ++squares;
+  }
+}
+
 void Network::gather_features(Position* pos, NNPlanes& planes) {
-    planes.resize(INPUT_CHANNELS);
     Color side = pos->side_to_move();
-    //--ignoring halfmove clock feature.
-    if (pos->can_castle(BLACK_OOO)) planes[0].set();
-    if (pos->can_castle(BLACK_OO)) planes[1].set();
-    if (pos->can_castle(WHITE_OOO)) planes[2].set();
-    if (pos->can_castle(WHITE_OO)) planes[3].set();
-    //--ignoring fullmove number feature.
-    if (side == BLACK) planes[4].set();
-    
     std::stack<StateInfo*> states;
+    std::string original_fen = pos->fen();
     int backtracks;
     for (backtracks = 0; backtracks < T_HISTORY; backtracks++) {
-        const Square* squares;  //--tried doing the following by iterating over enums, but pos->squares didn't like being specialized by a static_cast.
-        squares = pos->squares<PAWN>(side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 1][(int) squares[i]] = true;
-        }
-        squares = pos->squares<KNIGHT>(side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 2][(int) squares[i]] = true;
-        }
-        squares = pos->squares<BISHOP>(side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 3][(int) squares[i]] = true;
-        }
-        squares = pos->squares<ROOK>(side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 4][(int) squares[i]] = true;
-        }
-        squares = pos->squares<QUEEN>(side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 5][(int) squares[i]] = true;
-        }
-        squares = pos->squares<KING>(side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 6][(int) squares[i]] = true;
-        }
-        Color not_side = side == WHITE ? BLACK : WHITE;
-        squares = pos->squares<PAWN>(not_side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 7][(int) squares[i]] = true;
-        }
-        squares = pos->squares<KNIGHT>(not_side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 8][(int) squares[i]] = true;
-        }
-        squares = pos->squares<BISHOP>(not_side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 9][(int) squares[i]] = true;
-        }
-        squares = pos->squares<ROOK>(not_side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 10][(int) squares[i]] = true;
-        }
-        squares = pos->squares<QUEEN>(not_side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 11][(int) squares[i]] = true;
-        }
-        squares = pos->squares<KING>(not_side);
-        for (int i = 0; i < 16; i++) {
-            if (squares[i] == SQ_NONE) break;
-            planes[INPUT_CHANNELS - backtracks * 7 - 12][(int) squares[i]] = true;
-        }
+        addPieces<PAWN  >(pos, side, planes, backtracks * 14 + 0);
+        addPieces<KNIGHT>(pos, side, planes, backtracks * 14 + 1);
+        addPieces<BISHOP>(pos, side, planes, backtracks * 14 + 2);
+        addPieces<ROOK  >(pos, side, planes, backtracks * 14 + 3);
+        addPieces<QUEEN >(pos, side, planes, backtracks * 14 + 4);
+        addPieces<KING  >(pos, side, planes, backtracks * 14 + 5);
+
+        addPieces<PAWN  >(pos, ~side, planes, backtracks * 14 + 6);
+        addPieces<KNIGHT>(pos, ~side, planes, backtracks * 14 + 7);
+        addPieces<BISHOP>(pos, ~side, planes, backtracks * 14 + 8);
+        addPieces<ROOK  >(pos, ~side, planes, backtracks * 14 + 9);
+        addPieces<QUEEN >(pos, ~side, planes, backtracks * 14 + 10);
+        addPieces<KING  >(pos, ~side, planes, backtracks * 14 + 11);
+
         int repetitions = pos->repetitions_count();
-        if (repetitions >= 3) planes[INPUT_CHANNELS - backtracks * 7 - 13].set();
-        if (repetitions >= 2) planes[INPUT_CHANNELS - backtracks * 7 - 14].set();
-        
+        if (repetitions >= 1) planes.bit[backtracks * 14 + 12].set();
+        if (repetitions >= 2) planes.bit[backtracks * 14 + 13].set();
+
         StateInfo* state = pos->get_state();
         if (state->move == MOVE_NONE) break;
         states.push(state);
@@ -512,6 +501,17 @@ void Network::gather_features(Position* pos, NNPlanes& planes) {
     for (int h = 0; h < backtracks; h++) {
         StateInfo* state = states.top();
         states.pop();
-        pos->do_move(state->move, *state); //this should leave *state just as it was before... :(
+        pos->do_move(state->move, *state);
     }
+
+    assert(original_fen == pos->fen());
+
+    int kFeatureBase = T_HISTORY * 14;
+    if (pos->can_castle(BLACK_OOO)) planes.bit[kFeatureBase+(side==BLACK?0:2)+0].set();
+    if (pos->can_castle(BLACK_OO)) planes.bit[kFeatureBase+(side==BLACK?0:2)+1].set();
+    if (pos->can_castle(WHITE_OOO)) planes.bit[kFeatureBase+(side==WHITE?0:2)+0].set();
+    if (pos->can_castle(WHITE_OO)) planes.bit[kFeatureBase+(side==WHITE?0:2)+1].set();
+    if (side == BLACK) planes.bit[kFeatureBase+4].set();
+    planes.rule50_count = pos->rule50_count();
+    planes.move_count = pos->game_ply();
 }

@@ -69,7 +69,6 @@ public:
     bool playout_limit_reached() const;
     void increment_playouts();
     SearchResult play_simulation(Position& currstate, UCTNode* const node);
-    static std::unordered_map<Move, int> move_lookup;
     
 private:
     void dump_stats(Position& pos, UCTNode& parent);
@@ -88,12 +87,12 @@ private:
 
 class UCTWorker {
 public:
-    UCTWorker(Position& state, StateListPtr& states, UCTSearch* search, UCTNode* root)
-      : m_rootstate(state), m_statelist(states), m_search(search), m_root(root) {}
+    UCTWorker(const Position& state, StateListPtr& states, UCTSearch* search, UCTNode* root)
+      : m_rootstate(state), m_statelist(new std::deque<StateInfo>(*states)), m_search(search), m_root(root) {}
     void operator()();
 private:
-    Position& m_rootstate;
-    StateListPtr& m_statelist;
+    const Position& m_rootstate;
+    StateListPtr m_statelist;
     UCTSearch* m_search;
     UCTNode* m_root;
 };

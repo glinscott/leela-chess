@@ -62,10 +62,10 @@ SearchResult UCTSearch::play_simulation(Position& currstate, UCTNode* const node
     node->virtual_loss();
 
     if (!node->has_children()) {
-		bool drawn = currstate.is_draw(); //--figure out _ply_ parameter for is_draw...
-		size_t moves = MoveList<LEGAL>(currstate).size();
-		if (drawn || !moves) { //--game over..
-			float score = drawn || !currstate.checkers() ? 0.0 : currstate.side_to_move() == Color::WHITE ? -1.0 : 1.0;
+        bool drawn = currstate.is_draw();
+        size_t moves = MoveList<LEGAL>(currstate).size();
+        if (drawn || !moves) {
+            float score = drawn || !currstate.checkers() ? 0.0 : currstate.side_to_move() == Color::WHITE ? -1.0 : 1.0;
             result = SearchResult::from_score(score);
         } else if (m_nodes < MAX_TREE_SIZE) {
             float eval;
@@ -81,12 +81,11 @@ SearchResult UCTSearch::play_simulation(Position& currstate, UCTNode* const node
 
     if (node->has_children() && !result.valid()) {
         auto next = node->uct_select_child(color);
-
-		auto move = next->get_move(); //--next should not be a nullptr.
-		StateInfo st;
-		currstate.do_move(move, st);
-		result = play_simulation(currstate, next);
-		currstate.undo_move(move);
+        auto move = next->get_move();
+        StateInfo st;
+        currstate.do_move(move, st);
+        result = play_simulation(currstate, next);
+        currstate.undo_move(move);
     }
 
     if (result.valid()) {
@@ -120,7 +119,7 @@ void UCTSearch::dump_stats(Position& state, UCTNode& parent) {
     while (node != nullptr) {
         if (++movecount > 2 && !node->get_visits()) break;
 
-		std::string tmp = UCI::move(node->get_move());
+        std::string tmp = UCI::move(node->get_move());
         std::string pvstring(tmp);
 
         myprintf("%4s -> %7d (V: %5.2f%%) (N: %5.2f%%) PV: ",
@@ -129,10 +128,10 @@ void UCTSearch::dump_stats(Position& state, UCTNode& parent) {
             node->get_visits() > 0 ? node->get_eval(color)*100.0f : 0.0f,
             node->get_score() * 100.0f);
 		
-		StateInfo st;
+        StateInfo st;
         state.do_move(node->get_move(), st); //--CONCURRENCY ISSUES...? used to be use a copy of _state_.
         pvstring += " " + get_pv(state, *node);
-		state.undo_move(node->get_move());
+        state.undo_move(node->get_move());
 
         myprintf("%s\n", pvstring.c_str());
 
@@ -182,7 +181,7 @@ std::string UCTSearch::get_pv(Position& state, UCTNode& parent) {
 
     auto best_child = parent.get_best_root_child(state.side_to_move());
     auto best_move = best_child->get_move();
-	auto res = UCI::move(best_move);
+    auto res = UCI::move(best_move);
 
     StateInfo st;
     state.do_move(best_move, st);
@@ -217,13 +216,15 @@ bool UCTSearch::playout_limit_reached() const {
 }
 
 void UCTWorker::operator()() {
+    std::string fen = m_rootstate.fen();
     do {
-        auto currstate = Position::duplicate(m_rootstate, m_statelist);
-        auto result = m_search->play_simulation(*currstate, m_root);
+        Position p;
+        p.set(fen, &m_statelist->back());
+        auto result = m_search->play_simulation(p, m_root);
         if (result.valid()) {
             m_search->increment_playouts();
         }
-    } while(m_search->is_running() && !m_search->playout_limit_reached());
+    } while (m_search->is_running() && !m_search->playout_limit_reached());
 }
 
 void UCTSearch::increment_playouts() {

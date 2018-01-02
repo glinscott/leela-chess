@@ -55,7 +55,6 @@ private:
 
     SMP::Mutex m_mutex;
     std::vector<TTEntry> m_buckets;
-    float m_komi;
 };
 
 #endif

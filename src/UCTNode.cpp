@@ -48,6 +48,7 @@ using namespace Utils;
 
 UCTNode::UCTNode(Move move, float score, float init_eval)
     : m_move(move), m_score(score), m_init_eval(init_eval) {
+    assert(m_score >= 0.0 && m_score <= 1.0);
 }
 
 UCTNode::~UCTNode() {
@@ -82,11 +83,10 @@ bool UCTNode::create_children(std::atomic<int>& nodecount, Position& state, floa
     // acquire the lock
     LOCK(get_mutex(), lock);
     // no successors in final state
-	bool drawn = state.is_draw(); //--figure out _ply_ parameter for is_draw...
-	MoveList<LEGAL> moves(state);
-	if (drawn || !moves.size()) {  //--this check should only be necessary in the case this routine is called by _think_.
+    bool drawn = state.is_draw(); //--figure out _ply_ parameter for is_draw...
+    if (drawn) {
         return false;
-	}
+    }
     // check whether somebody beat us to it (after taking the lock)
     if (has_children()) {
         return false;
@@ -99,43 +99,45 @@ bool UCTNode::create_children(std::atomic<int>& nodecount, Position& state, floa
     m_is_expanding = true;
     lock.unlock();
 
-    auto raw_netlist = Network::get_scored_moves(&state);  //--CRUCIAL: assuming that raw_netlist.first is sorted along _second_ (so that .second isn't really necessary...)
+    auto raw_netlist = Network::get_scored_moves(&state);
+    if (raw_netlist.first.empty()) {
+        return false;
+    }
 
     // DCNN returns winrate as side to move
     auto net_eval = raw_netlist.second;
     auto to_move = state.side_to_move();
     // our search functions evaluate from white's point of view
-    if (to_move == WHITE) {
+    if (to_move == BLACK) {
         net_eval = 1.0f - net_eval;
     }
     eval = net_eval;
 
-    std::vector<std::pair<float, Move>> nodelist;
-
     auto legal_sum = 0.0f;
-    for (Move move : moves) {
-        auto node = raw_netlist.first[UCTSearch::move_lookup[move]];
-        nodelist.emplace_back(node.first, move);
-        legal_sum += node.first;
+    for (auto m : raw_netlist.first) {
+        legal_sum += m.first;
     }
 
     // If the sum is 0 or a denormal, then don't try to normalize.
     if (legal_sum > std::numeric_limits<float>::min()) {
         // re-normalize after removing illegal moves.
-        for (auto& node : nodelist) {
+        for (auto& node : raw_netlist.first) {
             node.first /= legal_sum;
         }
     }
 
-    link_nodelist(nodecount, nodelist, net_eval);
+    link_nodelist(nodecount, raw_netlist.first, net_eval);
 
     return true;
 }
 
-void UCTNode::link_nodelist(std::atomic<int>& nodecount, std::vector<std::pair<float, Move>>& nodelist, float init_eval)
-{
+void UCTNode::link_nodelist(std::atomic<int>& nodecount, std::vector<std::pair<float, Move>>& nodelist, float init_eval) {
+    if (!nodelist.size()) {
+        return;
+    }
+
     // sort (this will reverse scores, but linking is backwards too)
-//    std::sort(begin(nodelist), end(nodelist)); //--now sorting AFTER linking, using built-in function.
+    std::sort(begin(nodelist), end(nodelist));
 
     // link the nodes together
     auto childrenadded = 0;
@@ -300,7 +302,7 @@ float UCTNode::get_eval(int tomove) const {
     if (visits > 0) {
         auto whiteeval = get_whiteevals();
         if (tomove == BLACK) {
-            whiteeval += static_cast<double>(virtual_loss);  //--why do this...?
+            whiteeval += static_cast<double>(virtual_loss);
         }
         auto score = static_cast<float>(whiteeval / (double)visits);
         if (tomove == BLACK) {
@@ -329,12 +331,12 @@ void UCTNode::accumulate_eval(float eval) {
     atomic_add(m_whiteevals, (double)eval);
 }
 
-UCTNode* UCTNode::uct_select_child(Color color) {  //--should only be called if children exist...
+UCTNode* UCTNode::uct_select_child(Color color) {
     UCTNode* best = nullptr;
     float best_value = -1000.0f;
 
     LOCK(get_mutex(), lock);
-    UCTNode* child = m_firstchild;  //--should not be a nullptr
+    UCTNode* child = m_firstchild;
 
     // Count parentvisits.
     // We do this manually to avoid issues with transpositions.
@@ -343,7 +345,7 @@ UCTNode* UCTNode::uct_select_child(Color color) {  //--should only be called if 
         parentvisits += child->get_visits();
         child = child->m_nextsibling;
     }
-    float numerator = std::sqrt((double)parentvisits + 1.0); //--note...I added 1 here.
+    float numerator = std::sqrt((double)parentvisits);
 
     child = m_firstchild;
 
