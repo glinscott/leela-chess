@@ -49,7 +49,7 @@ int cfg_resignpct;
 int cfg_noise;
 int cfg_random_cnt;
 int cfg_min_resign_moves;
-uint64 cfg_rng_seed;
+uint64_t cfg_rng_seed;
 bool cfg_dumbpass;
 #ifdef USE_OPENCL
 std::vector<int> cfg_gpus;

@@ -24,6 +24,7 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <sstream>
 #include <memory>
 #include <cmath>
 #include <array>
@@ -221,8 +222,9 @@ void Network::init() {
 #ifdef USE_BLAS
 #ifndef __APPLE__
 #ifdef USE_OPENBLAS
-    openblas_set_num_threads(1);
-    myprintf("BLAS Core: %s\n", openblas_get_corename());
+    // TODO(gary): Figure out a way to do this in a backwards compat way
+    // openblas_set_num_threads(1);
+    // myprintf("BLAS Core: %s\n", openblas_get_corename());
 #endif
 #ifdef USE_MKL
     //mkl_set_threading_layer(MKL_THREADING_SEQUENTIAL);

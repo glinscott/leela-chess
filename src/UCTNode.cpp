@@ -420,7 +420,7 @@ void UCTNode::sort_root_children(Color color) {
     }
 
     // reverse sort, because list reconstruction is backwards
-    std::stable_sort(rbegin(tmp), rend(tmp), NodeComp());
+    std::stable_sort(tmp.rbegin(), tmp.rend(), NodeComp());
 
     m_firstchild = nullptr;
 

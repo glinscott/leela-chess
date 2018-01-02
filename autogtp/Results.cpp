@@ -38,9 +38,9 @@ void Results::addGameResult(Sprt::GameResult result, int side) {
 }
 
 std::string winPercentColumn(int wins, int games) {
-    auto line = QString::asprintf(" %4d %5.2f%%", wins,
-                                  100.0f * (wins / (float)games));
-    return line.toStdString();
+  char buf[50];
+  sprintf(buf, " %4d %5.2f%%", wins, 100.0f * (wins / (float)games));
+  return buf;
 }
 
 void Results::printResults(const QString& firstNetName,
@@ -67,13 +67,13 @@ void Results::printResults(const QString& firstNetName,
     auto white_wins = m_whiteWins + m_blackLosses;
 
     // Formatted title line
-    auto title_line = QString::asprintf("%13s %-11s %-11s %s\n",
-                                        "", "wins", "black", "white");
+    char title_line[100];
+    sprintf(title_line, "%13s %-11s %-11s %s\n","", "wins", "black", "white");
 
     std::cout
         << first_name << " v " << second_name
         << " ( " << m_gamesPlayed << " games)" << std::endl;
-    std::cout << title_line.toStdString();
+    std::cout << title_line;
     std::cout
         << first_name
         << winPercentColumn(p1_wins, m_gamesPlayed)

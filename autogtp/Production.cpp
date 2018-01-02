@@ -54,7 +54,7 @@ void ProductionWorker::run() {
                 return;
             }
             game.readMove();
-            (*m_movesMade)++;
+            m_movesMade->ref();
         } while (game.nextMove() && m_state == RUNNING);
         switch(m_state) {
         case RUNNING:
@@ -181,7 +181,7 @@ void Production::getResult(const QString& file, float duration) {
 }
 
 void  Production::printTimingInfo(float duration) {
-    if (m_movesMade == 0 || m_gamesPlayed == 0) {
+    if (m_movesMade.load() == 0 || m_gamesPlayed == 0) {
         return;
     }
     auto game_end = std::chrono::high_resolution_clock::now();
@@ -195,7 +195,7 @@ void  Production::printTimingInfo(float duration) {
         << m_gamesPlayed << " game(s) played in "
         << total_time_min.count() << " minutes = "
         << total_time_s.count() / m_gamesPlayed << " seconds/game, "
-        << total_time_millis.count() / m_movesMade  << " ms/move"
+        << total_time_millis.count() / m_movesMade.load()  << " ms/move"
         << ", last game took " << (int) duration << " seconds." << endl;
 }
 
