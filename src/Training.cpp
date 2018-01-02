@@ -107,7 +107,7 @@ void Training::record(Position& state, UCTNode& root) {
     step.child_uct_winrate = best_node->get_eval(step.to_move);
     step.bestmove_visits = best_node->get_visits();
 
-    step.probabilities.resize(4672);
+    step.probabilities.resize(Network::NUM_OUTPUT_POLICY);
 
     // Get total visit amount. We count rather
     // than trust the root to avoid ttable issues.
@@ -130,7 +130,7 @@ void Training::record(Position& state, UCTNode& root) {
     while (child != nullptr) {
         auto prob = static_cast<float>(child->get_visits() / sum_visits);
         auto move = child->get_move();
-        step.probabilities[UCTSearch::move_lookup[move]] = prob;
+        step.probabilities[Network::move_lookup[move]] = prob;
         child = child->get_sibling();
     }
 
@@ -145,8 +145,8 @@ void Training::dump_training(Color winner_color, const std::string& out_filename
 void Training::dump_training(Color winner_color, OutputChunker& outchunk) {
     for (const auto& step : m_data) {
         auto out = std::stringstream{};
-        for (auto p = size_t{0}; p < Network::INPUT_CHANNELS; p++) {
-            const auto& plane = step.planes[p];
+        for (auto p = size_t{0}; p < 14 * Network::T_HISTORY; p++) {
+            const auto& plane = step.planes.bit[p];
             // Write it out as a string of hex characters
             for (auto bit = size_t{0}; bit + 3 < plane.size(); bit += 4) {
                 auto hexbyte =  plane[bit]     << 3
@@ -158,10 +158,13 @@ void Training::dump_training(Color winner_color, OutputChunker& outchunk) {
             assert(plane.size() % 4 == 0);
             out << std::dec << std::endl;
         }
-        // The side to move planes can be compactly encoded into a single
-        // bit, 0 = black to move.
-        out << (step.to_move == WHITE ? "1" : "0") << std::endl;
-        // Then a 4672 long array of float probabilities
+        int kFeatureBase = Network::T_HISTORY * 14;
+        for (int i = 0; i < 5; ++i) {
+            out << (step.planes.bit[kFeatureBase + i][0] ? "1" : "0") << std::endl;
+        }
+        out << step.planes.rule50_count << std::endl;
+        out << step.planes.move_count << std::endl;
+        // Then the move probabilities
         for (auto it = begin(step.probabilities); it != end(step.probabilities); ++it) {
             out << *it;
             if (boost::next(it) != end(step.probabilities)) {

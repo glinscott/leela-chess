@@ -25,6 +25,7 @@
 #include <bitset>
 #include <memory>
 #include <array>
+#include <unordered_map>
 
 #ifdef USE_OPENCL
 #include <atomic>
@@ -35,16 +36,35 @@ class UCTNode;
 
 class Network {
 public:
-    using BoardPlane = std::bitset<8*8>;
-    using NNPlanes = std::vector<BoardPlane>;
-    using scored_node = std::pair<float, int>;
-    using Netresult = std::pair<std::vector<scored_node>, float>;
-
-    static Netresult get_scored_moves(Position* state);
     // File format version
     static constexpr int FORMAT_VERSION = 1;
     static constexpr int T_HISTORY = 8;
-    static constexpr int INPUT_CHANNELS = 5 + T_HISTORY*14;  //--ignoring the halfmove and fullmove clocks for now.
+
+    // 120 input channels
+    // 14 * (6 us, 6 them, 2 reps)
+    // 4 castling (us_oo, us_ooo, them_oo, them_ooo)
+    // 1 color
+    // 1 rule50_count
+    // 1 move_count
+    // 1 unused at end to pad it out.
+    static constexpr int INPUT_CHANNELS = 8 + 14 * T_HISTORY;
+
+    static constexpr int NUM_OUTPUT_POLICY = 1924;
+    static constexpr int NUM_VALUE_CHANNELS = 256;
+
+    using BoardPlane = std::bitset<8 * 8>;
+    struct NNPlanes {
+      std::array<BoardPlane, INPUT_CHANNELS - 3> bit;
+      int rule50_count;
+      int move_count;
+    };
+
+    using scored_node = std::pair<float, Move>;
+    using Netresult = std::pair<std::vector<scored_node>, float>;
+
+    static std::unordered_map<Move, int> move_lookup;
+    static std::array<Move, NUM_OUTPUT_POLICY> rev_move_lookup;
+    static Netresult get_scored_moves(Position* state);
 
     static void init();
 //    static void benchmark(Position* state, int iterations = 1600);
@@ -53,6 +73,7 @@ public:
     static void gather_features(Position* pos, NNPlanes& planes);
 
 private:
+    static void init_move_map();
     static Netresult get_scored_moves_internal(Position* state, NNPlanes& planes);
 };
 

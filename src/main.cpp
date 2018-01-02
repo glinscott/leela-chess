@@ -19,24 +19,25 @@
 */
 
 #include <iostream>
+#include <random>
 
 #include "Bitboard.h"
 #include "Position.h"
 #include "Parameters.h"
 #include "Utils.h"
 #include "UCI.h"
-#include "UCI.cpp"
 #include "Random.h"
 #include "Network.h"
 #include "UCTSearch.h"
 
-Utils::ThreadPool thread_pool;
+extern const char* StartFEN;
 
 int main(int argc, char* argv[]) {
 
   Bitboards::init();
   Position::init();
-  Bitbases::init();
+
+  Parameters::setup_default_parameters();
 
   // Disable IO buffering as much as possible
   std::cout.setf(std::ios::unitbuf);
@@ -57,7 +58,6 @@ int main(int argc, char* argv[]) {
   
   auto search = std::make_unique<UCTSearch>(game, states);
   search->think();
-
 
   return 0;
 }

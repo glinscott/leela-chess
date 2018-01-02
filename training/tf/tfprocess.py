@@ -312,16 +312,16 @@ class TFProcess:
 
     def construct_net(self, planes):
         # Network structure
-        RESIDUAL_FILTERS = 128
-        RESIDUAL_BLOCKS = 6
+        RESIDUAL_FILTERS = 64
+        RESIDUAL_BLOCKS = 5
 
         # NCHW format
-        # batch, 18 channels, 19 x 19
-        x_planes = tf.reshape(planes, [-1, 18, 19, 19])
+        # batch, 120 input channels, 8 x 8
+        x_planes = tf.reshape(planes, [-1, 120, 8, 8])
 
         # Input convolution
         flow = self.conv_block(x_planes, filter_size=3,
-                               input_channels=18,
+                               input_channels=120,
                                output_channels=RESIDUAL_FILTERS)
         # Residual tower
         for _ in range(0, RESIDUAL_BLOCKS):
@@ -331,9 +331,9 @@ class TFProcess:
         conv_pol = self.conv_block(flow, filter_size=1,
                                    input_channels=RESIDUAL_FILTERS,
                                    output_channels=2)
-        h_conv_pol_flat = tf.reshape(conv_pol, [-1, 2*19*19])
-        W_fc1 = weight_variable([2 * 19 * 19, (19 * 19) + 1])
-        b_fc1 = bias_variable([(19 * 19) + 1])
+        h_conv_pol_flat = tf.reshape(conv_pol, [-1, 2*8*8])
+        W_fc1 = weight_variable([2*8*8, 1924])
+        b_fc1 = bias_variable([1924])
         self.weights.append(W_fc1)
         self.weights.append(b_fc1)
         h_fc1 = tf.add(tf.matmul(h_conv_pol_flat, W_fc1), b_fc1)
@@ -342,8 +342,8 @@ class TFProcess:
         conv_val = self.conv_block(flow, filter_size=1,
                                    input_channels=RESIDUAL_FILTERS,
                                    output_channels=1)
-        h_conv_val_flat = tf.reshape(conv_val, [-1, 19*19])
-        W_fc2 = weight_variable([19 * 19, 256])
+        h_conv_val_flat = tf.reshape(conv_val, [-1, 8*8])
+        W_fc2 = weight_variable([8 * 8, 256])
         b_fc2 = bias_variable([256])
         self.weights.append(W_fc2)
         self.weights.append(b_fc2)

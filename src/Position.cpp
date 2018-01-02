@@ -944,7 +944,7 @@ int Position::repetitions_count() const {
   int end = std::min(st->rule50, st->pliesFromNull);
   
   if (end < 4)
-    return false;
+    return 0;
   
   StateInfo* stp = st->previous->previous;
   int cnt = 0;

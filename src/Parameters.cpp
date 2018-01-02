@@ -65,6 +65,8 @@ bool cfg_quiet;
 void Parameters::setup_default_parameters() {
     cfg_allow_pondering = true;
     cfg_num_threads = std::max(1, std::min(SMP::get_num_cpus(), MAX_CPUS));
+    // cfg_num_threads = 1;
+
     cfg_max_playouts = 800; //--std::numeric_limits<decltype(cfg_max_playouts)>::max();
     cfg_lagbuffer_cs = 100;
 #ifdef USE_OPENCL
@@ -91,5 +93,7 @@ void Parameters::setup_default_parameters() {
     uint64 seed2 = std::chrono::high_resolution_clock::
     now().time_since_epoch().count();
     cfg_rng_seed = seed1 ^ seed2;
+
+    cfg_weightsfile = "weights.txt";
 }
 
