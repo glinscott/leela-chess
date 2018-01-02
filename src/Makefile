@@ -2,14 +2,14 @@ THE_OS := $(shell uname -s)
 
 default:
 	@echo "Detected OS: ${THE_OS}"
-	$(MAKE) CC=gcc CXX=g++ \
+	$(MAKE) \
 		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -pipe -O3 -g -ffast-math -flto -march=native -std=c++14 -DNDEBUG'  \
 		LDFLAGS='$(LDFLAGS) -flto -g' \
 		lczero
 
 debug:
 	@echo "Detected OS: ${THE_OS}"
-	$(MAKE) CC=gcc CXX=g++ \
+	$(MAKE) \
 		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -pipe -O0 -g -std=c++14 -fsanitize=address' \
 		LDFLAGS='$(LDFLAGS) -g -fsanitize=address' \
 		lczero

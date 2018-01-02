@@ -144,7 +144,7 @@ void Training::dump_training(Color winner_color, const std::string& out_filename
 
 void Training::dump_training(Color winner_color, OutputChunker& outchunk) {
     for (const auto& step : m_data) {
-        auto out = std::stringstream{};
+        std::stringstream out;
         for (auto p = size_t{0}; p < 14 * Network::T_HISTORY; p++) {
             const auto& plane = step.planes.bit[p];
             // Write it out as a string of hex characters
@@ -190,12 +190,12 @@ void Training::dump_stats(const std::string& filename) {
 
 void Training::dump_stats(OutputChunker& outchunk) {
     {
-        auto out = std::stringstream{};
+        std::stringstream out;
         out << "1" << std::endl; // File format version 1
         outchunk.append(out.str());
     }
     for (const auto& step : m_data) {
-        auto out = std::stringstream{};
+        std::stringstream out;
         out << step.net_winrate
             << " " << step.root_uct_winrate
             << " " << step.child_uct_winrate
