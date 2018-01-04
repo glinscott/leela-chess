@@ -24,12 +24,15 @@ with open(sys.argv[1], 'r') as f:
     print("Blocks", blocks)
 
 x = [
-    tf.placeholder(tf.float32, [None, 18, 19 * 19]),
-    tf.placeholder(tf.float32, [None, 362]),
+    tf.placeholder(tf.float32, [None, 120, 8*8]),
+    tf.placeholder(tf.float32, [None, 1924]),
     tf.placeholder(tf.float32, [None, 1])
     ]
 
 tfprocess = TFProcess(x)
 tfprocess.replace_weights(weights)
-path = os.path.join(os.getcwd(), "leelaz-model")
-save_path = tfprocess.saver.save(tfprocess.session, path, global_step=0)
+import json
+with open(sys.argv[2], 'r') as f:
+    tfprocess.inference(json.load(f)['input'])
+#path = os.path.join(os.getcwd(), "leelaz-model")
+#save_path = tfprocess.saver.save(tfprocess.session, path, global_step=0)

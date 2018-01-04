@@ -62,9 +62,18 @@ public:
     using scored_node = std::pair<float, Move>;
     using Netresult = std::pair<std::vector<scored_node>, float>;
 
+    struct DebugRawData {
+      std::vector<float> input;
+      std::vector<float> policy_output;
+      float value_output;
+      std::vector<scored_node> filtered_output;
+
+      std::string getJson() const;
+    };
+
     static std::unordered_map<Move, int> move_lookup;
     static std::array<Move, NUM_OUTPUT_POLICY> rev_move_lookup;
-    static Netresult get_scored_moves(Position* state);
+    static Netresult get_scored_moves(Position* state, DebugRawData* debug_data=nullptr);
 
     static void init();
 //    static void benchmark(Position* state, int iterations = 1600);
@@ -74,7 +83,7 @@ public:
 
 private:
     static void init_move_map();
-    static Netresult get_scored_moves_internal(Position* state, NNPlanes& planes);
+    static Netresult get_scored_moves_internal(Position* state, NNPlanes& planes, DebugRawData* debug_data);
 };
 
 #endif

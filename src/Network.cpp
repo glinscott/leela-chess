@@ -385,13 +385,13 @@ void Network::softmax(const std::vector<float>& input, std::vector<float>& outpu
     }
 }
 
-Network::Netresult Network::get_scored_moves(Position* pos) {
+Network::Netresult Network::get_scored_moves(Position* pos, DebugRawData* debug_data) {
     NNPlanes planes;
     gather_features(pos, planes);
-    return get_scored_moves_internal(pos, planes);
+    return get_scored_moves_internal(pos, planes, debug_data);
 }
 
-Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& planes) {
+Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& planes, DebugRawData* debug_data) {
     assert(INPUT_CHANNELS == planes.bit.size()+3);
     constexpr int width = 8;
     constexpr int height = 8;
@@ -455,6 +455,13 @@ Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& p
         result.emplace_back(outputs[move_lookup[move]], move);
     }
 
+    if (debug_data) {
+      debug_data->input = input_data;
+      debug_data->policy_output = outputs;
+      debug_data->value_output = winrate_sig;
+      debug_data->filtered_output = result;
+    }
+
     return std::make_pair(result, winrate_sig);
 }
 
@@ -516,4 +523,28 @@ void Network::gather_features(Position* pos, NNPlanes& planes) {
     if (side == BLACK) planes.bit[kFeatureBase+4].set();
     planes.rule50_count = pos->rule50_count();
     planes.move_count = pos->game_ply();
+}
+
+std::string Network::DebugRawData::getJson() const {
+  std::stringstream s;
+  s << "{\n\"value_output\":" << value_output << ",\n";
+  s << "\"input\":[";
+  for (size_t i = 0; i < input.size(); ++i) {
+    if (i != 0) s << ",";
+    s << input[i];
+  }
+  s << "],\n";
+  s << "\"policy_output\":[";
+  for (size_t i = 0; i < policy_output.size(); ++i) {
+    if (i != 0) s << ",";
+    s << policy_output[i];
+  }
+  s << "],\n";
+  s << "\"filtered_output\":[";
+  for (size_t i = 0; i < filtered_output.size(); ++i) {
+    if (i != 0) s << ",";
+    s << "{\"m\":" << filtered_output[i].second << ",\"v\":" << filtered_output[i].first << "}";
+  }
+  s << "]}\n";
+  return s.str();
 }
