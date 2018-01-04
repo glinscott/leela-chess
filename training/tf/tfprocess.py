@@ -44,6 +44,9 @@ def conv2d(x, W):
 
 class TFProcess:
     def __init__(self, next_batch):
+        #from tensorflow.python.client import device_lib
+        #print(device_lib.list_local_devices())
+
         gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.75)
         config = tf.ConfigProto(gpu_options=gpu_options)
         self.session = tf.Session(config=config)
@@ -54,8 +57,8 @@ class TFProcess:
         # TF variables
         self.next_batch = next_batch
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
-        self.x = next_batch[0]  # tf.placeholder(tf.float32, [None, 18, 19 * 19])
-        self.y_ = next_batch[1] # tf.placeholder(tf.float32, [None, 362])
+        self.x = next_batch[0]  # tf.placeholder(tf.float32, [None, 120, 8 * 8])
+        self.y_ = next_batch[1] # tf.placeholder(tf.float32, [None, 1924])
         self.z_ = next_batch[2] # tf.placeholder(tf.float32, [None, 1])
         self.training = tf.placeholder(tf.bool)
         self.batch_norm_count = 0
@@ -244,12 +247,27 @@ class TFProcess:
                 wt_str = [str(wt) for wt in np.ravel(nparray)]
                 file.write(" ".join(wt_str))
 
+    def inference(self, input_data):
+        # Run one inference step on the given inputs
+        data = np.reshape(input_data, (-1, 120, 8*8))
+        np.set_printoptions(threshold=np.nan)
+        print('input', data)
+        output = tf.get_default_graph().get_tensor_by_name('value_head:0')
+        v = self.session.run(output, feed_dict={self.x:data, self.training:False})
+        print('value_head', v)
+        output = tf.get_default_graph().get_tensor_by_name('policy_head:0')
+        v = self.session.run(output, feed_dict={self.x:data, self.training:False})
+        print('policy_head', v)
+        output = tf.get_default_graph().get_tensor_by_name('input_conv:0')
+        v = self.session.run(output, feed_dict={self.x:data, self.training:False})
+        print('input_conv', v)
+
     def get_batchnorm_key(self):
         result = "bn" + str(self.batch_norm_count)
         self.batch_norm_count += 1
         return result
 
-    def conv_block(self, inputs, filter_size, input_channels, output_channels):
+    def conv_block(self, inputs, filter_size, input_channels, output_channels, name=None):
         W_conv = weight_variable([filter_size, filter_size,
                                   input_channels, output_channels])
         b_conv = bn_bias_variable([output_channels])
@@ -269,7 +287,7 @@ class TFProcess:
                     epsilon=1e-5, axis=1, fused=True,
                     center=False, scale=False,
                     training=self.training)
-        h_conv = tf.nn.relu(h_bn)
+        h_conv = tf.nn.relu(h_bn, name=name)
         return h_conv
 
     def residual_block(self, inputs, channels):
@@ -322,7 +340,8 @@ class TFProcess:
         # Input convolution
         flow = self.conv_block(x_planes, filter_size=3,
                                input_channels=120,
-                               output_channels=RESIDUAL_FILTERS)
+                               output_channels=RESIDUAL_FILTERS,
+                               name='input_conv')
         # Residual tower
         for _ in range(0, RESIDUAL_BLOCKS):
             flow = self.residual_block(flow, RESIDUAL_FILTERS)
@@ -336,7 +355,7 @@ class TFProcess:
         b_fc1 = bias_variable([1924])
         self.weights.append(W_fc1)
         self.weights.append(b_fc1)
-        h_fc1 = tf.add(tf.matmul(h_conv_pol_flat, W_fc1), b_fc1)
+        h_fc1 = tf.add(tf.matmul(h_conv_pol_flat, W_fc1), b_fc1, name='policy_head')
 
         # Value head
         conv_val = self.conv_block(flow, filter_size=1,
@@ -352,6 +371,6 @@ class TFProcess:
         b_fc3 = bias_variable([1])
         self.weights.append(W_fc3)
         self.weights.append(b_fc3)
-        h_fc3 = tf.nn.tanh(tf.add(tf.matmul(h_fc2, W_fc3), b_fc3))
+        h_fc3 = tf.nn.tanh(tf.add(tf.matmul(h_fc2, W_fc3), b_fc3), name='value_head')
 
         return h_fc1, h_fc3

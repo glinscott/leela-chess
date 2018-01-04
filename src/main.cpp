@@ -32,6 +32,19 @@
 
 extern const char* StartFEN;
 
+void bench() {
+  Position game;
+  StateListPtr states(new std::deque<StateInfo>(1));
+  game.set(StartFEN, &states->back());
+
+  Network::DebugRawData debug_data;
+  auto r = Network::get_scored_moves(&game, &debug_data);
+
+  FILE* f = fopen("/tmp/output", "w");
+  fputs(debug_data.getJson().c_str(), f);
+  fclose(f);
+}
+
 int main(int argc, char* argv[]) {
 
   Bitboards::init();
@@ -51,13 +64,17 @@ int main(int argc, char* argv[]) {
 #endif
   thread_pool.initialize(cfg_num_threads);
   Network::init();
-  
+
+  bench();
+
+  /*
   Position game;
   StateListPtr states(new std::deque<StateInfo>(1));
   game.set(StartFEN, &states->back());
-  
+
   auto search = std::make_unique<UCTSearch>(game, states);
   search->think();
+  */
 
   return 0;
 }

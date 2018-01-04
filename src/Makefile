@@ -10,8 +10,8 @@ default:
 debug:
 	@echo "Detected OS: ${THE_OS}"
 	$(MAKE) \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -pipe -O0 -g -std=c++14 -fsanitize=address' \
-		LDFLAGS='$(LDFLAGS) -g -fsanitize=address' \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -pipe -O0 -g -std=c++14' \
+		LDFLAGS='$(LDFLAGS) -g' \
 		lczero
 
 clang:
