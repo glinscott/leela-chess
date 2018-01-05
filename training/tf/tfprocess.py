@@ -254,13 +254,17 @@ class TFProcess:
         print('input', data)
         output = tf.get_default_graph().get_tensor_by_name('value_head:0')
         v = self.session.run(output, feed_dict={self.x:data, self.training:False})
-        print('value_head', v)
+        print('value_head', (1.0+v[0])/2.0)
         output = tf.get_default_graph().get_tensor_by_name('policy_head:0')
         v = self.session.run(output, feed_dict={self.x:data, self.training:False})
-        print('policy_head', v)
-        output = tf.get_default_graph().get_tensor_by_name('input_conv:0')
-        v = self.session.run(output, feed_dict={self.x:data, self.training:False})
-        print('input_conv', v)
+        def softmax(x):
+            """Compute softmax values for each sets of scores in x."""
+            e_x = np.exp(x - np.max(x))
+            return e_x / e_x.sum()
+        print('policy_head', softmax(v))
+        #output = tf.get_default_graph().get_tensor_by_name('input_conv:0')
+        #v = self.session.run(output, feed_dict={self.x:data, self.training:False})
+        #print('input_conv', v)
 
     def get_batchnorm_key(self):
         result = "bn" + str(self.batch_norm_count)
