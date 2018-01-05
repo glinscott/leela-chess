@@ -82,8 +82,13 @@ public:
     static void gather_features(Position* pos, NNPlanes& planes);
 
 private:
+    static void process_bn_var(std::vector<float>& weights, const float epsilon=1e-5f);
     static void init_move_map();
     static Netresult get_scored_moves_internal(Position* state, NNPlanes& planes, DebugRawData* debug_data);
+#if defined(USE_BLAS)
+    static void forward_cpu(std::vector<float>& input,
+                            std::vector<float>& output);
+#endif
 };
 
 #endif
