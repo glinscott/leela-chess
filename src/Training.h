@@ -19,10 +19,12 @@
 #ifndef TRAINING_H_INCLUDED
 #define TRAINING_H_INCLUDED
 
-#include "config.h"
 #include <string>
 #include <utility>
+
+#include "config.h"
 #include "Network.h"
+#include "UCTNode.h"
 
 class TimeStep {
 public:
