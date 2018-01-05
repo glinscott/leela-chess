@@ -37,7 +37,7 @@
 #define USE_OPENBLAS
 #endif
 //#define USE_MKL
-//#define USE_OPENCL
+#define USE_OPENCL
 // Use 16-bit floating point storage for net calculations
 // #define USE_HALF
 //#define USE_TUNER

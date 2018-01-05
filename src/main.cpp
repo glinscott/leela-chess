@@ -65,16 +65,14 @@ int main(int argc, char* argv[]) {
   thread_pool.initialize(cfg_num_threads);
   Network::init();
 
-  bench();
+  // bench();
 
-  /*
   Position game;
   StateListPtr states(new std::deque<StateInfo>(1));
   game.set(StartFEN, &states->back());
 
   auto search = std::make_unique<UCTSearch>(game, states);
   search->think();
-  */
 
   return 0;
 }
