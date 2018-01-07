@@ -29,6 +29,8 @@
 #include "Random.h"
 #include "Network.h"
 #include "UCTSearch.h"
+#include "Training.h"
+#include "Movegen.h"
 
 extern const char* StartFEN;
 
@@ -43,6 +45,49 @@ void bench() {
   FILE* f = fopen("/tmp/output", "w");
   fputs(debug_data.getJson().c_str(), f);
   fclose(f);
+
+  /*
+  auto search = std::make_unique<UCTSearch>(game, states);
+  search->think();
+  */
+}
+
+// Return the score from the self-play game
+int selfPlayResult(Position& game, StateListPtr& states) {
+  for (int game_ply = 0; game_ply < 150; ++game_ply) {
+    if (game.is_draw()) {
+      return 0;
+    }
+    MoveList<LEGAL> moves(game);
+    if (moves.size() == 0) {
+      if (game.checkers()) {
+        // Checkmate
+        return game.side_to_move() == WHITE ? -1 : 1;
+      } else {
+        // Stalemate
+        return 0;
+      }
+    }
+    auto search = std::make_unique<UCTSearch>(game, states);
+    Move move = search->think();
+
+    states->emplace_back();
+    game.do_move(move, states->back());
+  }
+
+  // Game termination as draw
+  return 0;
+}
+
+void selfPlayGame() {
+  Position game;
+  StateListPtr states(new std::deque<StateInfo>(1));
+  game.set(StartFEN, &states->back());
+  Training::clear_training();
+
+  int game_score = selfPlayResult(game, states);
+
+  Training::dump_training(game_score, "training");
 }
 
 int main(int argc, char* argv[]) {
@@ -67,12 +112,7 @@ int main(int argc, char* argv[]) {
 
   // bench();
 
-  Position game;
-  StateListPtr states(new std::deque<StateInfo>(1));
-  game.set(StartFEN, &states->back());
-
-  auto search = std::make_unique<UCTSearch>(game, states);
-  search->think();
+  selfPlayGame();
 
   return 0;
 }

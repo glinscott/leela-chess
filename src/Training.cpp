@@ -137,15 +137,16 @@ void Training::record(Position& state, UCTNode& root) {
     m_data.emplace_back(step);
 }
 
-void Training::dump_training(Color winner_color, const std::string& out_filename) {
+void Training::dump_training(int game_score, const std::string& out_filename) {
     auto chunker = OutputChunker{out_filename, true};
-    dump_training(winner_color, chunker);
+    dump_training(game_score, chunker);
 }
 
-void Training::dump_training(Color winner_color, OutputChunker& outchunk) {
+void Training::dump_training(int game_score, OutputChunker& outchunk) {
     for (const auto& step : m_data) {
         std::stringstream out;
-        for (auto p = size_t{0}; p < 14 * Network::T_HISTORY; p++) {
+        int kFeatureBase = Network::T_HISTORY * 14;
+        for (auto p = size_t{0}; p < kFeatureBase; p++) {
             const auto& plane = step.planes.bit[p];
             // Write it out as a string of hex characters
             for (auto bit = size_t{0}; bit + 3 < plane.size(); bit += 4) {
@@ -158,7 +159,6 @@ void Training::dump_training(Color winner_color, OutputChunker& outchunk) {
             assert(plane.size() % 4 == 0);
             out << std::dec << std::endl;
         }
-        int kFeatureBase = Network::T_HISTORY * 14;
         for (int i = 0; i < 5; ++i) {
             out << (step.planes.bit[kFeatureBase + i][0] ? "1" : "0") << std::endl;
         }
@@ -173,12 +173,7 @@ void Training::dump_training(Color winner_color, OutputChunker& outchunk) {
         }
         out << std::endl;
         // And the game result for the side to move
-        if (step.to_move == winner_color) {
-            out << "1";
-        } else {
-            out << "-1";
-        }
-        out << std::endl;
+        out << (step.to_move == BLACK ? -game_score : game_score) << std::endl;
         outchunk.append(out.str());
     }
 }

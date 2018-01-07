@@ -58,7 +58,7 @@ private:
 class Training {
 public:
     static void clear_training();
-    static void dump_training(Color winner_color, const std::string& out_filename);
+    static void dump_training(int game_score, const std::string& out_filename);
     static void dump_stats(const std::string& out_filename);
     static void record(Position& state, UCTNode& node);
 
@@ -69,7 +69,7 @@ private:
     static constexpr size_t SKIP_SIZE = 16;
 
 //    static void process_game(Position& state, size_t& train_pos, int who_won, const std::vector<int>& tree_moves, OutputChunker& outchunker);
-    static void dump_training(Color winner_color, OutputChunker& outchunker);
+    static void dump_training(int game_score, OutputChunker& outchunker);
     static void dump_stats(OutputChunker& outchunker);
     static std::vector<TimeStep> m_data;
 };
