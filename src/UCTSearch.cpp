@@ -65,7 +65,7 @@ SearchResult UCTSearch::play_simulation(Position& currstate, UCTNode* const node
         bool drawn = currstate.is_draw();
         size_t moves = MoveList<LEGAL>(currstate).size();
         if (drawn || !moves) {
-            float score = drawn || !currstate.checkers() ? 0.0 : currstate.side_to_move() == Color::WHITE ? -1.0 : 1.0;
+            float score = (drawn || !currstate.checkers()) ? 0.0 : (currstate.side_to_move() == Color::WHITE ? -1.0 : 1.0);
             result = SearchResult::from_score(score);
         } else if (m_nodes < MAX_TREE_SIZE) {
             float eval;
@@ -155,22 +155,23 @@ Move UCTSearch::get_best_move() {
     Move bestmove = m_root.get_first_child()->get_move();
 
     // do we have statistics on the moves?
-	if (m_root.get_first_child()->first_visit()) {
-		return bestmove;
-	}
-
-    float bestscore = m_root.get_first_child()->get_eval(color);
-
-    int visits = m_root.get_visits();
+    if (m_root.get_first_child()->first_visit()) {
+        return bestmove;
+    }
 
     // should we consider resigning?
-	// bad score and visited enough
-	if (bestscore < ((float)cfg_resignpct / 100.0f)
-		&& visits > 500
-		&& m_rootstate.game_ply() > cfg_min_resign_moves) { //--set cfg_min_resign_moves very high to forbid resigning...?
-		myprintf("Score looks bad. Resigning.\n");
-		bestmove = MOVE_NONE; //--i guess MOVE_NONE will mean resign.
-	}
+    /*
+    float bestscore = m_root.get_first_child()->get_eval(color);
+    int visits = m_root.get_visits();
+    // bad score and visited enough
+    if (bestscore < ((float)cfg_resignpct / 100.0f)
+        && visits > 500
+        && m_rootstate.game_ply() > cfg_min_resign_moves) { //--set cfg_min_resign_moves very high to forbid resigning...?
+        myprintf("Score looks bad. Resigning.\n");
+        bestmove = MOVE_NONE; //--i guess MOVE_NONE will mean resign.
+    }
+    */
+
     return bestmove;
 }
 
