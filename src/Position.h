@@ -135,6 +135,8 @@ public:
   void undo_null_move();
   Move get_move();
 
+  std::string move_san(Move m);
+
   // Accessing hash keys
   Key key() const;
   Key key_after(Move m) const;
@@ -424,6 +426,23 @@ struct BoardHistory {
     states.emplace_back(new StateInfo);
     positions.push_back(positions.back());
     positions.back().do_move(m, *states.back());
+  }
+
+  std::string pgn() {
+    std::string result;
+    std::string line;
+    for (int i = 0; i< static_cast<int>(positions.size()) - 1; ++i) {
+      if (i % 2 == 0) {
+        line += std::to_string(i / 2 + 1) + ". ";
+      }
+      line += positions[i].move_san(positions[i + 1].get_move()) + " ";
+      if (line.size() > 80) {
+        line += '\n';
+        result += line;
+        line = "";
+      }
+    }
+    return result + line;
   }
 };
 

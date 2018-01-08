@@ -63,9 +63,8 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
 
     if (!node->has_children()) {
         bool drawn = cur.is_draw();
-        size_t moves = MoveList<LEGAL>(cur).size();
-        if (drawn || !moves) {
-            float score = (drawn || !cur.checkers()) ? 0.0 : (cur.side_to_move() == Color::WHITE ? -1.0 : 1.0);
+        if (drawn || !MoveList<LEGAL>(cur).size()) {
+            float score = (drawn || !cur.checkers()) ? 0.0 : (color == Color::WHITE ? -1.0 : 1.0);
             result = SearchResult::from_score(score);
         } else if (m_nodes < MAX_TREE_SIZE) {
             float eval;

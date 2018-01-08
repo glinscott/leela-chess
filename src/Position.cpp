@@ -1045,3 +1045,68 @@ bool Position::pos_is_ok() const {
 
   return true;
 }
+
+std::string Position::move_san(Move m) {
+  Square from = from_sq(m);
+  Square to = to_sq(m);
+  Piece pc = moved_piece(m);
+
+  std::string result = "";
+  if (type_of(m) == CASTLING) {
+    result = file_of(to) > FILE_E ? "O-O" : "O-O-O";
+  } else {
+    switch (type_of(pc)) {
+    case PAWN: break;
+    case KNIGHT: result += "N"; break;
+    case BISHOP: result += "B"; break;
+    case ROOK: result += "R"; break;
+    case QUEEN: result += "Q"; break;
+    case KING: result += "K"; break;
+    default: break;
+    }
+
+    MoveList<LEGAL> moves(*this);
+    bool dupe = false, rank_diff = true, file_diff = true;
+    for (auto m2 : moves) {
+      if (from_sq(m2) != from && to_sq(m2) == to && type_of(pc) == type_of(moved_piece(m2))) {
+        dupe = true;
+        if (file_of(from) == file_of(from_sq(m2))) file_diff = false;
+        if (rank_of(from) == rank_of(from_sq(m2))) rank_diff = false;
+      }
+    }
+    char file = "abcdefgh"[file_of(from)];
+    char rank = '1' + rank_of(from);
+    if (dupe) {
+      if (rank_diff) {
+        result += rank;
+      } else if (file_diff) {
+        result += file;
+      } else {
+        result += file;
+        result += rank;
+      }
+    } else if (type_of(pc) == PAWN && board[to] != NO_PIECE) {
+      result += file;
+    }
+
+    if (board[to] != NO_PIECE || type_of(m) == ENPASSANT) {
+      result += "x";
+    }
+
+    result += "abcdefgh"[file_of(to)];
+    result += '1' + rank_of(to);
+  }
+  if (type_of(m) == PROMOTION) {
+    switch(promotion_type(m)) {
+    case KNIGHT: result += "=N"; break;
+    case BISHOP: result += "=B"; break;
+    case ROOK: result += "=R"; break;
+    case QUEEN: result += "=Q"; break;
+    default: break;
+    }
+  }
+  if (gives_check(m)) {
+    result += "+";
+  }
+  return result;
+}

@@ -50,7 +50,6 @@ int cfg_noise;
 int cfg_random_cnt;
 int cfg_min_resign_moves;
 uint64_t cfg_rng_seed;
-bool cfg_dumbpass;
 #ifdef USE_OPENCL
 std::vector<int> cfg_gpus;
 int cfg_rowtiles;
@@ -77,9 +76,8 @@ void Parameters::setup_default_parameters() {
     cfg_softmax_temp = 1.0f;
     cfg_min_resign_moves = 20;
     cfg_resignpct = 10;
-    cfg_noise = false;
+    cfg_noise = true;
     cfg_random_cnt = 0;
-    cfg_dumbpass = false;
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     

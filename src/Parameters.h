@@ -31,7 +31,6 @@ extern int cfg_noise;
 extern int cfg_random_cnt;
 extern int cfg_min_resign_moves;
 extern uint64_t cfg_rng_seed;
-extern bool cfg_dumbpass;
 #ifdef USE_OPENCL
 extern std::vector<int> cfg_gpus;
 extern int cfg_rowtiles;
