@@ -31,8 +31,8 @@ x = [
 
 tfprocess = TFProcess(x)
 tfprocess.replace_weights(weights)
-import json
-with open(sys.argv[2], 'r') as f:
-    tfprocess.inference(json.load(f)['input'])
-#path = os.path.join(os.getcwd(), "leelaz-model")
-#save_path = tfprocess.saver.save(tfprocess.session, path, global_step=0)
+#import json
+#with open(sys.argv[2], 'r') as f:
+#    tfprocess.inference(json.load(f)['input'])
+path = os.path.join(os.getcwd(), "leelaz-model")
+save_path = tfprocess.saver.save(tfprocess.session, path, global_step=0)
