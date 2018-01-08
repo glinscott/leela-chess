@@ -73,18 +73,18 @@ public:
 
     static std::unordered_map<Move, int> move_lookup;
     static std::array<Move, NUM_OUTPUT_POLICY> rev_move_lookup;
-    static Netresult get_scored_moves(Position* state, DebugRawData* debug_data=nullptr);
+    static Netresult get_scored_moves(const BoardHistory& state, DebugRawData* debug_data=nullptr);
 
     static void init();
 //    static void benchmark(Position* state, int iterations = 1600);
-    static void show_heatmap(Position* state, Netresult& netres, bool topmoves);
+    static void show_heatmap(const BoardHistory& state, Netresult& netres, bool topmoves);
     static void softmax(const std::vector<float>& input, std::vector<float>& output, float temperature = 1.0f);
-    static void gather_features(Position* pos, NNPlanes& planes);
+    static void gather_features(const BoardHistory& pos, NNPlanes& planes);
 
 private:
     static void process_bn_var(std::vector<float>& weights, const float epsilon=1e-5f);
     static void init_move_map();
-    static Netresult get_scored_moves_internal(Position* state, NNPlanes& planes, DebugRawData* debug_data);
+    static Netresult get_scored_moves_internal(const BoardHistory& state, NNPlanes& planes, DebugRawData* debug_data);
 #if defined(USE_BLAS)
     static void forward_cpu(std::vector<float>& input,
                             std::vector<float>& output);

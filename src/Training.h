@@ -60,7 +60,7 @@ public:
     static void clear_training();
     static void dump_training(int game_score, const std::string& out_filename);
     static void dump_stats(const std::string& out_filename);
-    static void record(Position& state, UCTNode& node);
+    static void record(const BoardHistory& state, UCTNode& node);
 
 //    static void dump_supervised(const std::string& sgf_file, const std::string& out_filename);
 private:

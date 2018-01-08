@@ -116,20 +116,6 @@ void Position::init() {
   Zobrist::noPawns = rng.rand<Key>();
 }
 
-std::unique_ptr<Position> Position::duplicate(const Position& pos, StateListPtr& states) {
-  // We use Position::set() to set root position across threads. But there are
-  // some StateInfo fields (previous, pliesFromNull, capturedPiece) that cannot
-  // be deduced from a fen string, so set() clears them and to not lose the info
-  // we need to backup and later restore states->back(). Note that states
-  // is shared by threads but is accessed in read-only mode.
-  assert(pos.key() == states->back().key);  //--this should ONLY be called before any moves beyond those included in _states_ are made.
-  std::unique_ptr<Position> result = std::make_unique<Position>();
-  StateInfo tmp = states->back();
-  result->set(pos.fen(), &states->back());
-  states->back() = tmp;
-  return result;
-}
-
 /// Position::set() initializes the position object with the given FEN string.
 /// This function is not very robust - make sure that input FENs are correct,
 /// this is assumed to be the responsibility of the GUI.
@@ -253,10 +239,6 @@ Position& Position::set(const string& fenStr, StateInfo* si) {
   assert(pos_is_ok());
 
   return *this;
-}
-
-StateInfo* Position::get_state() const {
-  return st;
 }
 
 

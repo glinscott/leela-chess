@@ -42,8 +42,8 @@ public:
     ~UCTNode();
     bool first_visit() const;
     bool has_children() const;
-    bool create_children(std::atomic<int> & nodecount, Position& state, float& eval);
-    float eval_state(Position& state);
+    bool create_children(std::atomic<int> & nodecount, const BoardHistory& state, float& eval);
+    float eval_state(const BoardHistory& state);
     void delete_child(UCTNode* child);
     Move get_move() const;
     int get_visits() const;

@@ -90,13 +90,13 @@ void Training::clear_training() {
     Training::m_data.clear();
 }
 
-void Training::record(Position& state, UCTNode& root) {
+void Training::record(const BoardHistory& state, UCTNode& root) {
     auto step = TimeStep{};
-    step.to_move = state.side_to_move();
+    step.to_move = state.cur().side_to_move();
     step.planes = Network::NNPlanes{};
-    Network::gather_features(&state, step.planes);
+    Network::gather_features(state, step.planes);
 
-    auto result = Network::get_scored_moves(&state);
+    auto result = Network::get_scored_moves(state);
     step.net_winrate = result.second;
 
     const auto best_node = root.get_best_root_child(step.to_move);
@@ -146,7 +146,7 @@ void Training::dump_training(int game_score, OutputChunker& outchunk) {
     for (const auto& step : m_data) {
         std::stringstream out;
         int kFeatureBase = Network::T_HISTORY * 14;
-        for (auto p = size_t{0}; p < kFeatureBase; p++) {
+        for (int p = 0; p < kFeatureBase; p++) {
             const auto& plane = step.planes.bit[p];
             // Write it out as a string of hex characters
             for (auto bit = size_t{0}; bit + 3 < plane.size(); bit += 4) {
