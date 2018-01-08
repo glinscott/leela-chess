@@ -46,15 +46,15 @@
 
 using namespace Utils;
 
-UCTSearch::UCTSearch(Position& pos, StateListPtr& states)
-    : m_rootstate(pos),
-	  m_statelist(states) {
+UCTSearch::UCTSearch(BoardHistory&& bh)
+    : bh_(std::move(bh)) {
     set_playout_limit(cfg_max_playouts);
 }
 
-SearchResult UCTSearch::play_simulation(Position& currstate, UCTNode* const node) {
-    const auto color = currstate.side_to_move();
-    const auto hash = currstate.key();
+SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
+    const auto& cur = bh.cur();
+    const auto color = cur.side_to_move();
+    const auto hash = cur.key();
 
     auto result = SearchResult{};
 
@@ -62,19 +62,19 @@ SearchResult UCTSearch::play_simulation(Position& currstate, UCTNode* const node
     node->virtual_loss();
 
     if (!node->has_children()) {
-        bool drawn = currstate.is_draw();
-        size_t moves = MoveList<LEGAL>(currstate).size();
+        bool drawn = cur.is_draw();
+        size_t moves = MoveList<LEGAL>(cur).size();
         if (drawn || !moves) {
-            float score = (drawn || !currstate.checkers()) ? 0.0 : (currstate.side_to_move() == Color::WHITE ? -1.0 : 1.0);
+            float score = (drawn || !cur.checkers()) ? 0.0 : (cur.side_to_move() == Color::WHITE ? -1.0 : 1.0);
             result = SearchResult::from_score(score);
         } else if (m_nodes < MAX_TREE_SIZE) {
             float eval;
-            auto success = node->create_children(m_nodes, currstate, eval);
+            auto success = node->create_children(m_nodes, bh, eval);
             if (success) {
                 result = SearchResult::from_eval(eval);
             }
         } else {
-            auto eval = node->eval_state(currstate);
+            auto eval = node->eval_state(bh);
             result = SearchResult::from_eval(eval);
         }
     }
@@ -82,10 +82,8 @@ SearchResult UCTSearch::play_simulation(Position& currstate, UCTNode* const node
     if (node->has_children() && !result.valid()) {
         auto next = node->uct_select_child(color);
         auto move = next->get_move();
-        StateInfo st;
-        currstate.do_move(move, st);
-        result = play_simulation(currstate, next);
-        currstate.undo_move(move);
+        bh.do_move(move);
+        result = play_simulation(bh, next);
     }
 
     if (result.valid()) {
@@ -97,12 +95,12 @@ SearchResult UCTSearch::play_simulation(Position& currstate, UCTNode* const node
     return result;
 }
 
-void UCTSearch::dump_stats(Position& state, UCTNode& parent) {
+void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
     if (cfg_quiet || !parent.has_children()) {
         return;
     }
 
-    const Color color = state.side_to_move();
+    const Color color = state.cur().side_to_move();
 
     // sort children, put best move on top
     m_root.sort_root_children(color);
@@ -127,11 +125,11 @@ void UCTSearch::dump_stats(Position& state, UCTNode& parent) {
             node->get_visits(),
             node->get_visits() > 0 ? node->get_eval(color)*100.0f : 0.0f,
             node->get_score() * 100.0f);
-		
-        StateInfo st;
-        state.do_move(node->get_move(), st); //--CONCURRENCY ISSUES...? used to be use a copy of _state_.
+
+        StateInfo si;
+        state.cur().do_move(node->get_move(), si);
         pvstring += " " + get_pv(state, *node);
-        state.undo_move(node->get_move());
+        state.cur().undo_move(node->get_move());
 
         myprintf("%s\n", pvstring.c_str());
 
@@ -140,14 +138,14 @@ void UCTSearch::dump_stats(Position& state, UCTNode& parent) {
 }
 
 Move UCTSearch::get_best_move() {
-    Color color = m_rootstate.side_to_move();
+    Color color = bh_.cur().side_to_move();
 
     // Make sure best is first
     m_root.sort_root_children(color);
 
     // Check whether to randomize the best move proportional
     // to the playout counts, early game only.
-    auto movenum = int(m_rootstate.game_ply());
+    auto movenum = int(bh_.cur().game_ply());
     if (movenum < cfg_random_cnt) {
         m_root.randomize_first_proportionally();
     }
@@ -175,23 +173,23 @@ Move UCTSearch::get_best_move() {
     return bestmove;
 }
 
-std::string UCTSearch::get_pv(Position& state, UCTNode& parent) {
+std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent) {
     if (!parent.has_children()) {
         return std::string();
     }
 
-    auto best_child = parent.get_best_root_child(state.side_to_move());
+    auto best_child = parent.get_best_root_child(state.cur().side_to_move());
     auto best_move = best_child->get_move();
     auto res = UCI::move(best_move);
 
     StateInfo st;
-    state.do_move(best_move, st);
+    state.cur().do_move(best_move, st);
 
     auto next = get_pv(state, *best_child);
     if (!next.empty()) {
         res.append(" ").append(next);
     }
-    state.undo_move(best_move);
+    state.cur().undo_move(best_move);
     return res;
 }
 
@@ -200,9 +198,9 @@ void UCTSearch::dump_analysis(int playouts) {
         return;
     }
 
-    Color color = m_rootstate.side_to_move();
+    Color color = bh_.cur().side_to_move();
 
-    std::string pvstring = get_pv(m_rootstate, m_root);  //--concurrency issues? used to use a copy instead.
+    std::string pvstring = get_pv(bh_, m_root);
     float winrate = 100.0f * m_root.get_eval(color);
     myprintf("Playouts: %d, Win: %5.2f%%, PV: %s\n",
              playouts, winrate, pvstring.c_str());
@@ -217,11 +215,9 @@ bool UCTSearch::playout_limit_reached() const {
 }
 
 void UCTWorker::operator()() {
-    std::string fen = m_rootstate.fen();
     do {
-        Position p;
-        p.set(fen, &m_statelist->back());
-        auto result = m_search->play_simulation(p, m_root);
+        BoardHistory bh = bh_.shallow_clone();
+        auto result = m_search->play_simulation(bh, m_root);
         if (result.valid()) {
             m_search->increment_playouts();
         }
@@ -244,25 +240,25 @@ Move UCTSearch::think() {
 
     // create a sorted list of legal moves (make sure we play something legal and decent even in time trouble)
     float root_eval;
-    m_root.create_children(m_nodes, m_rootstate, root_eval);
+    m_root.create_children(m_nodes, bh_, root_eval);
     if (cfg_noise) {
         m_root.dirichlet_noise(0.25f, 0.3f);
     }
 
-    myprintf("NN eval=%f\n", (m_rootstate.side_to_move() == WHITE ? root_eval : 1.0f - root_eval));
+    myprintf("NN eval=%f\n", (bh_.cur().side_to_move() == WHITE ? root_eval : 1.0f - root_eval));
 
     m_run = true;
     int cpus = cfg_num_threads;
     ThreadGroup tg(thread_pool);
     for (int i = 1; i < cpus; i++) {
-        tg.add_task(UCTWorker(m_rootstate, m_statelist, this, &m_root));
+        tg.add_task(UCTWorker(bh_, this, &m_root));
     }
 
     bool keeprunning = true;
     int last_update = 0;
     do {
-        auto currstate = Position::duplicate(m_rootstate, m_statelist);
-        auto result = play_simulation(*currstate, &m_root);
+        auto currstate = bh_.shallow_clone();
+        auto result = play_simulation(currstate, &m_root);
         if (result.valid()) {
             increment_playouts();
         }
@@ -290,8 +286,8 @@ Move UCTSearch::think() {
 
     // display search info
     myprintf("\n");
-    dump_stats(m_rootstate, m_root);
-    Training::record(m_rootstate, m_root);
+    dump_stats(bh_, m_root);
+    Training::record(bh_, m_root);
 
     Time elapsed;
     int centiseconds_elapsed = Time::timediff(start, elapsed);
@@ -314,11 +310,11 @@ void UCTSearch::ponder() {
     int cpus = cfg_num_threads;
     ThreadGroup tg(thread_pool);
     for (int i = 1; i < cpus; i++) {
-        tg.add_task(UCTWorker(m_rootstate, m_statelist, this, &m_root));
+        tg.add_task(UCTWorker(bh_, this, &m_root));
     }
     do {
-        auto currstate = Position::duplicate(m_rootstate, m_statelist);
-        auto result = play_simulation(*currstate, &m_root);
+        auto bh = bh_.shallow_clone();
+        auto result = play_simulation(bh, &m_root);
         if (result.valid()) {
             increment_playouts();
         }
@@ -329,7 +325,7 @@ void UCTSearch::ponder() {
     tg.wait_all();
     // display search info
     myprintf("\n");
-    dump_stats(m_rootstate, m_root);
+    dump_stats(bh_, m_root);
 
     myprintf("\n%d visits, %d nodes\n\n", m_root.get_visits(), (int)m_nodes);
 }

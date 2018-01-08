@@ -57,6 +57,13 @@
 
 using namespace Utils;
 
+constexpr int Network::FORMAT_VERSION;
+constexpr int Network::T_HISTORY;
+constexpr int Network::INPUT_CHANNELS;
+
+constexpr int Network::NUM_OUTPUT_POLICY;
+constexpr int Network::NUM_VALUE_CHANNELS;
+
 std::unordered_map<Move, int> Network::move_lookup;
 std::array<Move, Network::NUM_OUTPUT_POLICY> Network::rev_move_lookup;
 
@@ -493,13 +500,13 @@ void Network::softmax(const std::vector<float>& input, std::vector<float>& outpu
     }
 }
 
-Network::Netresult Network::get_scored_moves(Position* pos, DebugRawData* debug_data) {
+Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawData* debug_data) {
     NNPlanes planes;
     gather_features(pos, planes);
     return get_scored_moves_internal(pos, planes, debug_data);
 }
 
-Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& planes, DebugRawData* debug_data) {
+Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, NNPlanes& planes, DebugRawData* debug_data) {
     assert(INPUT_CHANNELS == planes.bit.size()+3);
     constexpr int width = 8;
     constexpr int height = 8;
@@ -564,7 +571,7 @@ Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& p
     // Sigmoid
     float winrate_sig = (1.0f + std::tanh(winrate_out[0])) / 2.0f;
 
-    MoveList<LEGAL> moves(*pos);
+    MoveList<LEGAL> moves(pos.cur());
     std::vector<scored_node> result;
     for (Move move : moves) {
         result.emplace_back(outputs[move_lookup[move]], move);
@@ -583,7 +590,7 @@ Network::Netresult Network::get_scored_moves_internal(Position* pos, NNPlanes& p
 //void Network::show_heatmap(Position* state, Netresult& result, bool topmoves) { //--killed.
 
 template<PieceType Pt>
-void addPieces(Position* pos, Color side, Network::NNPlanes& planes, int plane_idx) {
+void addPieces(const Position* pos, Color side, Network::NNPlanes& planes, int plane_idx) {
   // TODO(gary): Need to flip this to be relative to player to move?
   const Square* squares = pos->squares<Pt>(side);
   while (*squares != SQ_NONE) {
@@ -592,43 +599,9 @@ void addPieces(Position* pos, Color side, Network::NNPlanes& planes, int plane_i
   }
 }
 
-void Network::gather_features(Position* pos, NNPlanes& planes) {
-    Color side = pos->side_to_move();
-    std::stack<StateInfo*> states;
-    std::string original_fen = pos->fen();
-    int backtracks;
-    for (backtracks = 0; backtracks < T_HISTORY; backtracks++) {
-        addPieces<PAWN  >(pos, side, planes, backtracks * 14 + 0);
-        addPieces<KNIGHT>(pos, side, planes, backtracks * 14 + 1);
-        addPieces<BISHOP>(pos, side, planes, backtracks * 14 + 2);
-        addPieces<ROOK  >(pos, side, planes, backtracks * 14 + 3);
-        addPieces<QUEEN >(pos, side, planes, backtracks * 14 + 4);
-        addPieces<KING  >(pos, side, planes, backtracks * 14 + 5);
-
-        addPieces<PAWN  >(pos, ~side, planes, backtracks * 14 + 6);
-        addPieces<KNIGHT>(pos, ~side, planes, backtracks * 14 + 7);
-        addPieces<BISHOP>(pos, ~side, planes, backtracks * 14 + 8);
-        addPieces<ROOK  >(pos, ~side, planes, backtracks * 14 + 9);
-        addPieces<QUEEN >(pos, ~side, planes, backtracks * 14 + 10);
-        addPieces<KING  >(pos, ~side, planes, backtracks * 14 + 11);
-
-        int repetitions = pos->repetitions_count();
-        if (repetitions >= 1) planes.bit[backtracks * 14 + 12].set();
-        if (repetitions >= 2) planes.bit[backtracks * 14 + 13].set();
-
-        StateInfo* state = pos->get_state();
-        if (state->move == MOVE_NONE) break;
-        states.push(state);
-        pos->undo_move(state->move);
-    }
-
-    for (int h = 0; h < backtracks; h++) {
-        StateInfo* state = states.top();
-        states.pop();
-        pos->do_move(state->move, *state);
-    }
-
-    assert(original_fen == pos->fen());
+void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
+    Color side = bh.cur().side_to_move();
+    const Position* pos = &bh.cur();
 
     int kFeatureBase = T_HISTORY * 14;
     if (pos->can_castle(BLACK_OOO)) planes.bit[kFeatureBase+(side==BLACK?0:2)+0].set();
@@ -638,6 +611,28 @@ void Network::gather_features(Position* pos, NNPlanes& planes) {
     if (side == BLACK) planes.bit[kFeatureBase+4].set();
     planes.rule50_count = pos->rule50_count();
     planes.move_count = pos->game_ply();
+
+    int mc = bh.positions.size() - 1;
+    for (int i = 0; i < std::min(T_HISTORY, mc + 1); ++i) {
+        pos = &bh.positions[mc - i];
+        addPieces<PAWN  >(pos, side, planes, i * 14 + 0);
+        addPieces<KNIGHT>(pos, side, planes, i * 14 + 1);
+        addPieces<BISHOP>(pos, side, planes, i * 14 + 2);
+        addPieces<ROOK  >(pos, side, planes, i * 14 + 3);
+        addPieces<QUEEN >(pos, side, planes, i * 14 + 4);
+        addPieces<KING  >(pos, side, planes, i * 14 + 5);
+
+        addPieces<PAWN  >(pos, ~side, planes, i * 14 + 6);
+        addPieces<KNIGHT>(pos, ~side, planes, i * 14 + 7);
+        addPieces<BISHOP>(pos, ~side, planes, i * 14 + 8);
+        addPieces<ROOK  >(pos, ~side, planes, i * 14 + 9);
+        addPieces<QUEEN >(pos, ~side, planes, i * 14 + 10);
+        addPieces<KING  >(pos, ~side, planes, i * 14 + 11);
+
+        int repetitions = pos->repetitions_count();
+        if (repetitions >= 1) planes.bit[i * 14 + 12].set();
+        if (repetitions >= 2) planes.bit[i * 14 + 13].set();
+    }
 }
 
 std::string Network::DebugRawData::getJson() const {

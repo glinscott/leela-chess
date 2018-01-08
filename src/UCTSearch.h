@@ -59,7 +59,7 @@ public:
     */
     static constexpr auto MAX_TREE_SIZE = 40'000'000;
 
-    UCTSearch(Position& pos, StateListPtr& states);
+    UCTSearch(BoardHistory&& bh);
     Move think();
     void set_playout_limit(int playouts);
     void set_analyzing(bool flag);
@@ -68,16 +68,15 @@ public:
     bool is_running() const;
     bool playout_limit_reached() const;
     void increment_playouts();
-    SearchResult play_simulation(Position& currstate, UCTNode* const node);
+    SearchResult play_simulation(BoardHistory& bh, UCTNode* const node);
     
 private:
-    void dump_stats(Position& pos, UCTNode& parent);
-    std::string get_pv(Position& pos, UCTNode& parent);
+    void dump_stats(BoardHistory& pos, UCTNode& parent);
+    std::string get_pv(BoardHistory& pos, UCTNode& parent);
     void dump_analysis(int playouts);
     Move get_best_move();
 
-    Position& m_rootstate;
-    StateListPtr& m_statelist;
+    BoardHistory bh_;
     UCTNode m_root{MOVE_NONE, 0.0f, 0.5f};
     std::atomic<int> m_nodes{0};
     std::atomic<int> m_playouts{0};
@@ -87,12 +86,11 @@ private:
 
 class UCTWorker {
 public:
-    UCTWorker(const Position& state, StateListPtr& states, UCTSearch* search, UCTNode* root)
-      : m_rootstate(state), m_statelist(new std::deque<StateInfo>(*states)), m_search(search), m_root(root) {}
+    UCTWorker(const BoardHistory& bh, UCTSearch* search, UCTNode* root)
+      : bh_(bh), m_search(search), m_root(root) {}
     void operator()();
 private:
-    const Position& m_rootstate;
-    StateListPtr m_statelist;
+    const BoardHistory& bh_;
     UCTSearch* m_search;
     UCTNode* m_root;
 };

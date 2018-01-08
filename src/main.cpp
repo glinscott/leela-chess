@@ -35,12 +35,13 @@
 extern const char* StartFEN;
 
 void bench() {
-  Position game;
-  StateListPtr states(new std::deque<StateInfo>(1));
-  game.set(StartFEN, &states->back());
+  BoardHistory bh;
+  bh.positions.emplace_back();
+  bh.states.emplace_back(new StateInfo());
+  bh.cur().set(StartFEN, bh.states.back().get());
 
   Network::DebugRawData debug_data;
-  auto r = Network::get_scored_moves(&game, &debug_data);
+  auto r = Network::get_scored_moves(bh, &debug_data);
 
   FILE* f = fopen("/tmp/output", "w");
   fputs(debug_data.getJson().c_str(), f);
@@ -53,26 +54,25 @@ void bench() {
 }
 
 // Return the score from the self-play game
-int selfPlayResult(Position& game, StateListPtr& states) {
+int selfPlayResult(BoardHistory& bh) {
   for (int game_ply = 0; game_ply < 150; ++game_ply) {
-    if (game.is_draw()) {
+    if (bh.cur().is_draw()) {
       return 0;
     }
-    MoveList<LEGAL> moves(game);
+    MoveList<LEGAL> moves(bh.cur());
     if (moves.size() == 0) {
-      if (game.checkers()) {
+      if (bh.cur().checkers()) {
         // Checkmate
-        return game.side_to_move() == WHITE ? -1 : 1;
+        return bh.cur().side_to_move() == WHITE ? -1 : 1;
       } else {
         // Stalemate
         return 0;
       }
     }
-    auto search = std::make_unique<UCTSearch>(game, states);
+    auto search = std::make_unique<UCTSearch>(bh.clone());
     Move move = search->think();
 
-    states->emplace_back();
-    game.do_move(move, states->back());
+    bh.do_move(move);
   }
 
   // Game termination as draw
@@ -80,12 +80,13 @@ int selfPlayResult(Position& game, StateListPtr& states) {
 }
 
 void selfPlayGame() {
-  Position game;
-  StateListPtr states(new std::deque<StateInfo>(1));
-  game.set(StartFEN, &states->back());
+  BoardHistory bh;
+  bh.positions.emplace_back();
+  bh.states.emplace_back(new StateInfo());
+  bh.cur().set(StartFEN, bh.states.back().get());
   Training::clear_training();
 
-  int game_score = selfPlayResult(game, states);
+  int game_score = selfPlayResult(bh);
 
   Training::dump_training(game_score, "training");
 }

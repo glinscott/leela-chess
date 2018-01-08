@@ -24,6 +24,7 @@
 #include <cassert>
 #include <deque>
 #include <memory> // For std::unique_ptr
+#include <vector>
 #include <string>
 
 #include "Bitboard.h"
@@ -70,14 +71,12 @@ public:
   static void init();
 
   Position() = default;
-  Position(const Position&) = delete;
-  Position& operator=(const Position&) = delete;
-  static std::unique_ptr<Position> duplicate(const Position&, StateListPtr& states);
 
   // FEN string input/output
   Position& set(const std::string& fenStr, StateInfo* si);
   Position& set(const std::string& code, Color c, StateInfo* si);
   const std::string fen() const;
+  void set_st(StateInfo* si) { st = si; }
 
   // Position representation
   Bitboard pieces() const;
@@ -152,8 +151,6 @@ public:
   // Position consistency check, for debugging
   bool pos_is_ok() const;
   void flip();
-	
-	StateInfo* get_state() const; //--a bad violation of encapsulation... :( can't find a better way for gather_features
 
 private:
   // Initialization helpers (used while setting up a position)
@@ -386,5 +383,48 @@ inline void Position::move_piece(Piece pc, Square from, Square to) {
 inline void Position::do_move(Move m, StateInfo& newSt) {
   do_move(m, newSt, gives_check(m));
 }
+
+struct BoardHistory {
+  std::vector<Position> positions;
+  std::vector<std::unique_ptr<StateInfo>> states;
+
+  Position& cur() {
+    return positions.back();
+  }
+
+  const Position& cur() const {
+    return positions.back();
+  }
+
+  BoardHistory clone() const {
+    BoardHistory h;
+    StateInfo* prev = nullptr;
+    for (const auto& state : states) {
+      h.states.emplace_back(std::unique_ptr<StateInfo>(new StateInfo(*state)));
+      h.states.back()->previous = prev;
+      prev = h.states.back().get();
+    }
+    assert(positions.size() == states.size());
+    h.positions = positions;
+    for (size_t i = 0; i < states.size(); ++i) {
+      h.positions[i].set_st(h.states[i].get());
+    }
+    return h;
+  }
+
+  BoardHistory shallow_clone() const {
+    BoardHistory h;
+    for (int i = std::max(0, static_cast<int>(positions.size()) - 8); i < static_cast<int>(positions.size()); ++i) {
+      h.positions.push_back(positions[i]);
+    }
+    return h;
+  }
+
+  void do_move(Move m) {
+    states.emplace_back(new StateInfo);
+    positions.push_back(positions.back());
+    positions.back().do_move(m, *states.back());
+  }
+};
 
 #endif // #ifndef POSITION_H_INCLUDED

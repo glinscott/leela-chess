@@ -75,7 +75,7 @@ SMP::Mutex & UCTNode::get_mutex() {
     return m_nodemutex;
 }
 
-bool UCTNode::create_children(std::atomic<int>& nodecount, Position& state, float& eval) {
+bool UCTNode::create_children(std::atomic<int>& nodecount, const BoardHistory& state, float& eval) {
     // check whether somebody beat us to it (atomic)
     if (has_children()) {
         return false;
@@ -83,7 +83,7 @@ bool UCTNode::create_children(std::atomic<int>& nodecount, Position& state, floa
     // acquire the lock
     LOCK(get_mutex(), lock);
     // no successors in final state
-    bool drawn = state.is_draw(); //--figure out _ply_ parameter for is_draw...
+    bool drawn = state.cur().is_draw(); //--figure out _ply_ parameter for is_draw...
     if (drawn) {
         return false;
     }
@@ -99,14 +99,14 @@ bool UCTNode::create_children(std::atomic<int>& nodecount, Position& state, floa
     m_is_expanding = true;
     lock.unlock();
 
-    auto raw_netlist = Network::get_scored_moves(&state);
+    auto raw_netlist = Network::get_scored_moves(state);
     if (raw_netlist.first.empty()) {
         return false;
     }
 
     // DCNN returns winrate as side to move
     auto net_eval = raw_netlist.second;
-    auto to_move = state.side_to_move();
+    auto to_move = state.cur().side_to_move();
     // our search functions evaluate from white's point of view
     if (to_move == BLACK) {
         net_eval = 1.0f - net_eval;
@@ -154,14 +154,14 @@ void UCTNode::link_nodelist(std::atomic<int>& nodecount, std::vector<std::pair<f
     m_has_children = true;
 }
 
-float UCTNode::eval_state(Position& state) {
-    auto raw_netlist = Network::get_scored_moves(&state);
+float UCTNode::eval_state(const BoardHistory& state) {
+    auto raw_netlist = Network::get_scored_moves(state);
 
     // DCNN returns winrate as side to move
     auto net_eval = raw_netlist.second;
 
     // But we score from white's point of view
-    if (state.side_to_move() == BLACK) {
+    if (state.cur().side_to_move() == BLACK) {
         net_eval = 1.0f - net_eval;
     }
 
