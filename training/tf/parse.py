@@ -16,110 +16,91 @@
 #    You should have received a copy of the GNU General Public License
 #    along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 
+import binascii
 import sys
 import glob
 import gzip
 import random
 import math
 import multiprocessing as mp
+import numpy as np
+import time
 import tensorflow as tf
 from tfprocess import TFProcess
 
-# 16 planes, 1 stm, 1 x 362 probs, 1 winner = 19 lines
-DATA_ITEM_LINES = 16 + 1 + 1 + 1
+DATA_ITEM_LINES = 121
 
 BATCH_SIZE = 256
 
-def remap_vertex(vertex, symmetry):
-    """
-        Remap a go board coordinate according to a symmetry.
-    """
-    assert vertex >= 0 and vertex < 361
-    x = vertex % 19
-    y = vertex // 19
-    if symmetry >= 4:
-        x, y = y, x
-        symmetry -= 4
-    if symmetry == 1 or symmetry == 3:
-        x = 19 - x - 1
-    if symmetry == 2 or symmetry == 3:
-        y = 19 - y - 1
-    return y * 19 + x
-
-def apply_symmetry(plane, symmetry):
-    """
-        Applies one of 8 symmetries to the go board.
-
-        The supplied go board can have 361 or 362 elements. The 362th
-        element is pass will which get the identity mapping.
-    """
-    assert symmetry >= 0 and symmetry < 8
-    work_plane = [0.0] * 361
-    for vertex in range(0, 361):
-        work_plane[vertex] = plane[remap_vertex(vertex, symmetry)]
-    # Map back "pass"
-    if len(plane) == 362:
-        work_plane.append(plane[361])
-    return work_plane
-
-def convert_train_data(text_item):
-    """
-        Convert textual training data to python lists.
-
-        Converts a set of 19 lines of text into a pythonic dataformat.
-        [[plane_1],[plane_2],...],...
-        [probabilities],...
-        winner,...
-    """
-    planes = []
-    for plane in range(0, 16):
-        # 360 first bits are 90 hex chars
-        hex_string = text_item[plane][0:90]
-        integer = int(hex_string, 16)
-        as_str = format(integer, '0>360b')
-        # remaining bit that didn't fit
-        last_digit = text_item[plane][90]
-        assert last_digit == "0" or last_digit == "1"
-        as_str += last_digit
-        assert len(as_str) == 361
-        plane = [0.0 if digit == "0" else 1.0 for digit in as_str]
-        planes.append(plane)
-    stm = text_item[16][0]
-    assert stm == "0" or stm == "1"
-    if stm == "0":
-        planes.append([1.0] * 361)
-        planes.append([0.0] * 361)
-    else:
-        planes.append([0.0] * 361)
-        planes.append([1.0] * 361)
-    assert len(planes) == 18
-    probabilities = []
-    for val in text_item[17].split():
-        float_val = float(val)
-        # Work around a bug in leela-zero v0.3
-        if math.isnan(float_val):
-            return False, None
-        probabilities.append(float_val)
-    assert len(probabilities) == 362
-    winner = float(text_item[18])
-    assert winner == 1.0 or winner == -1.0
-    # Get one of 8 symmetries
-    symmetry = random.randrange(8)
-    sym_planes = [apply_symmetry(plane, symmetry) for plane in planes]
-    sym_probabilities = apply_symmetry(probabilities, symmetry)
-    return True, (sym_planes, sym_probabilities, [winner])
-
 class ChunkParser:
     def __init__(self, chunks):
-        self.queue = mp.Queue(4096)
+        self.flat_planes = []
+        for r in range(0, 255):
+            self.flat_planes.append(bytes([r]*64))
+
         # Start worker processes, leave 1 for TensorFlow
         workers = max(1, mp.cpu_count() - 1)
         print("Using {} worker processes.".format(workers))
-        for _ in range(workers):
-            mp.Process(target=self.task,
-                       args=(chunks, self.queue)).start()
+        self.readers = []
 
-    def task(self, chunks, queue):
+        for _ in range(workers):
+            read, write = mp.Pipe(False)
+            mp.Process(target=self.task,
+                       args=(chunks, write)).start()
+            self.readers.append(read)
+
+    def convert_train_data(self, text_item):
+        """
+            Convert textual training data to a tf.train.Example
+
+            Converts a set of 121 lines of text into a pythonic dataformat.
+            [[plane_1],[plane_2],...],...
+            [probabilities],...
+            winner,...
+        """
+        # We start by building a list of 112 planes, each being a 8*8=64 element array
+        # of type np.uint8
+        planes = []
+        for plane in range(0, 112):
+            hex_string = text_item[plane]
+            array = np.unpackbits(np.frombuffer(bytearray.fromhex(hex_string), dtype=np.uint8))
+            planes.append(array)
+
+        # We flatten to a single array of len 112*8*8, type=np.uint8
+        planes = np.concatenate(planes)
+        # Convert the array to a byte string
+        planes = [ planes.tobytes() ]
+
+        # Now we add the two final planes
+        for plane in range(112, 119):
+            stm = int(text_item[plane])
+            planes.append(self.flat_planes[stm])
+        planes.append(self.flat_planes[0])
+
+        # Flatten all planes to a single byte string
+        planes = b''.join(planes)
+        assert len(planes) == (120 * 8 * 8)
+
+        # Load the probabilities.
+        probabilities = np.array(text_item[119].split()).astype(float)
+        if np.any(np.isnan(probabilities)):
+            # Work around a bug in leela-zero v0.3, skipping any
+            # positions that have a NaN in the probabilities list.
+            return False, None
+        assert len(probabilities) == 1924
+
+        # Load the game winner color.
+        winner = float(text_item[120])
+        assert winner == 1.0 or winner == -1.0 or winner == 0.0
+
+        # Construct the Example protobuf
+        example = tf.train.Example(features=tf.train.Features(feature={
+            'planes' : tf.train.Feature(bytes_list=tf.train.BytesList(value=[planes])),
+            'probs' : tf.train.Feature(float_list=tf.train.FloatList(value=probabilities)),
+            'winner' : tf.train.Feature(float_list=tf.train.FloatList(value=[winner]))}))
+        return True, example.SerializeToString()
+
+    def task(self, chunks, writer):
         while True:
             random.shuffle(chunks)
             for chunk in chunks:
@@ -129,19 +110,111 @@ class ChunkParser:
                     for item_idx in range(item_count):
                         pick_offset = item_idx * DATA_ITEM_LINES
                         item = file_content[pick_offset:pick_offset + DATA_ITEM_LINES]
-                        str_items = [str(line, 'ascii') for line in item]
-                        success, data = convert_train_data(str_items)
+                        str_items = [str(line, 'ascii').strip() for line in item]
+                        success, data = self.convert_train_data(str_items)
                         if success:
-                            queue.put(data)
+                            # Send it down the pipe.
+                            writer.send_bytes(data)
 
     def parse_chunk(self):
         while True:
-            yield self.queue.get()
+            for r in self.readers:
+                yield r.recv_bytes();
 
 def get_chunks(data_prefix):
     return glob.glob(data_prefix + "*.gz")
 
+
+#
+# Tests to check that records can round-trip successfully
+def generate_fake_pos():
+    """
+        Generate a random game position.
+        Result is ([[64] * 112], [1]*5, [1924], [1])
+    """
+    # 1. 112 binary planes of length 64
+    planes = [[float(f) for f in np.random.randint(2, size=64).tolist()] for plane in range(112)]
+    for i in range(5):
+        planes.append([np.random.randint(2)] * 64)
+    planes.append([np.random.randint(50)] * 64)
+    planes.append([np.random.randint(200)] * 64)
+    planes.append([0.0] * 64)
+    # 2. 1924 probs
+    probs = np.random.random(size=1924).tolist()
+    # 3. And a winner: 1 or -1
+    winner = [ float(np.random.randint(3)) - 1 ]
+    return (planes, probs, winner)
+
+def run_test(parser):
+    """
+        Test game position decoding.
+    """
+
+    # First, build a random game position.
+    planes, probs, winner = generate_fake_pos()
+
+    # Convert that to a text record in the same format
+    # generated by dump_supervised
+    items = []
+    for p in range(112):
+        h = np.packbits([int(x) for x in planes[p]]).tobytes()
+        h = binascii.hexlify(h).decode('ascii')
+        items.append(h)
+    for p in range(112, 119):
+        items.append(str(int(planes[p][0])))
+    # then probs
+    items.append(' '.join([str(x) for x in probs]))
+    # and finally a winner
+    items.append(str(int(winner[0])))
+
+    # Have an input string. Running it through parsing to see
+    # if it gives the same result we started with.
+    # We need a tf.Session() as we're going to use the tensorflow
+    # decoding framework for part of the parsing.
+    with tf.Session() as sess:
+        result = parser.convert_train_data(items)
+        assert result[0] == True
+        # We got back a serialized tf.train.Example, which we need to decode.
+        graph = _parse_function(result[1])
+        data = sess.run(graph)
+        data = (data[0].tolist(), data[1].tolist(), data[2].tolist())
+
+        # Check that what we got out matches what we put in.
+        assert data[0] == planes
+        assert len(data[1]) == len(probs)
+        for i in range(len(probs)):
+            if abs(data[1][i] - probs[i]) > 1e-6:
+                assert False
+        assert data[2] == winner
+    print("Test parse passes")
+
+
+# Convert a tf.train.Example protobuf into a tuple of tensors
+# NB: This conversion is done in the tensorflow graph, NOT in python.
+def _parse_function(example_proto):
+    features = {"planes": tf.FixedLenFeature((1), tf.string),
+                "probs": tf.FixedLenFeature((1924), tf.float32),
+                "winner": tf.FixedLenFeature((1), tf.float32)}
+    parsed_features = tf.parse_single_example(example_proto, features)
+    # We receives the planes as a byte array, but we really want
+    # floats of shape (120, 8*8), so decode, cast, and reshape.
+    planes = tf.decode_raw(parsed_features["planes"], tf.uint8)
+    planes = tf.to_float(planes)
+    planes = tf.reshape(planes, (120, 8*8))
+    # the other features are already in the correct shape as return as-is.
+    return planes, parsed_features["probs"], parsed_features["winner"]
+
+def benchmark(parser):
+    gen = parser.parse_chunk()
+    while True:
+        start = time.time()
+        for _ in range(10000):
+            next(gen)
+        end = time.time()
+        print("{} pos/sec {} secs".format( 10000. / (end - start), (end - start)))
+
 def main(args):
+
     train_data_prefix = args.pop(0)
 
     chunks = get_chunks(train_data_prefix)
@@ -152,9 +225,13 @@ def main(args):
 
     parser = ChunkParser(chunks)
 
+    run_test(parser)
+    #benchmark(parser)
+
     dataset = tf.data.Dataset.from_generator(
-        parser.parse_chunk, output_types=(tf.float32, tf.float32, tf.float32))
+        parser.parse_chunk, output_types=(tf.string))
     dataset = dataset.shuffle(65536)
+    dataset = dataset.map(_parse_function)
     dataset = dataset.batch(BATCH_SIZE)
     dataset = dataset.prefetch(16)
     iterator = dataset.make_one_shot_iterator()
