@@ -64,10 +64,10 @@ bool cfg_quiet;
 
 void Parameters::setup_default_parameters() {
     cfg_allow_pondering = true;
-    //cfg_num_threads = std::max(1, std::min(SMP::get_num_cpus(), MAX_CPUS));
-    cfg_num_threads = 1;
+    cfg_num_threads = std::max(1, std::min(SMP::get_num_cpus(), MAX_CPUS));
+    //cfg_num_threads = 1;
 
-    cfg_max_playouts = 80; // 800
+    cfg_max_playouts = 800;
     cfg_lagbuffer_cs = 100;
 #ifdef USE_OPENCL
     cfg_gpus = { };
