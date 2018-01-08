@@ -116,12 +116,14 @@ public:
     void forward(const std::vector<net_t>& input, std::vector<net_t>& output);
 
 private:
+    using weight_slice_t = std::vector<cl::Buffer>::const_iterator;
+
     void push_weights(size_t layer, const std::vector<float> & weights) {
         add_weights(layer, weights.size(), weights.data());
     }
     void add_weights(size_t layer, size_t size, const float * weights);
-    void convolve(int filter_size, int channels, int outputs, cl::Buffer& input, cl::Buffer& output, cl::Buffer& merge, std::vector<cl::Buffer>& weights);
-    void batchnorm(int outputs, int channel_size, cl::Buffer& input, cl::Buffer& output, cl::Buffer* residual, std::vector<cl::Buffer>& weights);
+    void convolve(int filter_size, int channels, int outputs, cl::Buffer& input, cl::Buffer& output, cl::Buffer& merge, weight_slice_t weights);
+    void batchnorm(int outputs, int channel_size, cl::Buffer& input, cl::Buffer& output, cl::Buffer* residual, weight_slice_t weights);
     void innerproduct(int inputs, int outputs, cl::Buffer& input, cl::Buffer& output, std::vector<cl::Buffer>& weights);
     std::vector<Layer> m_layers;
 };
