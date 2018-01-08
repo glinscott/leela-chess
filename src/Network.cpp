@@ -65,7 +65,6 @@ constexpr int Network::NUM_OUTPUT_POLICY;
 constexpr int Network::NUM_VALUE_CHANNELS;
 
 std::unordered_map<Move, int> Network::move_lookup;
-std::array<Move, Network::NUM_OUTPUT_POLICY> Network::rev_move_lookup;
 
 // Input + residual block tower
 static std::vector<std::vector<float>> conv_weights;
@@ -259,11 +258,10 @@ void Network::init() {
 }
 
 void Network::init_move_map() {
-  Position p;
   std::vector<Move> moves;
   for (Square s = SQ_A1; s <= SQ_H8; ++s) {
     // Queen and knight moves
-    Bitboard b = p.attacks_from<QUEEN>(s) | p.attacks_from<KNIGHT>(s);
+    Bitboard b = attacks_bb(QUEEN, s, 0) | attacks_bb(KNIGHT, s, 0);
     while (b) {
       moves.push_back(make_move(s, pop_lsb(&b)));
     }
@@ -288,7 +286,6 @@ void Network::init_move_map() {
 
   for (size_t i = 0; i < moves.size(); ++i) {
     move_lookup[moves[i]] = i;
-    rev_move_lookup[i] = moves[i];
   }
   printf("Generated %lu moves\n", moves.size());
 }
@@ -574,7 +571,16 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     MoveList<LEGAL> moves(pos.cur());
     std::vector<scored_node> result;
     for (Move move : moves) {
-        result.emplace_back(outputs[move_lookup[move]], move);
+        Move network_move = move;
+        if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
+            network_move = Move(network_move & 0xfff);
+        }
+        // TODO(gary): Remove this once more confident
+        if (move_lookup.find(network_move) == move_lookup.end()) {
+          printf("Unknown move: %x, %d, %d, %x, %s\n", move, from_sq(move), to_sq(move), type_of(move), pos.cur().move_san(move).c_str());
+          exit(1);
+        }
+        result.emplace_back(outputs[move_lookup.at(network_move)], move);
     }
 
     if (debug_data) {

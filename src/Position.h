@@ -135,7 +135,7 @@ public:
   void undo_null_move();
   Move get_move();
 
-  std::string move_san(Move m);
+  std::string move_san(Move m) const;
 
   // Accessing hash keys
   Key key() const;

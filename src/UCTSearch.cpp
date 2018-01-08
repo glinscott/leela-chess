@@ -197,9 +197,10 @@ void UCTSearch::dump_analysis(int playouts) {
         return;
     }
 
-    Color color = bh_.cur().side_to_move();
+    auto bh = bh_.shallow_clone();
+    Color color = bh.cur().side_to_move();
 
-    std::string pvstring = get_pv(bh_, m_root);
+    std::string pvstring = get_pv(bh, m_root);
     float winrate = 100.0f * m_root.get_eval(color);
     myprintf("Playouts: %d, Win: %5.2f%%, PV: %s\n",
              playouts, winrate, pvstring.c_str());

@@ -1046,7 +1046,7 @@ bool Position::pos_is_ok() const {
   return true;
 }
 
-std::string Position::move_san(Move m) {
+std::string Position::move_san(Move m) const {
   Square from = from_sq(m);
   Square to = to_sq(m);
   Piece pc = moved_piece(m);
