@@ -180,12 +180,12 @@ namespace {
 
 void UCI::loop(int argc, char* argv[]) {
 
-  Position pos;
   string token, cmd;
-  StateListPtr states(new std::deque<StateInfo>(1));
-  auto uiThread = std::make_shared<Thread>(0);
 
-  pos.set(StartFEN, false, &states->back(), uiThread.get());
+  BoardHistory bh;
+  bh.positions.emplace_back();
+  bh.states.emplace_back(new StateInfo());
+  bh.cur().set(StartFEN, bh.states.back().get());
 
   for (int i = 1; i < argc; ++i)
       cmd += std::string(argv[i]) + " ";
