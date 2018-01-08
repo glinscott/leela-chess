@@ -72,7 +72,6 @@ public:
     };
 
     static std::unordered_map<Move, int> move_lookup;
-    static std::array<Move, NUM_OUTPUT_POLICY> rev_move_lookup;
     static Netresult get_scored_moves(const BoardHistory& state, DebugRawData* debug_data=nullptr);
 
     static void init();

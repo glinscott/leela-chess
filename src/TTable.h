@@ -19,10 +19,10 @@
 #ifndef TTABLE_H_INCLUDED
 #define TTABLE_H_INCLUDED
 
+#include <mutex>
 #include <vector>
 
 #include "UCTNode.h"
-#include "SMP.h"
 
 class TTEntry {
 public:
@@ -53,7 +53,7 @@ public:
 private:
     TTable(int size = 500000);
 
-    SMP::Mutex m_mutex;
+    std::mutex mutex_;
     std::vector<TTEntry> m_buckets;
 };
 

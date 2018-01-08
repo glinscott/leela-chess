@@ -63,8 +63,9 @@ bool cfg_quiet;
 
 void Parameters::setup_default_parameters() {
     cfg_allow_pondering = true;
-    cfg_num_threads = std::max(1, std::min(SMP::get_num_cpus(), MAX_CPUS));
-    //cfg_num_threads = 1;
+    int num_cpus = std::thread::hardware_concurrency();
+    //cfg_num_threads = std::max(1, std::min(num_cpus, MAX_CPUS));
+    cfg_num_threads = 1;
 
     cfg_max_playouts = 800;
     cfg_lagbuffer_cs = 100;

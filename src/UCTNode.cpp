@@ -52,7 +52,7 @@ UCTNode::UCTNode(Move move, float score, float init_eval)
 }
 
 UCTNode::~UCTNode() {
-    LOCK(get_mutex(), lock);
+    std::lock_guard<std::mutex> guard(m_nodemutex);
     UCTNode* next = m_firstchild;
 
     while (next != nullptr) {
@@ -71,33 +71,30 @@ void UCTNode::link_child(UCTNode* newchild) {
     m_firstchild = newchild;
 }
 
-SMP::Mutex & UCTNode::get_mutex() {
-    return m_nodemutex;
-}
-
 bool UCTNode::create_children(std::atomic<int>& nodecount, const BoardHistory& state, float& eval) {
     // check whether somebody beat us to it (atomic)
     if (has_children()) {
         return false;
     }
-    // acquire the lock
-    LOCK(get_mutex(), lock);
-    // no successors in final state
-    bool drawn = state.cur().is_draw(); //--figure out _ply_ parameter for is_draw...
-    if (drawn) {
-        return false;
+    {
+      // acquire the lock
+      std::lock_guard<std::mutex> guard(m_nodemutex);
+      // no successors in final state
+      bool drawn = state.cur().is_draw(); //--figure out _ply_ parameter for is_draw...
+      if (drawn) {
+          return false;
+      }
+      // check whether somebody beat us to it (after taking the lock)
+      if (has_children()) {
+          return false;
+      }
+      // Someone else is running the expansion
+      if (m_is_expanding) {
+          return false;
+      }
+      // We'll be the one queueing this node for expansion, stop others
+      m_is_expanding = true;
     }
-    // check whether somebody beat us to it (after taking the lock)
-    if (has_children()) {
-        return false;
-    }
-    // Someone else is running the expansion
-    if (m_is_expanding) {
-        return false;
-    }
-    // We'll be the one queueing this node for expansion, stop others
-    m_is_expanding = true;
-    lock.unlock();
 
     auto raw_netlist = Network::get_scored_moves(state);
     if (raw_netlist.first.empty()) {
@@ -142,7 +139,7 @@ void UCTNode::link_nodelist(std::atomic<int>& nodecount, std::vector<std::pair<f
     // link the nodes together
     auto childrenadded = 0;
 
-    LOCK(get_mutex(), lock);
+    std::lock_guard<std::mutex> guard(m_nodemutex);
 
     for (const auto& node : nodelist) {
         auto vtx = new UCTNode(node.second, node.first, init_eval);
@@ -335,7 +332,7 @@ UCTNode* UCTNode::uct_select_child(Color color) {
     UCTNode* best = nullptr;
     float best_value = -1000.0f;
 
-    LOCK(get_mutex(), lock);
+    std::lock_guard<std::mutex> guard(m_nodemutex);
     UCTNode* child = m_firstchild;
 
     // Count parentvisits.
@@ -403,7 +400,7 @@ public:
 };
 
 void UCTNode::sort_root_children(Color color) {
-    LOCK(get_mutex(), lock);
+    std::lock_guard<std::mutex> guard(m_nodemutex);
     auto tmp = std::vector<sortnode_t>{};
 
     auto child = m_firstchild;
@@ -443,7 +440,7 @@ UCTNode::sortnode_t get_sortnode(Color color, UCTNode* child) {
 }
 
 UCTNode* UCTNode::get_best_root_child(Color color) {
-    LOCK(get_mutex(), lock);
+    std::lock_guard<std::mutex> guard(m_nodemutex);
     assert(m_firstchild != nullptr);
 
     NodeComp compare;
@@ -470,7 +467,7 @@ UCTNode* UCTNode::get_sibling() const {
 // unsafe in SMP, we don't know if people hold pointers to the
 // child which they might dereference
 void UCTNode::delete_child(UCTNode * del_child) {
-    LOCK(get_mutex(), lock);
+    std::lock_guard<std::mutex> guard(m_nodemutex);
     assert(del_child != nullptr);
 
     if (del_child == m_firstchild) {

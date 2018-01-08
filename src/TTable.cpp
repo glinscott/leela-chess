@@ -29,12 +29,12 @@ TTable* TTable::get_TT(void) {
 }
 
 TTable::TTable(int size) {
-    LOCK(m_mutex, lock);
+    std::lock_guard<std::mutex> guard(mutex_);
     m_buckets.resize(size);
 }
 
 void TTable::update(uint64 hash, const UCTNode * node) {
-    LOCK(m_mutex, lock);
+    std::lock_guard<std::mutex> guard(mutex_);
 
     unsigned int index = (unsigned int)hash;
     index %= m_buckets.size();
@@ -48,7 +48,7 @@ void TTable::update(uint64 hash, const UCTNode * node) {
 }
 
 void TTable::sync(uint64 hash, UCTNode* node) {
-    LOCK(m_mutex, lock);
+    std::lock_guard<std::mutex> guard(mutex_);
 
     unsigned int index = (unsigned int)hash;
     index %= m_buckets.size();

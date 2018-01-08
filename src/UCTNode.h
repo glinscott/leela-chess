@@ -24,8 +24,8 @@
 #include <tuple>
 #include <atomic>
 #include <limits>
+#include <mutex>
 
-#include "SMP.h"
 #include "Position.h"
 #include "Network.h"
 
@@ -67,7 +67,6 @@ public:
 
     void sort_root_children(Color color);
     UCTNode* get_best_root_child(Color color);
-    SMP::Mutex & get_mutex();
 
 private:
     UCTNode();
@@ -90,7 +89,7 @@ private:
     // Is someone adding scores to this node?
     // We don't need to unset this.
     bool m_is_expanding{false};
-    SMP::Mutex m_nodemutex;
+    std::mutex m_nodemutex;
 };
 
 #endif
