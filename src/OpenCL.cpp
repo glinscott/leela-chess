@@ -335,7 +335,7 @@ static std::string sourceCode_utility = R"(
                         __global net_t * out,
                         __global const net_t * residual,
                         __constant const net_t * means,
-                        __constant const net_t * variances) {
+                        __constant const net_t * stddivs) {
 
         // cl::NDRange global(outputs, 8*8);
         const int gx = get_global_id(0);
@@ -348,11 +348,8 @@ static std::string sourceCode_utility = R"(
         const unsigned int o = output;
         const unsigned int b = gy;
 
-        const float epsilon = 1e-5;
-
         const float mean = vload_net_t(o, means);
-        const float variance = epsilon + vload_net_t(o, variances);
-        const float scale_stddiv = 1.0f / sqrt(variance);
+        const float scale_stddiv = vload_net_t(o, stddivs);
 
         // BN
         float sum = scale_stddiv * (vload_net_t(o * channel_size + b, in) - mean);
@@ -396,12 +393,10 @@ void OpenCL_Network::add_weights(size_t layer,
 
     auto weightSize = size * sizeof(decltype(converted_weights)::value_type);
 
-    cl::Buffer bufferWeights =
-        cl::Buffer(CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                   weightSize,
-                   const_cast<net_t*>(converted_weights.data()));
-
-    m_layers.back().weights.push_back(bufferWeights);
+    m_layers.back().weights.emplace_back(
+        CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+        weightSize,
+        const_cast<net_t*>(converted_weights.data()));
 }
 
 void OpenCL_Network::forward(const std::vector<net_t>& input,
@@ -444,25 +439,22 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
     const auto inSize = sizeof(net_t) * input.size();
     queue.enqueueWriteBuffer(inBuffer, CL_FALSE, 0, inSize, input.data());
 
-    for (auto& layer : m_layers) {
+    for (const auto& layer : m_layers) {
         if (layer.is_batchnorm) {
+            auto bn_weights = begin(layer.weights);
             batchnorm(layer.outputs,
                       layer.filter_size,
                       inBuffer,
                       tmpBuffer,
                       nullptr,
-                      layer.weights);
+                      bn_weights);
             std::swap(inBuffer, tmpBuffer);
         } else if (layer.is_residual_block) {
             assert(layer.channels == layer.outputs);
-            auto conv1_weights = std::vector<cl::Buffer>(begin(layer.weights),
-                                                         begin(layer.weights) + 2);
-            auto bn1_weights   = std::vector<cl::Buffer>(begin(layer.weights) + 2,
-                                                         begin(layer.weights) + 4);
-            auto conv2_weights = std::vector<cl::Buffer>(begin(layer.weights) + 4,
-                                                         begin(layer.weights) + 6);
-            auto bn2_weights   = std::vector<cl::Buffer>(begin(layer.weights) + 6,
-                                                         begin(layer.weights) + 8);
+            auto conv1_weights = begin(layer.weights);
+            auto bn1_weights   = begin(layer.weights) + 2;
+            auto conv2_weights = begin(layer.weights) + 4;
+            auto bn2_weights   = begin(layer.weights) + 6;
             const auto inBufferSize = layer.channels * one_plane;
             queue.enqueueCopyBuffer(inBuffer, residualBuffer, 0, 0, inBufferSize);
             convolve(layer.filter_size,
@@ -497,13 +489,14 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
             std::swap(inBuffer, tmpBuffer);
         } else  {
             // plain convolution
+            auto conv_weights = begin(layer.weights);
             convolve(layer.filter_size,
                      layer.channels,
                      layer.outputs,
                      inBuffer,
                      tmpBuffer,
                      mergeBuffer,
-                     layer.weights);
+                     conv_weights);
             std::swap(inBuffer, tmpBuffer);
         }
     }
@@ -518,7 +511,7 @@ void OpenCL_Network::convolve(int filter_size, int channels, int outputs,
                               cl::Buffer& bufferInput,
                               cl::Buffer& bufferOutput,
                               cl::Buffer& bufferMerge,
-                              std::vector<cl::Buffer>& weights) {
+                              weight_slice_t weights) {
     // fixed for 8x8
     constexpr int width = 8;
     constexpr int height = 8;
@@ -538,7 +531,6 @@ void OpenCL_Network::convolve(int filter_size, int channels, int outputs,
 
     // Input layer is not a multiple of 8
     if (channels % 8 != 0) {
-        fprintf(stderr, "channels %d\n", channels);
         assert(channels % 2 == 0);
         channelGroup = 2;
         channelShift = 1;
@@ -623,7 +615,7 @@ void OpenCL_Network::batchnorm(int outputs,
                                cl::Buffer& bufferInput,
                                cl::Buffer& bufferOutput,
                                cl::Buffer* bufferResidual,
-                               std::vector<cl::Buffer>& weights) {
+                               weight_slice_t weights) {
     cl::CommandQueue & queue = opencl_thread_data.m_commandqueue;
 
     cl::Kernel & batchnorm_kernel = opencl_thread_data.m_batchnorm_kernel;
