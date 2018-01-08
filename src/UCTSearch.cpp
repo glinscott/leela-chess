@@ -141,14 +141,6 @@ Move UCTSearch::get_best_move() {
 
     // Make sure best is first
     m_root.sort_root_children(color);
-
-    // Check whether to randomize the best move proportional
-    // to the playout counts, early game only.
-    auto movenum = int(bh_.cur().game_ply());
-    if (movenum < cfg_random_cnt) {
-        m_root.randomize_first_proportionally();
-    }
-
     Move bestmove = m_root.get_first_child()->get_move();
 
     // do we have statistics on the moves?

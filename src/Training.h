@@ -44,7 +44,7 @@ public:
     void append(const std::string& str);
 
     // Group this many positions in a batch.
-    static constexpr size_t CHUNK_SIZE = 16384;
+    static constexpr size_t CHUNK_SIZE = 150;
 private:
     std::string gen_chunk_name() const;
     void flush_chunks();
@@ -59,6 +59,7 @@ class Training {
 public:
     static void clear_training();
     static void dump_training(int game_score, const std::string& out_filename);
+    static void dump_training(int game_score, OutputChunker& outchunker);
     static void dump_stats(const std::string& out_filename);
     static void record(const BoardHistory& state, UCTNode& node);
 
@@ -69,7 +70,6 @@ private:
     static constexpr size_t SKIP_SIZE = 16;
 
 //    static void process_game(Position& state, size_t& train_pos, int who_won, const std::vector<int>& tree_moves, OutputChunker& outchunker);
-    static void dump_training(int game_score, OutputChunker& outchunker);
     static void dump_stats(OutputChunker& outchunker);
     static std::vector<TimeStep> m_data;
 };

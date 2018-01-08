@@ -47,7 +47,6 @@ int cfg_max_playouts;
 int cfg_lagbuffer_cs;
 int cfg_resignpct;
 int cfg_noise;
-int cfg_random_cnt;
 int cfg_min_resign_moves;
 uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
@@ -65,7 +64,6 @@ void Parameters::setup_default_parameters() {
     cfg_allow_pondering = true;
     int num_cpus = std::thread::hardware_concurrency();
     cfg_num_threads = std::max(1, std::min(num_cpus, MAX_CPUS));
-    // cfg_num_threads = 1;
 
     cfg_max_playouts = 800;
     cfg_lagbuffer_cs = 100;
@@ -77,8 +75,7 @@ void Parameters::setup_default_parameters() {
     cfg_softmax_temp = 1.0f;
     cfg_min_resign_moves = 20;
     cfg_resignpct = 10;
-    cfg_noise = true;
-    cfg_random_cnt = 0;
+    cfg_noise = false;
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     
