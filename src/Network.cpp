@@ -101,6 +101,8 @@ void Network::process_bn_var(std::vector<float>& weights, const float epsilon) {
     }
 }
 
+extern "C" void openblas_set_num_threads(int num_threads);
+
 void Network::init() {
     init_move_map();
 #ifdef USE_OPENCL
@@ -243,7 +245,7 @@ void Network::init() {
 #ifndef __APPLE__
 #ifdef USE_OPENBLAS
     // TODO(gary): Figure out a way to do this in a backwards compat way
-    // openblas_set_num_threads(1);
+    openblas_set_num_threads(1);
     // myprintf("BLAS Core: %s\n", openblas_get_corename());
 #endif
 #ifdef USE_MKL
