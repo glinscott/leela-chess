@@ -88,6 +88,8 @@ void selfPlayGame() {
 
   int game_score = selfPlayResult(bh);
 
+  printf("%s\n", bh.pgn().c_str());
+
   Training::dump_training(game_score, "training");
 }
 
