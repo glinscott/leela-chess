@@ -113,6 +113,7 @@ void Network::init() {
     // Count size of the network
     myprintf("Detecting residual layers...");
     std::ifstream wtfile(cfg_weightsfile);
+    printf("Loading %s\n", cfg_weightsfile.c_str());
     if (wtfile.fail()) {
         myprintf("Could not open weights file: %s\n", cfg_weightsfile.c_str());
         exit(EXIT_FAILURE);
@@ -289,7 +290,7 @@ void Network::init_move_map() {
   for (size_t i = 0; i < moves.size(); ++i) {
     move_lookup[moves[i]] = i;
   }
-  printf("Generated %lu moves\n", moves.size());
+  myprintf("Generated %lu moves\n", moves.size());
 }
 
 #ifdef USE_BLAS
@@ -468,15 +469,19 @@ void compare_net_outputs(std::vector<float>& data,
     // We accept an error up to 5%, but output values
     // smaller than 1/1000th are "rounded up" for the comparison.
     constexpr float relative_error = 5e-2;
+    int bad_outputs = 0;
     for (auto idx = size_t{0}; idx < data.size(); ++idx) {
         auto err = relative_difference(data[idx], ref[idx]);
         if (err > relative_error) {
-            myprintf("Error in OpenCL calculation: expected %f got %f "
-                     "(error=%f%%)\n", ref[idx], data[idx], err * 100.0);
-            myprintf("Update your GPU drivers or reduce the amount of games "
-                     "played simultaneously.\n");
-            throw std::runtime_error("OpenCL self-check mismatch.");
+            ++bad_outputs;
+            printf("Error in OpenCL calculation at %zu: expected %f got %f "
+                   "(error=%f%%)\n", idx, ref[idx], data[idx], err * 100.0);
+            printf("Update your GPU drivers or reduce the amount of games "
+                   "played simultaneously.\n");
         }
+    }
+    if (bad_outputs > 3) {
+        throw std::runtime_error("OpenCL self-check mismatch.");
     }
 }
 #endif
