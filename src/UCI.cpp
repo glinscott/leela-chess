@@ -136,7 +136,9 @@ namespace {
 
     // TODO(gary): This just does the search on the UI thread...
     auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
-    bh.do_move(search->think());
+    Move move = search->think();
+    bh.do_move(move);
+    printf("bestmove %s\n", UCI::move(move).c_str());
   }
 
 // Return the score from the self-play game
