@@ -210,9 +210,7 @@ static void parse_commandline(int argc, char *argv[]) {
 
 void bench() {
   BoardHistory bh;
-  bh.positions.emplace_back();
-  bh.states.emplace_back(new StateInfo());
-  bh.cur().set(StartFEN, bh.states.back().get());
+  bh.set(StartFEN);
 
   Network::DebugRawData debug_data;
   auto r = Network::get_scored_moves(bh, &debug_data);
@@ -243,7 +241,7 @@ int play_one_game(BoardHistory& bh) {
         return 0;
       }
     }
-    auto search = std::make_unique<UCTSearch>(bh.clone());
+    auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
     Move move = search->think();
 
     bh.do_move(move);
@@ -255,9 +253,7 @@ int play_one_game(BoardHistory& bh) {
 
 int play_one_game() {
   BoardHistory bh;
-  bh.positions.emplace_back();
-  bh.states.emplace_back(new StateInfo());
-  bh.cur().set(StartFEN, bh.states.back().get());
+  bh.set(StartFEN);
 
   Training::clear_training();
   int game_score = play_one_game(bh);
@@ -294,6 +290,7 @@ int main(int argc, char* argv[]) {
   setbuf(stdin, nullptr);
 #endif
   thread_pool.initialize(cfg_num_threads);
+  // Random::get_Rng().seedrandom(cfg_rng_seed);
   Network::init();
 
   // bench();
