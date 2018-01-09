@@ -133,7 +133,7 @@ public:
   void undo_move(Move m);
   void do_null_move(StateInfo& newSt);
   void undo_null_move();
-  Move get_move();
+  Move get_move() const;
 
   std::string move_san(Move m) const;
 
@@ -390,6 +390,15 @@ struct BoardHistory {
   std::vector<Position> positions;
   std::vector<std::unique_ptr<StateInfo>> states;
 
+  void set(const std::string& fen) {
+    positions.clear();
+    states.clear();
+
+    positions.emplace_back();
+    states.emplace_back(new StateInfo());
+    cur().set(fen, states.back().get());
+  }
+
   Position& cur() {
     return positions.back();
   }
@@ -398,22 +407,9 @@ struct BoardHistory {
     return positions.back();
   }
 
-  BoardHistory clone() const {
-    BoardHistory h;
-    StateInfo* prev = nullptr;
-    for (const auto& state : states) {
-      h.states.emplace_back(std::unique_ptr<StateInfo>(new StateInfo(*state)));
-      h.states.back()->previous = prev;
-      prev = h.states.back().get();
-    }
-    assert(positions.size() == states.size());
-    h.positions = positions;
-    for (size_t i = 0; i < states.size(); ++i) {
-      h.positions[i].set_st(h.states[i].get());
-    }
-    return h;
-  }
-
+  // Only need to copy the 8 most recent positions, as that's what is needed by
+  // the eval.  We don't need to fixup StateInfo, as we will never undo_move()
+  // before the "root" state.
   BoardHistory shallow_clone() const {
     BoardHistory h;
     for (int i = std::max(0, static_cast<int>(positions.size()) - 8); i < static_cast<int>(positions.size()); ++i) {
@@ -428,7 +424,7 @@ struct BoardHistory {
     positions.back().do_move(m, *states.back());
   }
 
-  std::string pgn() {
+  std::string pgn() const {
     std::string result;
     std::string line;
     for (int i = 0; i< static_cast<int>(positions.size()) - 1; ++i) {

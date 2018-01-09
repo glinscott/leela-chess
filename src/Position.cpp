@@ -874,7 +874,7 @@ void Position::undo_null_move() {
   sideToMove = ~sideToMove;
 }
 
-Move Position::get_move() {
+Move Position::get_move() const {
   return st->move;
 }
 

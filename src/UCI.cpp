@@ -87,10 +87,7 @@ namespace {
     while (is >> token)
         value += string(" ", value.empty() ? 0 : 1) + token;
 
-    if (Options.count(name))
-        Options[name] = value;
-    else
-        sync_cout << "No such option: " << name << sync_endl;
+    sync_cout << "No such option: " << name << sync_endl;
   }
 
 
