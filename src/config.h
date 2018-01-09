@@ -37,7 +37,7 @@
 #define USE_OPENBLAS
 #endif
 //#define USE_MKL
-#define USE_OPENCL
+//#define USE_OPENCL
 #define USE_OPENCL_SELFCHECK
 #define SELFCHECK_PROBABILITY 2000
 // Use 16-bit floating point storage for net calculations

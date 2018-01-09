@@ -25,14 +25,36 @@
 
 #include "Movegen.h"
 #include "Position.h"
+#include "Training.h"
 #include "UCI.h"
+#include "UCTSearch.h"
 
 using namespace std;
 
 // FEN string of the initial position, normal chess
 const char* StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-/*
+enum SyncCout { IO_LOCK, IO_UNLOCK };
+std::ostream& operator<<(std::ostream&, SyncCout);
+
+#define sync_cout std::cout << IO_LOCK
+#define sync_endl std::endl << IO_UNLOCK
+
+/// Used to serialize access to std::cout to avoid multiple threads writing at
+/// the same time.
+
+std::ostream& operator<<(std::ostream& os, SyncCout sc) {
+  static mutex m;
+
+  if (sc == IO_LOCK)
+      m.lock();
+
+  if (sc == IO_UNLOCK)
+      m.unlock();
+
+  return os;
+}
+
 namespace {
 
   // position() is called when engine receives the "position" UCI command.
@@ -40,7 +62,7 @@ namespace {
   // or the starting position ("startpos") and then makes the moves given in the
   // following move list ("moves").
 
-  void position(Position& pos, istringstream& is, StateListPtr& states) {
+  void position(BoardHistory& bh, istringstream& is) {
 
     Move m;
     string token, fen;
@@ -58,15 +80,11 @@ namespace {
     else
         return;
 
-    states = StateListPtr(new std::deque<StateInfo>(1)); // Drop old and create a new one
-    pos.set(fen, Options["UCI_Chess960"], &states->back(), Threads.main());
+    bh.set(fen);
 
     // Parse move list (if any)
-    while (is >> token && (m = UCI::to_move(pos, token)) != MOVE_NONE)
-    {
-        states->emplace_back();
-        pos.do_move(m, states->back());
-    }
+    while (is >> token && (m = UCI::to_move(bh.cur(), token)) != MOVE_NONE)
+        bh.do_move(m);
   }
 
 
@@ -95,20 +113,16 @@ namespace {
   // the thinking time and other parameters from the input string, then starts
   // the search.
 
-  void go(Position& pos, istringstream& is, StateListPtr& states) {
+  void go(BoardHistory& bh, istringstream& is) {
 
-    Search::LimitsType limits;
     string token;
+    /*
     bool ponderMode = false;
 
     limits.startTime = now(); // As early as possible!
 
     while (is >> token)
-        if (token == "searchmoves")
-            while (is >> token)
-                limits.searchmoves.push_back(UCI::to_move(pos, token));
-
-        else if (token == "wtime")     is >> limits.time[WHITE];
+        if (token == "wtime")     is >> limits.time[WHITE];
         else if (token == "btime")     is >> limits.time[BLACK];
         else if (token == "winc")      is >> limits.inc[WHITE];
         else if (token == "binc")      is >> limits.inc[BLACK];
@@ -116,55 +130,60 @@ namespace {
         else if (token == "depth")     is >> limits.depth;
         else if (token == "nodes")     is >> limits.nodes;
         else if (token == "movetime")  is >> limits.movetime;
-        else if (token == "mate")      is >> limits.mate;
-        else if (token == "perft")     is >> limits.perft;
         else if (token == "infinite")  limits.infinite = 1;
         else if (token == "ponder")    ponderMode = true;
+    */
 
-    Threads.start_thinking(pos, states, limits, ponderMode);
+    // TODO(gary): This just does the search on the UI thread...
+    auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
+    bh.do_move(search->think());
   }
 
-
-  // bench() is called when engine receives the "bench" command. Firstly
-  // a list of UCI commands is setup according to bench parameters, then
-  // it is run one by one printing a summary at the end.
-
-  void bench(Position& pos, istream& args, StateListPtr& states) {
-
-    string token;
-    uint64_t num, nodes = 0, cnt = 1;
-
-    vector<string> list = setup_bench(pos, args);
-    num = count_if(list.begin(), list.end(), [](string s) { return s.find("go ") == 0; });
-
-    TimePoint elapsed = now();
-
-    for (const auto& cmd : list)
-    {
-        istringstream is(cmd);
-        is >> skipws >> token;
-
-        if (token == "go")
-        {
-            cerr << "\nPosition: " << cnt++ << '/' << num << endl;
-            go(pos, is, states);
-            Threads.main()->wait_for_search_finished();
-            nodes += Threads.nodes_searched();
-        }
-        else if (token == "setoption")  setoption(is);
-        else if (token == "position")   position(pos, is, states);
-        else if (token == "ucinewgame") Search::clear();
+// Return the score from the self-play game
+int play_one_game(BoardHistory& bh) {
+  for (int game_ply = 0; game_ply < 150; ++game_ply) {
+    if (bh.cur().is_draw()) {
+      return 0;
     }
+    MoveList<LEGAL> moves(bh.cur());
+    if (moves.size() == 0) {
+      if (bh.cur().checkers()) {
+        // Checkmate
+        return bh.cur().side_to_move() == WHITE ? -1 : 1;
+      } else {
+        // Stalemate
+        return 0;
+      }
+    }
+    auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
+    Move move = search->think();
 
-    elapsed = now() - elapsed + 1; // Ensure positivity to avoid a 'divide by zero'
-
-    dbg_print(); // Just before exiting
-
-    cerr << "\n==========================="
-         << "\nTotal time (ms) : " << elapsed
-         << "\nNodes searched  : " << nodes
-         << "\nNodes/second    : " << 1000 * nodes / elapsed << endl;
+    bh.do_move(move);
   }
+
+  // Game termination as draw
+  return 0;
+}
+
+int play_one_game() {
+  BoardHistory bh;
+  bh.set(StartFEN);
+
+  Training::clear_training();
+  int game_score = play_one_game(bh);
+
+  printf("%s\n", bh.pgn().c_str());
+  printf("Score: %d\n", game_score);
+
+  return game_score;
+}
+
+void generate_training_games() {
+  auto chunker = OutputChunker{"data/training", true};
+  for (;;) {
+    Training::dump_training(play_one_game(), chunker);
+  }
+}
 
 } // namespace
 
@@ -175,20 +194,15 @@ namespace {
 /// run 'bench', once the command is executed the function returns immediately.
 /// In addition to the UCI ones, also some additional debug commands are supported.
 
-void UCI::loop(int argc, char* argv[]) {
+void UCI::loop(const std::string& start) {
 
-  string token, cmd;
+  string token, cmd = start;
 
   BoardHistory bh;
-  bh.positions.emplace_back();
-  bh.states.emplace_back(new StateInfo());
-  bh.cur().set(StartFEN, bh.states.back().get());
-
-  for (int i = 1; i < argc; ++i)
-      cmd += std::string(argv[i]) + " ";
+  bh.set(StartFEN);
 
   do {
-      if (argc == 1 && !getline(cin, cmd)) // Block here waiting for input or EOF
+      if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF
           cmd = "quit";
 
       istringstream is(cmd);
@@ -196,6 +210,7 @@ void UCI::loop(int argc, char* argv[]) {
       token.clear(); // Avoid a stale if getline() returns empty or blank line
       is >> skipws >> token;
 
+      /*
       // The GUI sends 'ponderhit' to tell us the user has played the expected move.
       // So 'ponderhit' will be sent if we were told to ponder on the same move the
       // user has played. We should continue searching but switch from pondering to
@@ -205,32 +220,30 @@ void UCI::loop(int argc, char* argv[]) {
           ||  token == "stop"
           || (token == "ponderhit" && Threads.stopOnPonderhit))
           Threads.stop = true;
-
       else if (token == "ponderhit")
           Threads.ponder = false; // Switch to normal search
+      */
 
-      else if (token == "uci")
-          sync_cout << "id name " << engine_info(true)
-                    << "\n"       << Options
-                    << "\nuciok"  << sync_endl;
+      if (token == "uci")
+          sync_cout << "id name lczero\n"
+                    << "uciok"  << sync_endl;
 
       else if (token == "setoption")  setoption(is);
-      else if (token == "go")         go(pos, is, states);
-      else if (token == "position")   position(pos, is, states);
-      else if (token == "ucinewgame") Search::clear();
+      else if (token == "go")         go(bh, is);
+      else if (token == "position")   position(bh, is);
+      // else if (token == "ucinewgame") Search::clear();
       else if (token == "isready")    sync_cout << "readyok" << sync_endl;
 
       // Additional custom non-UCI commands, mainly for debugging
-      else if (token == "flip")  pos.flip();
-      else if (token == "bench") bench(pos, is, states);
-      else if (token == "d")     sync_cout << pos << sync_endl;
-      else if (token == "eval")  sync_cout << Eval::trace(pos) << sync_endl;
+      else if (token == "train")   generate_training_games();
+      //else if (token == "bench") bench(pos, is, states);
+      //else if (token == "d")     sync_cout << pos << sync_endl;
+      //else if (token == "eval")  sync_cout << Eval::trace(pos) << sync_endl;
       else
           sync_cout << "Unknown command: " << cmd << sync_endl;
 
-  } while (token != "quit" && argc == 1); // Command line args are one-shot
+  } while (token != "quit" && start.empty()); // Command line args are one-shot
 }
-*/
 
 /// UCI::square() converts a Square to a string in algebraic notation (g1, a7, etc.)
 

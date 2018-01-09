@@ -50,7 +50,7 @@ static void license_blurb() {
     );
 }
 
-static void parse_commandline(int argc, char *argv[]) {
+static std::string parse_commandline(int argc, char *argv[]) {
     namespace po = boost::program_options;
     // Declare the supported options.
     po::options_description v_desc("Allowed options");
@@ -71,6 +71,7 @@ static void parse_commandline(int argc, char *argv[]) {
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
         ("noponder", "Disable thinking on opponent's time.")
+        ("start", po::value<std::string>(), "Start command {train, bench}.")
 #ifdef USE_OPENCL
         /*
         ("gpu",  po::value<std::vector<int> >(),
@@ -206,6 +207,13 @@ static void parse_commandline(int argc, char *argv[]) {
     }
     */
 #endif
+
+    std::string start = "";
+    if (vm.count("start")) {
+        start = vm["start"].as<std::string>();
+    }
+
+    return start;
 }
 
 void bench() {
@@ -225,59 +233,13 @@ void bench() {
   */
 }
 
-// Return the score from the self-play game
-int play_one_game(BoardHistory& bh) {
-  for (int game_ply = 0; game_ply < 150; ++game_ply) {
-    if (bh.cur().is_draw()) {
-      return 0;
-    }
-    MoveList<LEGAL> moves(bh.cur());
-    if (moves.size() == 0) {
-      if (bh.cur().checkers()) {
-        // Checkmate
-        return bh.cur().side_to_move() == WHITE ? -1 : 1;
-      } else {
-        // Stalemate
-        return 0;
-      }
-    }
-    auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
-    Move move = search->think();
-
-    bh.do_move(move);
-  }
-
-  // Game termination as draw
-  return 0;
-}
-
-int play_one_game() {
-  BoardHistory bh;
-  bh.set(StartFEN);
-
-  Training::clear_training();
-  int game_score = play_one_game(bh);
-
-  printf("%s\n", bh.pgn().c_str());
-  printf("Score: %d\n", game_score);
-
-  return game_score;
-}
-
-void generate_training_games() {
-  auto chunker = OutputChunker{"data/training", true};
-  for (;;) {
-    Training::dump_training(play_one_game(), chunker);
-  }
-}
-
 int main(int argc, char* argv[]) {
 
   Bitboards::init();
   Position::init();
 
   Parameters::setup_default_parameters();
-  parse_commandline(argc, argv);
+  std::string uci_start = parse_commandline(argc, argv);
 
   // Disable IO buffering as much as possible
   std::cout.setf(std::ios::unitbuf);
@@ -295,8 +257,7 @@ int main(int argc, char* argv[]) {
 
   // bench();
 
-  // generate_training_games();
-  play_one_game();
+  UCI::loop(uci_start);
 
   return 0;
 }
