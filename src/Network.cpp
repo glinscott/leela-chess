@@ -582,11 +582,6 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
         if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
             network_move = Move(network_move & 0xfff);
         }
-        // TODO(gary): Remove this once more confident
-        if (move_lookup.find(network_move) == move_lookup.end()) {
-          printf("Unknown move: %x, %d, %d, %x, %s\n", move, from_sq(move), to_sq(move), type_of(move), pos.cur().move_san(move).c_str());
-          exit(1);
-        }
         result.emplace_back(outputs[move_lookup.at(network_move)], move);
     }
 
@@ -603,44 +598,50 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
 //void Network::show_heatmap(Position* state, Netresult& result, bool topmoves) { //--killed.
 
 template<PieceType Pt>
-void addPieces(const Position* pos, Color side, Network::NNPlanes& planes, int plane_idx) {
-  // TODO(gary): Need to flip this to be relative to player to move?
+void addPieces(const Position* pos, Color side, Network::NNPlanes& planes, int plane_idx, bool flip) {
   const Square* squares = pos->squares<Pt>(side);
   while (*squares != SQ_NONE) {
-    planes.bit[plane_idx][*squares] = true;
-    ++squares;
+    Square s = *squares++;
+    planes.bit[plane_idx][flip ? ~s : s] = true;
   }
 }
 
 void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
-    Color side = bh.cur().side_to_move();
+    Color us = bh.cur().side_to_move();
+    Color them = ~us;
     const Position* pos = &bh.cur();
 
     int kFeatureBase = T_HISTORY * 14;
-    if (pos->can_castle(BLACK_OOO)) planes.bit[kFeatureBase+(side==BLACK?0:2)+0].set();
-    if (pos->can_castle(BLACK_OO)) planes.bit[kFeatureBase+(side==BLACK?0:2)+1].set();
-    if (pos->can_castle(WHITE_OOO)) planes.bit[kFeatureBase+(side==WHITE?0:2)+0].set();
-    if (pos->can_castle(WHITE_OO)) planes.bit[kFeatureBase+(side==WHITE?0:2)+1].set();
-    if (side == BLACK) planes.bit[kFeatureBase+4].set();
+    if (pos->can_castle(BLACK_OOO)) planes.bit[kFeatureBase+(us==BLACK?0:2)+0].set();
+    if (pos->can_castle(BLACK_OO)) planes.bit[kFeatureBase+(us==BLACK?0:2)+1].set();
+    if (pos->can_castle(WHITE_OOO)) planes.bit[kFeatureBase+(us==WHITE?0:2)+0].set();
+    if (pos->can_castle(WHITE_OO)) planes.bit[kFeatureBase+(us==WHITE?0:2)+1].set();
+    if (us == BLACK) planes.bit[kFeatureBase+4].set();
     planes.rule50_count = pos->rule50_count();
     planes.move_count = pos->game_ply();
 
     int mc = bh.positions.size() - 1;
     for (int i = 0; i < std::min(T_HISTORY, mc + 1); ++i) {
         pos = &bh.positions[mc - i];
-        addPieces<PAWN  >(pos, side, planes, i * 14 + 0);
-        addPieces<KNIGHT>(pos, side, planes, i * 14 + 1);
-        addPieces<BISHOP>(pos, side, planes, i * 14 + 2);
-        addPieces<ROOK  >(pos, side, planes, i * 14 + 3);
-        addPieces<QUEEN >(pos, side, planes, i * 14 + 4);
-        addPieces<KING  >(pos, side, planes, i * 14 + 5);
 
-        addPieces<PAWN  >(pos, ~side, planes, i * 14 + 6);
-        addPieces<KNIGHT>(pos, ~side, planes, i * 14 + 7);
-        addPieces<BISHOP>(pos, ~side, planes, i * 14 + 8);
-        addPieces<ROOK  >(pos, ~side, planes, i * 14 + 9);
-        addPieces<QUEEN >(pos, ~side, planes, i * 14 + 10);
-        addPieces<KING  >(pos, ~side, planes, i * 14 + 11);
+        us = pos->side_to_move();
+        them = ~us;
+
+        bool flip = us == BLACK;
+
+        addPieces<PAWN  >(pos, us, planes, i * 14 + 0, flip);
+        addPieces<KNIGHT>(pos, us, planes, i * 14 + 1, flip);
+        addPieces<BISHOP>(pos, us, planes, i * 14 + 2, flip);
+        addPieces<ROOK  >(pos, us, planes, i * 14 + 3, flip);
+        addPieces<QUEEN >(pos, us, planes, i * 14 + 4, flip);
+        addPieces<KING  >(pos, us, planes, i * 14 + 5, flip);
+
+        addPieces<PAWN  >(pos, them, planes, i * 14 + 6, flip);
+        addPieces<KNIGHT>(pos, them, planes, i * 14 + 7, flip);
+        addPieces<BISHOP>(pos, them, planes, i * 14 + 8, flip);
+        addPieces<ROOK  >(pos, them, planes, i * 14 + 9, flip);
+        addPieces<QUEEN >(pos, them, planes, i * 14 + 10, flip);
+        addPieces<KING  >(pos, them, planes, i * 14 + 11, flip);
 
         int repetitions = pos->repetitions_count();
         if (repetitions >= 1) planes.bit[i * 14 + 12].set();
