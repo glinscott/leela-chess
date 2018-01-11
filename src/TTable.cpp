@@ -23,13 +23,20 @@
 #include "Utils.h"
 #include "TTable.h"
 
-TTable* TTable::get_TT(void) {
+TTable* TTable::get(void) {
     static TTable s_ttable;
     return &s_ttable;
 }
 
 TTable::TTable(int size) {
     std::lock_guard<std::mutex> guard(mutex_);
+    m_buckets.resize(size);
+}
+
+void TTable::clear() {
+    std::lock_guard<std::mutex> guard(mutex_);
+    size_t size = m_buckets.size();
+    m_buckets.clear();
     m_buckets.resize(size);
 }
 

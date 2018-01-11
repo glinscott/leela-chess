@@ -1,3 +1,4 @@
 #!/bin/bash
 
-./lczero --weights=weights.txt -t2 -n --start=train
+mkdir data
+./lczero --weights=weights.txt -t2 -n --start=train >training.out
