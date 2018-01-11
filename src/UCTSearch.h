@@ -27,6 +27,11 @@
 #include "Position.h"
 #include "UCTNode.h"
 
+// SearchResult is in [0,1]
+// 0.0 represents Black win
+// 0.5 represents draw
+// 1.0 represents White win
+// Eg. 0.1 would be a high probability of Black winning.
 class SearchResult {
 public:
     SearchResult() = default;

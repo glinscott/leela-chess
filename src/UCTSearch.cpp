@@ -58,7 +58,7 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
 
     auto result = SearchResult{};
 
-    TTable::get_TT()->sync(hash, node);
+    TTable::get()->sync(hash, node);
     node->virtual_loss();
 
     if (!node->has_children()) {
@@ -89,7 +89,7 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
         node->update(result.eval());
     }
     node->virtual_loss_undo();
-    TTable::get_TT()->update(hash, node);
+    TTable::get()->update(hash, node);
 
     return result;
 }
@@ -278,7 +278,7 @@ Move UCTSearch::think() {
 
     // display search info
     myprintf("\n");
-    dump_stats(bh_, m_root);
+    // dump_stats(bh_, m_root);
     Training::record(bh_, m_root);
 
     Time elapsed;

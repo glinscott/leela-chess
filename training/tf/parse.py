@@ -141,7 +141,7 @@ def generate_fake_pos():
     planes.append([0.0] * 64)
     # 2. 1924 probs
     probs = np.random.random(size=1924).tolist()
-    # 3. And a winner: 1 or -1
+    # 3. And a winner: 1, 0, -1
     winner = [ float(np.random.randint(3)) - 1 ]
     return (planes, probs, winner)
 

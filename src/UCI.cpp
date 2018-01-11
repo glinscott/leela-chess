@@ -26,6 +26,7 @@
 #include "Movegen.h"
 #include "Position.h"
 #include "Training.h"
+#include "TTable.h"
 #include "UCI.h"
 #include "UCTSearch.h"
 
@@ -171,6 +172,7 @@ int play_one_game() {
   BoardHistory bh;
   bh.set(StartFEN);
 
+  TTable::get()->clear();
   Training::clear_training();
   int game_score = play_one_game(bh);
 

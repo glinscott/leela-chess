@@ -38,7 +38,10 @@ public:
     /*
         return the global TT
     */
-    static TTable* get_TT(void);
+    static TTable* get();
+
+    // Clear the TTable (useful when starting new game)
+    void clear();
 
     /*
         update corresponding entry
