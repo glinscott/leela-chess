@@ -21,30 +21,30 @@
 
 #include "config.h"
 
-#include <tuple>
 #include <atomic>
 #include <limits>
 #include <mutex>
+#include <tuple>
 
 #include "Position.h"
 #include "Network.h"
 
 class UCTNode {
 public:
-    using sortnode_t = std::tuple<float, int, float, UCTNode*>;
-
     // When we visit a node, add this amount of virtual losses
     // to it to encourage other CPUs to explore other parts of the
     // search tree.
     static constexpr auto VIRTUAL_LOSS_COUNT = 3;
 
+    using node_ptr_t = std::unique_ptr<UCTNode>;
+
     explicit UCTNode(Move move, float score, float init_eval);
-    ~UCTNode();
+    UCTNode() = delete;
+    ~UCTNode() = default;
     bool first_visit() const;
     bool has_children() const;
     bool create_children(std::atomic<int> & nodecount, const BoardHistory& state, float& eval);
     float eval_state(const BoardHistory& state);
-    void delete_child(UCTNode* child);
     Move get_move() const;
     int get_visits() const;
     float get_score() const;
@@ -53,7 +53,6 @@ public:
     double get_whiteevals() const;
     void set_visits(int visits);
     void set_whiteevals(double whiteevals);
-    void set_eval(float eval);
     void accumulate_eval(float eval);
     void virtual_loss(void);
     void virtual_loss_undo(void);
@@ -63,25 +62,19 @@ public:
 
     UCTNode* uct_select_child(Color color);
     UCTNode* get_first_child() const;
-    UCTNode* get_sibling() const;
+    const std::vector<node_ptr_t>& get_children() const;
 
     void sort_root_children(Color color);
-    UCTNode* get_best_root_child(Color color);
+    UCTNode& get_best_root_child(Color color);
 
 private:
-    UCTNode();
-    void link_child(UCTNode* newchild);
-    void link_nodelist(std::atomic<int>& nodecount, std::vector<std::pair<float, Move>>& nodelist, float init_eval);
+    void link_nodelist(std::atomic<int>& nodecount, std::vector<Network::scored_node>& nodelist, float init_eval);
 
-    // Tree data
-    std::atomic<bool> m_has_children{false};
-    UCTNode* m_firstchild{nullptr};
-    UCTNode* m_nextsibling{nullptr};
     // Move
     Move m_move;
     // UCT
+    std::atomic<int16_t> m_virtual_loss{0};
     std::atomic<int> m_visits{0};
-    std::atomic<int> m_virtual_loss{0};
     // UCT eval
     float m_score;
     float m_init_eval;
@@ -90,6 +83,10 @@ private:
     // We don't need to unset this.
     bool m_is_expanding{false};
     std::mutex m_nodemutex;
+
+    // Tree data
+    std::atomic<bool> m_has_children{false};
+    std::vector<node_ptr_t> m_children;
 };
 
 #endif

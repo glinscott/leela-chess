@@ -104,16 +104,12 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
     // sort children, put best move on top
     m_root.sort_root_children(color);
 
-    UCTNode * bestnode = parent.get_first_child();
-
-    if (bestnode->first_visit()) {
+    if (parent.get_first_child()->first_visit()) {
         return;
     }
 
     int movecount = 0;
-    UCTNode * node = bestnode;
-
-    while (node != nullptr) {
+    for (const auto& node : parent.get_children()) {
         if (++movecount > 2 && !node->get_visits()) break;
 
         std::string tmp = UCI::move(node->get_move());
@@ -131,8 +127,6 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
         state.cur().undo_move(node->get_move());
 
         myprintf("%s\n", pvstring.c_str());
-
-        node = node->get_sibling();
     }
 }
 
@@ -169,14 +163,14 @@ std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent) {
         return std::string();
     }
 
-    auto best_child = parent.get_best_root_child(state.cur().side_to_move());
-    auto best_move = best_child->get_move();
+    auto& best_child = parent.get_best_root_child(state.cur().side_to_move());
+    auto best_move = best_child.get_move();
     auto res = UCI::move(best_move);
 
     StateInfo st;
     state.cur().do_move(best_move, st);
 
-    auto next = get_pv(state, *best_child);
+    auto next = get_pv(state, best_child);
     if (!next.empty()) {
         res.append(" ").append(next);
     }
