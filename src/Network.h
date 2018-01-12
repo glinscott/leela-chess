@@ -71,7 +71,7 @@ public:
       std::string getJson() const;
     };
 
-    static std::unordered_map<Move, int> move_lookup;
+    static std::unordered_map<Move, int, std::hash<int>> move_lookup;
     static Netresult get_scored_moves(const BoardHistory& state, DebugRawData* debug_data=nullptr);
 
     static void init();

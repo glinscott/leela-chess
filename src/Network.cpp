@@ -64,7 +64,7 @@ constexpr int Network::INPUT_CHANNELS;
 constexpr int Network::NUM_OUTPUT_POLICY;
 constexpr int Network::NUM_VALUE_CHANNELS;
 
-std::unordered_map<Move, int> Network::move_lookup;
+std::unordered_map<Move, int, std::hash<int>> Network::move_lookup;
 
 // Input + residual block tower
 static std::vector<std::vector<float>> conv_weights;
