@@ -99,39 +99,32 @@ void Training::record(const BoardHistory& state, UCTNode& root) {
     auto result = Network::get_scored_moves(state);
     step.net_winrate = result.second;
 
-    const auto best_node = root.get_best_root_child(step.to_move);
-    if (!best_node) {
-        return;
-    }
+    const auto& best_node = root.get_best_root_child(step.to_move);
     step.root_uct_winrate = root.get_eval(step.to_move);
-    step.child_uct_winrate = best_node->get_eval(step.to_move);
-    step.bestmove_visits = best_node->get_visits();
+    step.child_uct_winrate = best_node.get_eval(step.to_move);
+    step.bestmove_visits = best_node.get_visits();
 
     step.probabilities.resize(Network::NUM_OUTPUT_POLICY);
 
     // Get total visit amount. We count rather
     // than trust the root to avoid ttable issues.
     auto sum_visits = 0.0;
-    auto child = root.get_first_child();
-    while (child != nullptr) {
+    for (const auto& child : root.get_children()) {
         sum_visits += child->get_visits();
-        child = child->get_sibling();
     }
 
-    // In a terminal position (with 2 passes), we can have children, but we
-    // will not able to accumulate search results on them because every attempt
-    // to evaluate will bail immediately. So in this case there will be 0 total
-    // visits, and we should not construct the (non-existent) probabilities.
+    // In a terminal position, we can have children, but we will not able to
+    // accumulate search results on them because every attempt to evaluate will
+    // bail immediately. So in this case there will be 0 total visits, and we
+    // should not construct the (non-existent) probabilities.
     if (sum_visits <= 0.0) {
         return;
     }
 
-    child = root.get_first_child();
-    while (child != nullptr) {
+    for (const auto& child : root.get_children()) {
         auto prob = static_cast<float>(child->get_visits() / sum_visits);
         auto move = child->get_move();
         step.probabilities[Network::move_lookup[move]] = prob;
-        child = child->get_sibling();
     }
 
     m_data.emplace_back(step);
