@@ -5,7 +5,7 @@ repository to chess, using Stockfish's position representation and move generati
 knowledge are carried over from Stockfish.)
 
 The goal is to build a strong UCT chess AI following the same type of techniques as AlphaZero, as
-described in [Mastering Chess and Shogi by Self-Play with a General Reinforcement Learning Algorithm](https://arxiv.org/abs/1713.01815).
+described in [Mastering Chess and Shogi by Self-Play with a General Reinforcement Learning Algorithm](https://arxiv.org/abs/1712.01815).
 
 We will need to do this with a distributed project, as it requires a huge amount of compute.
 
