@@ -140,6 +140,42 @@ namespace {
     printf("bestmove %s\n", UCI::move(move).c_str());
   }
 
+  // count number of legal nodes up to a given depth from a given position.
+  template<bool Root>
+  uint64_t perft(BoardHistory& bh, Depth depth) {
+
+    StateInfo st;
+    uint64_t cnt, nodes = 0;
+    const bool leaf = (depth == 2 * ONE_PLY);
+
+    for (const auto& m : MoveList<LEGAL>(bh.cur()))
+    {
+        if (Root && depth <= ONE_PLY)
+            cnt = 1, nodes++;
+        else
+        {
+            bh.cur().do_move(m, st);
+            cnt = leaf ? MoveList<LEGAL>(bh.cur()).size() : perft<false>(bh, depth - ONE_PLY);
+            nodes += cnt;
+            bh.cur().undo_move(m);
+        }
+        if (Root)
+            sync_cout << UCI::move(m) << ": " << cnt << sync_endl;
+    }
+    return nodes;
+  }
+
+  // called when receiving the 'perft Depth' command
+  void uci_perft(BoardHistory& bh, istringstream& is) {
+       int d;
+       is >> d;
+
+       Depth depth = Depth(d);
+       uint64_t total = perft<true>(bh, depth);
+       sync_cout << "Total: " << total << sync_endl;
+  }
+
+
 // Return the score from the self-play game
 int play_one_game(BoardHistory& bh) {
   for (int game_ply = 0; game_ply < 150; ++game_ply) {
@@ -232,6 +268,7 @@ void UCI::loop(const std::string& start) {
 
       else if (token == "setoption")  setoption(is);
       else if (token == "go")         go(bh, is);
+      else if (token == "perft")      uci_perft(bh, is);
       else if (token == "position")   position(bh, is);
       // else if (token == "ucinewgame") Search::clear();
       else if (token == "isready")    sync_cout << "readyok" << sync_endl;
