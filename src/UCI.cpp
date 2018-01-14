@@ -32,9 +32,6 @@
 
 using namespace std;
 
-// FEN string of the initial position, normal chess
-const char* StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
 enum SyncCout { IO_LOCK, IO_UNLOCK };
 std::ostream& operator<<(std::ostream&, SyncCout);
 
@@ -72,7 +69,7 @@ namespace {
 
     if (token == "startpos")
     {
-        fen = StartFEN;
+        fen = Position::StartFEN;
         is >> token; // Consume "moves" token if any
     }
     else if (token == "fen")
@@ -170,7 +167,7 @@ int play_one_game(BoardHistory& bh) {
 
 int play_one_game() {
   BoardHistory bh;
-  bh.set(StartFEN);
+  bh.set(Position::StartFEN);
 
   TTable::get()->clear();
   Training::clear_training();
@@ -203,7 +200,7 @@ void UCI::loop(const std::string& start) {
   string token, cmd = start;
 
   BoardHistory bh;
-  bh.set(StartFEN);
+  bh.set(Position::StartFEN);
 
   do {
       if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF
