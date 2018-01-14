@@ -90,6 +90,17 @@ void Training::clear_training() {
     Training::m_data.clear();
 }
 
+void Training::record(const BoardHistory& state, Move move) {
+    auto step = TimeStep{};
+    step.to_move = state.cur().side_to_move();
+    step.planes = Network::NNPlanes{};
+    Network::gather_features(state, step.planes);
+
+    step.probabilities.resize(Network::NUM_OUTPUT_POLICY);
+    step.probabilities[Network::lookup(move)] = 1.0;
+    m_data.emplace_back(step);
+}
+
 void Training::record(const BoardHistory& state, UCTNode& root) {
     auto step = TimeStep{};
     step.to_move = state.cur().side_to_move();
@@ -124,7 +135,7 @@ void Training::record(const BoardHistory& state, UCTNode& root) {
     for (const auto& child : root.get_children()) {
         auto prob = static_cast<float>(child->get_visits() / sum_visits);
         auto move = child->get_move();
-        step.probabilities[Network::move_lookup[move]] = prob;
+        step.probabilities[Network::lookup(move)] = prob;
     }
 
     m_data.emplace_back(step);

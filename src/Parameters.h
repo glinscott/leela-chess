@@ -38,6 +38,7 @@ extern float cfg_puct;
 extern float cfg_softmax_temp;
 extern std::string cfg_logfile;
 extern std::string cfg_weightsfile;
+extern std::string cfg_supervise;
 extern FILE* cfg_logfile_handle;
 extern bool cfg_quiet;
 

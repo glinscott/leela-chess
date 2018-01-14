@@ -396,15 +396,6 @@ struct BoardHistory {
   std::vector<Position> positions;
   std::vector<std::unique_ptr<StateInfo>> states;
 
-  void set(const std::string& fen) {
-    positions.clear();
-    states.clear();
-
-    positions.emplace_back();
-    states.emplace_back(new StateInfo());
-    cur().set(fen, states.back().get());
-  }
-
   Position& cur() {
     return positions.back();
   }
@@ -413,39 +404,10 @@ struct BoardHistory {
     return positions.back();
   }
 
-  // Only need to copy the 8 most recent positions, as that's what is needed by
-  // the eval.  We don't need to fixup StateInfo, as we will never undo_move()
-  // before the "root" state.
-  BoardHistory shallow_clone() const {
-    BoardHistory h;
-    for (int i = std::max(0, static_cast<int>(positions.size()) - 8); i < static_cast<int>(positions.size()); ++i) {
-      h.positions.push_back(positions[i]);
-    }
-    return h;
-  }
-
-  void do_move(Move m) {
-    states.emplace_back(new StateInfo);
-    positions.push_back(positions.back());
-    positions.back().do_move(m, *states.back());
-  }
-
-  std::string pgn() const {
-    std::string result;
-    std::string line;
-    for (int i = 0; i< static_cast<int>(positions.size()) - 1; ++i) {
-      if (i % 2 == 0) {
-        line += std::to_string(i / 2 + 1) + ". ";
-      }
-      line += positions[i].move_to_san(positions[i + 1].get_move()) + " ";
-      if (line.size() >= 76) {
-        line += '\n';
-        result += line;
-        line = "";
-      }
-    }
-    return result + line;
-  }
+  void set(const std::string& fen);
+  BoardHistory shallow_clone() const;
+  void do_move(Move m);
+  std::string pgn() const;
 };
 
 #endif // #ifndef POSITION_H_INCLUDED

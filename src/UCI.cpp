@@ -24,6 +24,7 @@
 #include <string>
 
 #include "Movegen.h"
+#include "pgn.h"
 #include "Position.h"
 #include "Training.h"
 #include "TTable.h"

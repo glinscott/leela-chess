@@ -19,6 +19,7 @@
 */
 
 #include <boost/program_options.hpp>
+#include <fstream>
 #include <iostream>
 #include <random>
 
@@ -71,6 +72,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("quiet,q", "Disable all diagnostic output.")
         ("noponder", "Disable thinking on opponent's time.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
+        ("supervise", po::value<std::string>(), "Dump supervised learning data from the pgn.")
 #ifdef USE_OPENCL
         /*
         ("gpu",  po::value<std::vector<int> >(),
@@ -141,9 +143,13 @@ static std::string parse_commandline(int argc, char *argv[]) {
         cfg_logfile_handle = fopen(cfg_logfile.c_str(), "a");
     }
 
+    if (vm.count("supervise")) {
+        cfg_supervise = vm["supervise"].as<std::string>();
+    }
+
     if (vm.count("weights")) {
         cfg_weightsfile = vm["weights"].as<std::string>();
-    } else {
+    } else if (cfg_supervise.empty()) {
         myprintf("A network weights file is required to use the program.\n");
         exit(EXIT_FAILURE);
     }
@@ -265,11 +271,34 @@ Qe7# 0-1
 
   std::istringstream ss(raw);
   PGNParser parser(ss);
-  auto result = parser.parse();
-  printf("%s\n", result->pgn().c_str());
+  auto game = parser.parse();
 
-  if (result->cur().fen() != "4K3/4q3/4k3/8/7p/8/8/8 w - - 6 75") {
-    throw std::runtime_error("PGNParser broken");
+  if (game->bh.cur().fen() != "4K3/4q3/4k3/8/7p/8/8/8 w - - 6 75") {
+    throw std::runtime_error("PGNParser fen broken");
+  }
+  if (game->result != -1) {
+    throw std::runtime_error("PGNParser result broken: " + std::to_string(game->result));
+  }
+}
+
+void generate_supervised_data(const std::string& filename) {
+  auto chunker = OutputChunker{"supervise/training", true};
+
+  std::ifstream f;
+  f.open(filename);
+
+  PGNParser parser(f);
+  for (int i = 0; i < 4; ++i) {
+    Training::clear_training();
+    auto game = parser.parse();
+    BoardHistory bh;
+    bh.set(Position::StartFEN);
+    for (int i = 0; i < static_cast<int>(game->bh.positions.size()) - 1; ++i) {
+      Move move = game->bh.positions[i + 1].get_move();
+      Training::record(bh, move);
+      bh.do_move(move);
+    }
+    Training::dump_training(game->result, chunker);
   }
 }
 
@@ -296,6 +325,11 @@ int main(int argc, char* argv[]) {
   thread_pool.initialize(cfg_num_threads);
   // Random::get_Rng().seedrandom(cfg_rng_seed);
   Network::init();
+
+  if (!cfg_supervise.empty()) {
+    generate_supervised_data(cfg_supervise);
+    return 0;
+  }
 
   // bench();
 

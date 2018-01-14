@@ -293,6 +293,13 @@ void Network::init_move_map() {
   myprintf("Generated %lu moves\n", moves.size());
 }
 
+int Network::lookup(Move move) {
+    if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
+        move = Move(move & 0xfff);
+    }
+    return move_lookup.at(move);
+}
+
 #ifdef USE_BLAS
 template<unsigned int filter_size>
 void convolve(size_t outputs,
@@ -578,11 +585,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     MoveList<LEGAL> moves(pos.cur());
     std::vector<scored_node> result;
     for (Move move : moves) {
-        Move network_move = move;
-        if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
-            network_move = Move(network_move & 0xfff);
-        }
-        result.emplace_back(outputs[move_lookup.at(network_move)], move);
+        result.emplace_back(outputs[lookup(move)], move);
     }
 
     if (debug_data) {

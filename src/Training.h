@@ -61,15 +61,14 @@ public:
     static void dump_training(int game_score, const std::string& out_filename);
     static void dump_training(int game_score, OutputChunker& outchunker);
     static void dump_stats(const std::string& out_filename);
+    static void record(const BoardHistory& state, Move move);
     static void record(const BoardHistory& state, UCTNode& node);
 
-//    static void dump_supervised(const std::string& sgf_file, const std::string& out_filename);
 private:
     // Consider only every 1/th position in a game.
     // This ensures that positions in a chunk are from disjoint games.
     static constexpr size_t SKIP_SIZE = 16;
 
-//    static void process_game(Position& state, size_t& train_pos, int who_won, const std::vector<int>& tree_moves, OutputChunker& outchunker);
     static void dump_stats(OutputChunker& outchunker);
     static std::vector<TimeStep> m_data;
 };

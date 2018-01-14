@@ -1080,10 +1080,10 @@ std::string Position::move_to_san(Move m) const {
     char file = "abcdefgh"[file_of(from)];
     char rank = '1' + rank_of(from);
     if (dupe) {
-      if (rank_diff) {
-        result += rank;
-      } else if (file_diff) {
+      if (file_diff) {
         result += file;
+      } else if (rank_diff) {
+        result += rank;
       } else {
         result += file;
         result += rank;
@@ -1202,8 +1202,6 @@ bool Position::move_is_san(Move m, const char* ref) const {
 
       *san++ = PieceToSAN[promotion_type(m)];
   }
-
-  printf("%s -- %s\n", buf, ref);
 
   if (   buf[1] != ref[1]
       || buf[0] != ref[0])
@@ -1353,4 +1351,53 @@ Move Position::san_to_move(const std::string& s) const {
   */
 
   return MOVE_NONE;
+}
+
+void BoardHistory::set(const std::string& fen) {
+  positions.clear();
+  states.clear();
+
+  positions.emplace_back();
+  states.emplace_back(new StateInfo());
+  cur().set(fen, states.back().get());
+}
+
+// Only need to copy the 8 most recent positions, as that's what is needed by
+// the eval.  We don't need to fixup StateInfo, as we will never undo_move()
+// before the "root" state.
+BoardHistory BoardHistory::shallow_clone() const {
+  BoardHistory h;
+  for (int i = std::max(0, static_cast<int>(positions.size()) - 8); i < static_cast<int>(positions.size()); ++i) {
+    h.positions.push_back(positions[i]);
+  }
+  return h;
+}
+
+void BoardHistory::do_move(Move m) {
+  states.emplace_back(new StateInfo);
+  positions.push_back(positions.back());
+  positions.back().do_move(m, *states.back());
+}
+
+std::string BoardHistory::pgn() const {
+  std::string result;
+  for (int i = 0; i< static_cast<int>(positions.size()) - 1; ++i) {
+    if (i % 2 == 0) {
+      result += std::to_string(i / 2 + 1) + ". ";
+    }
+    result += positions[i].move_to_san(positions[i + 1].get_move()) + " ";
+  }
+  int len = 0;
+  int last_space = -1;
+  for (int i = 0; i < static_cast<int>(result.size()); ++i) {
+    if (result[i] == ' ') {
+      last_space = i;
+    }
+    if (++len >= 76) {
+      int remaining = i - last_space;
+      result[last_space] = '\n';
+      len = remaining;
+    }
+  }
+  return result;
 }
