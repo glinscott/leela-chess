@@ -75,22 +75,34 @@ This runs an evaluation match using cutechess-cli.
 
 ## Requirements
 
-* Tensorflow 1.4 or higher
+* GCC, Clang or MSVC, any C++14 compiler
+* boost 1.58.x or later (libboost-all-dev on Debian/Ubuntu)
+* BLAS Library: OpenBLAS (libopenblas-dev) or (optionally) Intel MKL
+* zlib library (zlib1g & zlib1g-dev on Debian/Ubuntu)
+* Standard OpenCL C headers (opencl-headers on Debian/Ubuntu, or at
+  https://github.com/KhronosGroup/OpenCL-Headers/tree/master/opencl22/)
+* OpenCL ICD loader (ocl-icd-libopencl1 on Debian/Ubuntu, or reference implementation at https://github.com/KhronosGroup/OpenCL-ICD-Loader)
+* An OpenCL capable device, preferably a very, very fast GPU, with recent
+  drivers is strongly recommended (OpenCL 1.2 support should be enough, even
+  OpenCL 1.1 might work). If you do not have a GPU, modify config.h in the
+  source and remove the line that says `#define USE_OPENCL`.
+* Tensorflow 1.4 or higher (for training)
+* The program has been tested on Linux.
 
-TODO (see https://github.com/gcp/leela-zero/)
+## Example of compiling - Ubuntu 16.04
 
-## Building
+    # Install dependencies
+    sudo apt install libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
 
-```
-cd src
-make -j4
-```
+    # Test for OpenCL support & compatibility
+    sudo apt install clinfo && clinfo
 
-Building on Ubuntu 14.04
-```
-sudo apt-get install gcc-6 g++-6
-CC=gcc-6 CXX=g++-6 make -j4
-```
+    # Clone github repo
+    git clone git@github.com:glinscott/leela-chess.git
+    cd leela-chess
+    mkdir build && cd build
+    cmake ..
+    make
 
 # Other projects
 
