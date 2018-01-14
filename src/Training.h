@@ -39,7 +39,7 @@ public:
 
 class OutputChunker {
 public:
-    OutputChunker(const std::string& basename, bool compress = false);
+    OutputChunker(const std::string& basename, bool compress = false, size_t chunk_size = CHUNK_SIZE);
     ~OutputChunker();
     void append(const std::string& str);
 
@@ -48,11 +48,13 @@ public:
 private:
     std::string gen_chunk_name() const;
     void flush_chunks();
+
     size_t m_step_count{0};
     size_t m_chunk_count{0};
     std::string m_buffer;
     std::string m_basename;
     bool m_compress{false};
+    size_t chunk_size_;
 };
 
 class Training {

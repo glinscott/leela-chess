@@ -282,15 +282,20 @@ Qe7# 0-1
 }
 
 void generate_supervised_data(const std::string& filename) {
-  auto chunker = OutputChunker{"supervise/training", true};
+  auto chunker = OutputChunker{"supervise/training", true, 15000};
 
   std::ifstream f;
   f.open(filename);
 
   PGNParser parser(f);
-  for (int i = 0; i < 4; ++i) {
+  int games = 0;
+  for (;;) {
     Training::clear_training();
     auto game = parser.parse();
+    if (game == nullptr) {
+      break;
+    }
+    printf("\rProcessed %d games", ++games);
     BoardHistory bh;
     bh.set(Position::StartFEN);
     for (int i = 0; i < static_cast<int>(game->bh.positions.size()) - 1; ++i) {

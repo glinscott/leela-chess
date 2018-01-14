@@ -33,6 +33,10 @@ std::unique_ptr<PGNGame> PGNParser::parse() {
     }
   }
 
+  if (is_.eof()) {
+    return nullptr;
+  }
+
   std::unique_ptr<PGNGame> game(new PGNGame);
   game->bh.set(Position::StartFEN);
 
