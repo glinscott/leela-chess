@@ -57,6 +57,7 @@ float cfg_puct;
 float cfg_softmax_temp;
 std::string cfg_weightsfile;
 std::string cfg_logfile;
+std::string cfg_supervise;
 FILE* cfg_logfile_handle;
 bool cfg_quiet;
 

@@ -71,7 +71,8 @@ public:
       std::string getJson() const;
     };
 
-    static std::unordered_map<Move, int, std::hash<int>> move_lookup;
+    static int lookup(Move move);
+
     static Netresult get_scored_moves(const BoardHistory& state, DebugRawData* debug_data=nullptr);
 
     static void init();
@@ -81,6 +82,8 @@ public:
     static void gather_features(const BoardHistory& pos, NNPlanes& planes);
 
 private:
+    static std::unordered_map<Move, int, std::hash<int>> move_lookup;
+
     static void process_bn_var(std::vector<float>& weights, const float epsilon=1e-5f);
     static void init_move_map();
     static Netresult get_scored_moves_internal(const BoardHistory& state, NNPlanes& planes, DebugRawData* debug_data);
