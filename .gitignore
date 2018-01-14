@@ -1,3 +1,5 @@
 *.d
 *.o
 src/lczero
+build/
+cmake-build*/
