@@ -75,6 +75,8 @@ This runs an evaluation match using cutechess-cli.
 
 ## Requirements
 
+* Tensorflow 1.4 or higher
+
 TODO (see https://github.com/gcp/leela-zero/)
 
 ## Building
