@@ -71,9 +71,9 @@ class ChunkParser:
         # Convert the array to a byte string
         planes = [ planes.tobytes() ]
 
-        # Now we add the two final planes
+        # Now we add the final planes
         for plane in range(112, 119):
-            stm = int(text_item[plane])
+            stm = min(int(text_item[plane]), 254)
             planes.append(self.flat_planes[stm])
         planes.append(self.flat_planes[0])
 
