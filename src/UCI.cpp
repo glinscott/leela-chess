@@ -182,9 +182,9 @@ int play_one_game() {
   return game_score;
 }
 
-void generate_training_games() {
+void generate_training_games(unsigned long long n = std::numeric_limits<unsigned long long>::max()) {
   auto chunker = OutputChunker{"data/training", true};
-  for (;;) {
+  for (unsigned long long i = 0; i < n; i++) {
     Training::dump_training(play_one_game(), chunker);
   }
 }
