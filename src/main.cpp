@@ -32,10 +32,9 @@
 #include "UCTSearch.h"
 #include "Training.h"
 #include "Movegen.h"
+#include "pgn.h"
 
 using namespace Utils;
-
-extern const char* StartFEN;
 
 static void license_blurb() {
     printf(
@@ -218,7 +217,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
 
 void bench() {
   BoardHistory bh;
-  bh.set(StartFEN);
+  bh.set(Position::StartFEN);
 
   Network::DebugRawData debug_data;
   auto r = Network::get_scored_moves(bh, &debug_data);
@@ -233,6 +232,47 @@ void bench() {
   */
 }
 
+void test_pgn_parse() {
+  std::string raw = R"EOM([Event "?"]
+[Site "?"]
+[Date "2018.01.08"]
+[Round "1"]
+[White "Stockfish 080118 64 BMI2"]
+[Black "Stockfish 080118 64 BMI2"]
+[Result "0-1"]
+[ECO "C88"]
+[Opening "Ruy Lopez"]
+[Variation "Closed"]
+[TimeControl "10+0.1"]
+[PlyCount "148"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8.
+c3 O-O 9. h3 Bb7 10. d4 Re8 11. Nbd2 Bf8 12. d5 Nb8 13. Nf1 Nbd7 14. N3h2
+c6 15. dxc6 Bxc6 16. Bg5 Qc7 17. Qf3 a5 18. Ng4 a4 19. Bc2 Nxg4 20. Qxg4
+Re6 21. Qf3 Qb7 22. Ne3 Nb6 23. Rad1 Nc4 24. Bh4 Nxb2 25. Rb1 a3 26. Re2
+Ree8 27. Ng4 Re6 28. Ne3 Rc8 29. Kh1 Na4 30. Rb3 g6 31. Rxa3 Nc5 32. Nd5
+Bxd5 33. exd5 Ree8 34. Re1 Ra8 35. Rxa8 Rxa8 36. Bb3 f5 37. Rb1 Be7 38.
+Bxe7 Qxe7 39. Qe3 Qh4 40. Kg1 f4 41. Qe2 e4 42. Qg4 Qf6 43. h4 Kg7 44. c4
+bxc4 45. Bxc4 Ra4 46. Bb3 Rd4 47. Re1 Rd2 48. Qg5 h6 49. Qg4 Qf5 50. Qxf5
+gxf5 51. Kf1 Kf6 52. Re2 Rxe2 53. Kxe2 Nxb3 54. axb3 Ke5 55. g3 f3+ 56. Ke3
+h5 57. Kd2 Kxd5 58. g4 fxg4 59. Ke3 Kc5 60. b4+ Kxb4 61. Kxe4 d5+ 62. Ke5
+g3 63. fxg3 f2 64. Kxd5 f1=Q 65. Ke5 Qf3 66. Ke6 Qxg3 67. Kf6 Kc5 68. Kf5
+Qxh4 69. Kg6 Qg4+ 70. Kf7 Kd6 71. Kf6 h4 72. Kf7 Qg5 73. Kf8 Ke6 74. Ke8
+Qe7# 0-1
+
+[Event "?"]
+)EOM";
+
+  std::istringstream ss(raw);
+  PGNParser parser(ss);
+  auto result = parser.parse();
+  printf("%s\n", result->pgn().c_str());
+
+  if (result->cur().fen() != "4K3/4q3/4k3/8/7p/8/8/8 w - - 6 75") {
+    throw std::runtime_error("PGNParser broken");
+  }
+}
+
 int main(int argc, char* argv[]) {
 
   Bitboards::init();
@@ -240,6 +280,8 @@ int main(int argc, char* argv[]) {
 
   Parameters::setup_default_parameters();
   std::string uci_start = parse_commandline(argc, argv);
+
+  // test_pgn_parse();
 
   // Disable IO buffering as much as possible
   std::cout.setf(std::ios::unitbuf);

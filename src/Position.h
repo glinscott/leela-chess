@@ -69,6 +69,8 @@ typedef std::unique_ptr<std::deque<StateInfo>> StateListPtr;
 class Position {
 public:
   static void init();
+  // FEN string of the initial position, normal chess
+  static const char* StartFEN;
 
   Position() = default;
 
@@ -135,7 +137,11 @@ public:
   void undo_null_move();
   Move get_move() const;
 
-  std::string move_san(Move m) const;
+  template<bool Strict=true>
+  bool move_is_san(Move m, const char* ref) const;
+
+  std::string move_to_san(Move m) const;
+  Move san_to_move(const std::string& s) const;
 
   // Accessing hash keys
   Key key() const;
@@ -431,8 +437,8 @@ struct BoardHistory {
       if (i % 2 == 0) {
         line += std::to_string(i / 2 + 1) + ". ";
       }
-      line += positions[i].move_san(positions[i + 1].get_move()) + " ";
-      if (line.size() > 80) {
+      line += positions[i].move_to_san(positions[i + 1].get_move()) + " ";
+      if (line.size() >= 76) {
         line += '\n';
         result += line;
         line = "";

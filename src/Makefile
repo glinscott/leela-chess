@@ -7,11 +7,14 @@ default:
 		LDFLAGS='$(LDFLAGS) -flto -g' \
 		lczero
 
+#CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -pipe -O0 -g -std=c++14 -fsanitize=thread'
+#LDFLAGS='$(LDFLAGS) -g -fsanitize=thread -fuse-ld=gold'
+
 debug:
 	@echo "Detected OS: ${THE_OS}"
 	$(MAKE) \
-		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -pipe -O0 -g -std=c++14 -fsanitize=thread -fuse-ld=gold' \
-		LDFLAGS='$(LDFLAGS) -g  -fsanitize=thread -fuse-ld=gold' \
+		CXXFLAGS='$(CXXFLAGS) -Wall -Wextra -pipe -O0 -g -std=c++14' \
+		LDFLAGS='$(LDFLAGS) -g' \
 		lczero
 
 clang:
@@ -47,7 +50,7 @@ CPPFLAGS += -MD -MP
 
 sources = Network.cpp Training.cpp UCTSearch.cpp Utils.cpp Random.cpp Parameters.cpp \
 		UCTNode.cpp OpenCL.cpp TTable.cpp Timing.cpp main.cpp \
-		Bitboard.cpp Movegen.cpp Position.cpp UCI.cpp
+		Bitboard.cpp Movegen.cpp Position.cpp UCI.cpp pgn.cpp
 
 objects = $(sources:.cpp=.o)
 deps = $(sources:%.cpp=%.d)
