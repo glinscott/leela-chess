@@ -42,8 +42,9 @@ std::string OutputChunker::gen_chunk_name(void) const {
 }
 
 OutputChunker::OutputChunker(const std::string& basename,
-                             bool compress)
-    : m_basename(basename), m_compress(compress) {
+                             bool compress,
+                             size_t chunk_size)
+    : m_basename(basename), m_compress(compress), chunk_size_(chunk_size) {
 }
 
 OutputChunker::~OutputChunker() {
@@ -53,7 +54,7 @@ OutputChunker::~OutputChunker() {
 void OutputChunker::append(const std::string& str) {
     m_buffer.append(str);
     m_step_count++;
-    if (m_step_count >= CHUNK_SIZE) {
+    if (m_step_count >= chunk_size_) {
         flush_chunks();
     }
 }
