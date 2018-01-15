@@ -119,7 +119,7 @@ class ChunkParser:
     def parse_chunk(self):
         while True:
             for r in self.readers:
-                yield r.recv_bytes();
+                yield r.recv_bytes()
 
 def get_chunks(data_prefix):
     return glob.glob(data_prefix + "*.gz")
