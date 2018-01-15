@@ -43,7 +43,7 @@ def conv2d(x, W):
                         strides=[1, 1, 1, 1], padding='SAME')
 
 class TFProcess:
-    def __init__(self, next_batch):
+    def __init__(self, next_train_batch, next_test_batch=None):
         #from tensorflow.python.client import device_lib
         #print(device_lib.list_local_devices())
 
@@ -55,11 +55,12 @@ class TFProcess:
         self.weights = []
 
         # TF variables
-        self.next_batch = next_batch
+        self.next_train_batch = next_train_batch
+        self.next_test_batch = next_test_batch if next_train_batch else next_train_batch
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
-        self.x = next_batch[0]  # tf.placeholder(tf.float32, [None, 120, 8 * 8])
-        self.y_ = next_batch[1] # tf.placeholder(tf.float32, [None, 1924])
-        self.z_ = next_batch[2] # tf.placeholder(tf.float32, [None, 1])
+        self.x = next_train_batch[0]  # tf.placeholder(tf.float32, [None, 120, 8 * 8])
+        self.y_ = next_train_batch[1] # tf.placeholder(tf.float32, [None, 1924])
+        self.z_ = next_train_batch[2] # tf.placeholder(tf.float32, [None, 1])
         self.training = tf.placeholder(tf.bool)
         self.batch_norm_count = 0
         self.y_conv, self.z_conv = self.construct_net(self.x)
@@ -154,7 +155,7 @@ class TFProcess:
         # Run training for this batch
         policy_loss, mse_loss, reg_term, _, _ = self.session.run(
             [self.policy_loss, self.mse_loss, self.reg_term, self.train_op,
-                self.next_batch],
+                self.next_train_batch],
             feed_dict={self.training: True})
         steps = tf.train.global_step(self.session, self.global_step)
         # Keep running averages
@@ -192,9 +193,9 @@ class TFProcess:
         if steps % 2000 == 0:
             sum_accuracy = 0
             sum_mse = 0
-            for _ in range(0, 10):
+            for _ in range(0, 15):
                 train_accuracy, train_mse, _ = self.session.run(
-                    [self.accuracy, self.mse_loss, self.next_batch],
+                    [self.accuracy, self.mse_loss, self.next_test_batch],
                     feed_dict={self.training: False})
                 sum_accuracy += train_accuracy
                 sum_mse += train_mse
