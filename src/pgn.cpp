@@ -48,17 +48,24 @@ std::unique_ptr<PGNGame> PGNParser::parse() {
   }
 
   // Read in the moves
-  for (int i = 0;; ++i) {
+  for (int i = 0;;) {
     is_ >> s;
-    if (s.empty() || s == "[Event" || parse_result(s)) {
+    if (!is_.good() || s.empty() || s == "[Event" || parse_result(s)) {
       break;
+    }
+
+    // Skip comments
+    if (s[0] == '{') {
+      continue;
     }
 
     // Skip the move numbers
     if ((i % 3) == 0) {
-     continue;
+      ++i;
+      continue;
     }
 
+    ++i;
     Move m = game->bh.cur().san_to_move(s);
     if (m == MOVE_NONE) {
       throw std::runtime_error("Unable to parse pgn move " + s);

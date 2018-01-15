@@ -40,6 +40,17 @@ void TTable::clear() {
     m_buckets.resize(size);
 }
 
+void TTable::clear_entry(uint64_t hash) {
+    std::lock_guard<std::mutex> guard(mutex_);
+
+    unsigned int index = (unsigned int)hash;
+    index %= m_buckets.size();
+
+    m_buckets[index].m_hash       = 0;
+    m_buckets[index].m_visits     = 0;
+    m_buckets[index].m_eval_sum   = 0.0;
+}
+
 void TTable::update(uint64 hash, const UCTNode * node) {
     std::lock_guard<std::mutex> guard(mutex_);
 

@@ -3,3 +3,4 @@
 src/lczero
 build/
 cmake-build*/
+training/tf/leelaz-model-*
