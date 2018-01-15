@@ -218,6 +218,13 @@ Move UCTSearch::think() {
     assert(m_playouts == 0);
     assert(m_nodes == 0);
 
+    // Clear the TTable for any positions in our history if we have a repetition.
+    if (bh_.cur().repetitions_count() > 0) {
+        for (int i = 0; i < static_cast<int>(bh_.positions.size()); ++i) {
+            TTable::get()->clear_entry(bh_.positions[i].key());
+        }
+    }
+
     // Start counting time for us
 //    m_rootstate.start_clock();
 
@@ -271,7 +278,7 @@ Move UCTSearch::think() {
     }
 
     // display search info
-    myprintf("\n");
+    // myprintf("\n");
     // dump_stats(bh_, m_root);
     Training::record(bh_, m_root);
 

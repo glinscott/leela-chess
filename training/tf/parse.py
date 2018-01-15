@@ -30,7 +30,7 @@ from tfprocess import TFProcess
 
 DATA_ITEM_LINES = 121
 
-BATCH_SIZE = 256
+BATCH_SIZE = 1024
 
 class ChunkParser:
     def __init__(self, chunks):

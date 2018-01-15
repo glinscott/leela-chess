@@ -43,6 +43,9 @@ public:
     // Clear the TTable (useful when starting new game)
     void clear();
 
+    // Clear a given entry - used to avoid repetitions.
+    void clear_entry(uint64_t hash);
+
     /*
         update corresponding entry
     */
