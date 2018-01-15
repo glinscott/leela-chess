@@ -9,6 +9,8 @@ described in [Mastering Chess and Shogi by Self-Play with a General Reinforcemen
 
 We will need to do this with a distributed project, as it requires a huge amount of compute.
 
+Please visit the LCZero forum to discuss: https://groups.google.com/forum/#!forum/lczero
+
 # Contributing
 
 The project is not quite ready to launch the distributed training component.
