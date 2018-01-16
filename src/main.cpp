@@ -19,6 +19,7 @@
 */
 
 #include <boost/program_options.hpp>
+#include <boost/filesystem.hpp>
 #include <fstream>
 #include <iostream>
 #include <random>
@@ -305,7 +306,14 @@ Qe7# 0-1
 }
 
 void generate_supervised_data(const std::string& filename) {
-  auto chunker = OutputChunker{"supervise/training", true, 15000};
+  namespace fs = boost::filesystem;
+  fs::path fp(filename);
+  fs::path dir("supervise-" + fp.stem().string());
+  if (!fs::exists(dir)) {
+    fs::create_directories(dir);
+    printf("Created dirs %s\n", dir.string().c_str());
+  }
+  auto chunker = OutputChunker{dir.string() + "/training", true, 15000};
 
   std::ifstream f;
   f.open(filename);
@@ -316,7 +324,8 @@ void generate_supervised_data(const std::string& filename) {
     Training::clear_training();
     auto game = parser.parse();
     if (game == nullptr) {
-      break;
+      printf("Invalid game in %s\n", filename.c_str());
+      continue;
     }
     printf("\rProcessed %d games", ++games);
     BoardHistory bh;
