@@ -297,7 +297,7 @@ void Network::init() {
 
     // Residual block convolutions
     for (auto i = size_t{0}; i < residual_blocks * 2; i++) {
-		conv_weights[weight_index] =
+        conv_weights[weight_index] =
             winograd_transform_f(conv_weights[weight_index],
                                  channels, channels);
         weight_index++;
@@ -705,7 +705,7 @@ void Network::forward_cpu(std::vector<float>& input,
     // Input convolution
     constexpr int width = 8;
     constexpr int height = 8;
-    constexpr int tiles = (width + 1) * (height + 1) / 4;
+    constexpr int tiles = width * height / 2;
     // Calculate output channels
     const auto output_channels = conv_biases[0].size();
     // Assumes that residual blocks are identical and have same

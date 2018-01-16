@@ -32,7 +32,7 @@
 
 #include "Tuner.h"
 
-static constexpr auto WINOGRAD_P = (8 + 1) * (8 + 1) / 4;
+static constexpr auto WINOGRAD_P = 8 * 8 / 2;
 static constexpr auto WINOGRAD_TILE = 4 * 4;
 
 class Layer {
