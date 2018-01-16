@@ -52,6 +52,10 @@ public:
     static constexpr int NUM_OUTPUT_POLICY = 1924;
     static constexpr int NUM_VALUE_CHANNELS = 256;
 
+    // Winograd filter transformation changes 3x3 filters to 4x4
+    static constexpr auto WINOGRAD_ALPHA = 4;
+    static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
+
     using BoardPlane = std::bitset<8 * 8>;
     struct NNPlanes {
       std::array<BoardPlane, INPUT_CHANNELS - 3> bit;
@@ -85,6 +89,26 @@ private:
     static std::unordered_map<Move, int, std::hash<int>> move_lookup;
 
     static void process_bn_var(std::vector<float>& weights, const float epsilon=1e-5f);
+    static std::vector<float> winograd_transform_f(const std::vector<float>& f,
+        const int outputs, const int channels);
+    static std::vector<float> zeropad_U(const std::vector<float>& U,
+        const int outputs, const int channels,
+        const int outputs_pad, const int channels_pad);
+    static void winograd_transform_in(const std::vector<float>& in,
+                                      std::vector<float>& V,
+                                      const int C);
+    static void winograd_transform_out(const std::vector<float>& M,
+                                       std::vector<float>& Y,
+                                       const int K);
+    static void winograd_convolve3(const int outputs,
+                                   const std::vector<float>& input,
+                                   const std::vector<float>& U,
+                                   std::vector<float>& V,
+                                   std::vector<float>& M,
+                                   std::vector<float>& output);
+    static void winograd_sgemm(const std::vector<float>& U,
+                               std::vector<float>& V,
+                               std::vector<float>& M, const int C, const int K);
     static void init_move_map();
     static Netresult get_scored_moves_internal(const BoardHistory& state, NNPlanes& planes, DebugRawData* debug_data);
 #if defined(USE_BLAS)

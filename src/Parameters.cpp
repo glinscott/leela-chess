@@ -51,7 +51,8 @@ int cfg_min_resign_moves;
 uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
 std::vector<int> cfg_gpus;
-int cfg_rowtiles;
+bool cfg_sgemm_exhaustive;
+bool cfg_tune_only;
 #endif
 float cfg_puct;
 float cfg_softmax_temp;
@@ -71,7 +72,8 @@ void Parameters::setup_default_parameters() {
     cfg_lagbuffer_cs = 100;
 #ifdef USE_OPENCL
     cfg_gpus = { };
-    cfg_rowtiles = 5;
+    cfg_sgemm_exhaustive = false;
+    cfg_tune_only = false;
 #endif
     cfg_puct = 0.85f;
     cfg_softmax_temp = 1.0f;
