@@ -498,7 +498,7 @@ void Network::winograd_sgemm(const std::vector<float>& U,
                              std::vector<float>& V,
                              std::vector<float>& M,
                              const int C, const int K) {
-    constexpr auto P = (8 + 1) * (8 + 1) / WINOGRAD_ALPHA;
+    constexpr auto P = 8 * 8 / 4;
 
     for (auto b = 0; b < WINOGRAD_TILE; b++) {
         auto offset_u = b * K * C;
@@ -705,7 +705,7 @@ void Network::forward_cpu(std::vector<float>& input,
     // Input convolution
     constexpr int width = 8;
     constexpr int height = 8;
-    constexpr int tiles = width * height / 2;
+    constexpr int tiles = width * height / 4;
     // Calculate output channels
     const auto output_channels = conv_biases[0].size();
     // Assumes that residual blocks are identical and have same
@@ -713,8 +713,11 @@ void Network::forward_cpu(std::vector<float>& input,
     const auto input_channels = output_channels;
     auto conv_out = std::vector<float>(output_channels * width * height);
 
-    auto V = std::vector<float>(WINOGRAD_TILE * input_channels * tiles);
-    auto M = std::vector<float>(WINOGRAD_TILE * output_channels * tiles);
+    // TODO(gary): This *2 is wrong, but I'm not sure how...  And it makes the
+    // winograd cpu path match the GPU path and the non-winograd implementation
+    // as well.
+    auto V = std::vector<float>(WINOGRAD_TILE * input_channels * tiles * 2);
+    auto M = std::vector<float>(WINOGRAD_TILE * output_channels * tiles * 2);
 
     winograd_convolve3(output_channels, input, conv_weights[0], V, M, conv_out);
     batchnorm<64>(output_channels, conv_out,
