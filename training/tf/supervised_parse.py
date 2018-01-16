@@ -32,7 +32,7 @@ from tfprocess import TFProcess
 class Parser:
     def __init__(self, filename):
         self.data = None
-        self.example_len = 15438
+        self.example_len = 15438 # size of a tf.train.Example in binary
         with open(filename, 'rb') as f:
             self.data = f.read()
             print("{} examples, {} bytes".format(len(self.data)/self.example_len, self.example_len))
