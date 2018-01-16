@@ -27,27 +27,36 @@ import numpy as np
 import time
 import tensorflow as tf
 import parse
+import os
 from tfprocess import TFProcess
 
 class Parser:
     def __init__(self, filename):
-        self.data = None
         self.example_len = 15438
-        with open(filename, 'rb') as f:
-            self.data = f.read()
-            print("{} examples, {} bytes".format(len(self.data)/self.example_len, self.example_len))
+        self.len = os.stat(filename).st_size
+        self.f = open(filename, 'rb')
+        print("{} examples, {} bytes".format(self.len/self.example_len, self.example_len))
 
     def num_samples(self):
-        return len(self.data) // self.example_len
+        return self.len // self.example_len
 
     def parse_chunk(self):
         n = self.num_samples()
+        chunk_n = parse.BATCH_SIZE
+        chunk_i = parse.BATCH_SIZE
+        data = []
         i = 0
         while True:
-            yield self.data[i*self.example_len:i*self.example_len+self.example_len]
+            if chunk_i >= chunk_n:
+                data = self.f.read(self.example_len*parse.BATCH_SIZE)
+                chunk_i = 0
+            yield data[chunk_i*self.example_len:chunk_i*self.example_len+self.example_len]
             i += 1
-            i %= n
-
+            chunk_i += 1
+            if i >= n:
+                self.f.seek(0, os.SEEK_SET)
+                i = 0
+                chunk_i = chunk_n
 
 def main(args):
 
