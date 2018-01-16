@@ -222,46 +222,6 @@ static std::string parse_commandline(int argc, char *argv[]) {
     return start;
 }
 
-void bench() {
-  std::string raw = R"EOM([Event "?"]
-[Site "?"]
-[Date "2018.01.14"]
-[Round "1"]
-[White "lc_new"]
-[Black "lc_base"]
-[Result "1/2-1/2"]
-[ECO "A40"]
-[Opening "Queen's pawn"]
-[PlyCount "90"]
-[TimeControl "inf"]
-
-1. d4 e6 {0.51s} 2. f3 Qg5 3. c4 Qxg2 {0.50s} 4. Bxg2 Nh6 {0.51s} 5. Nc3
-Nc6 {0.52s} 6. e4 Bd6 {0.50s} 7. Nge2 g6 {0.50s} 8. O-O Bxh2+ {0.50s} 9. Kh1 Ke7
-10. Be3 {0.50s} Kf6 11. Qd2 {0.50s} Nxd4 12. Nxd4 {0.50s} Rf8 13. e5+ Ke7 14. c5
-Bg3 15. f4 d6 16. cxd6+ Ke8 17. Kg1 Bd7 18. a4 Rd8 {0.50s} 19. a5 Ra8 {0.54s}
-20. a6 {0.51s} Rd8 21. Ndb5 Ra8 22. Nd4 Rd8 23. Ndb5 {0.51s} Ra8
-
-)EOM";
-
-  std::istringstream ss(raw);
-  PGNParser parser(ss);
-  auto game = parser.parse();
-
-  printf("%s\n", game->bh.cur().fen().c_str());
-
-  /*
-  Network::DebugRawData debug_data;
-  auto r = Network::get_scored_moves(game->bh, &debug_data);
-
-  FILE* f = fopen("/tmp/output", "w");
-  fputs(debug_data.getJson().c_str(), f);
-  fclose(f);
-  */
-
-  auto search = std::make_unique<UCTSearch>(std::move(game->bh));
-  search->think();
-}
-
 void test_pgn_parse() {
   std::string raw = R"EOM([Event "?"]
 [Site "?"]
@@ -367,8 +327,6 @@ int main(int argc, char* argv[]) {
     generate_supervised_data(cfg_supervise);
     return 0;
   }
-
-  // bench();
 
   UCI::loop(uci_start);
 
