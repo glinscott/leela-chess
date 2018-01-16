@@ -33,8 +33,9 @@ DATA_ITEM_LINES = 121
 BATCH_SIZE = 2048
 
 class ChunkParser:
-    def __init__(self, chunks):
+    def __init__(self, chunks, skip = 1):
         self.flat_planes = []
+        self.skip = skip
         for r in range(0, 255):
             self.flat_planes.append(bytes([r]*64))
 
@@ -107,8 +108,10 @@ class ChunkParser:
                 with gzip.open(chunk, 'r') as chunk_file:
                     file_content = chunk_file.readlines()
                     item_count = len(file_content) // DATA_ITEM_LINES
-                    for item_idx in range(item_count):
-                        pick_offset = item_idx * DATA_ITEM_LINES
+
+                    for item_idx in range(0, item_count, self.skip):
+                        ridx =  item_idx if self.skip == 1 else min(item_idx + random.randint(0, 1), item_count)
+                        pick_offset = ridx * DATA_ITEM_LINES
                         item = file_content[pick_offset:pick_offset + DATA_ITEM_LINES]
                         str_items = [str(line, 'ascii').strip() for line in item]
                         success, data = self.convert_train_data(str_items)

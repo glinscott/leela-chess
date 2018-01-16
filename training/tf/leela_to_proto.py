@@ -22,11 +22,7 @@ import glob
 import multiprocessing as mp
 import parse
 import argparse
-
-
-def get_chunks(data_prefix):
-    return glob.glob(data_prefix + "*.gz")
-
+import random
 
 def get_configuration():
     """Returns a populated cli configuration"""
@@ -43,39 +39,43 @@ def get_configuration():
     return parser.parse_args()
 
 
+def generate_dataset(chunks, num_samples, filename):
+    parser = parse.ChunkParser(chunks, 16)
+    gen = parser.parse_chunk()
+
+    with open(filename, 'wb') as f:
+        for _ in range(num_samples):
+            f.write(next(gen))
+        print("Written dataset to {}".format(filename))
+
+
 def main(args):
     cfg = get_configuration()
 
     chunks = []
     for d in cfg.directories:
-        chunks += get_chunks(d)
+        chunks += parse.get_chunks(d)
 
     print("Found {0} chunks".format(len(chunks)))
 
-    if not chunks:
-        return
+    if len(chunks) < 10:
+        print("Not enough chunks")
+        return 1
 
-    parser = parse.ChunkParser(chunks)
-    gen = parser.parse_chunk()
+    random.shuffle(chunks)
 
-    num_train = int(cfg.num_samples*cfg.train_ratio)
-    num_test = cfg.num_samples - num_train
-    print("Generating {0} training-, {1} testing-samples".format(num_train, num_test))
+    num_train = int(len(chunks)*cfg.train_ratio)
+    num_train_samples = int(cfg.num_samples*cfg.train_ratio)
+    num_test_samples = cfg.num_samples - num_train_samples
+    print("Generating {0} training-, {1} testing-samples".format(num_train_samples, num_test_samples))
+
     if cfg.output != ".":
         os.makedirs(cfg.output)
 
-    with open('{}/train.bin'.format(cfg.output), 'wb') as f:
-        for _ in range(num_train):
-            data = next(gen)
-            f.write(data)
+    generate_dataset(chunks[:num_train], num_train_samples, "{}/train.bin".format(cfg.output))
+    generate_dataset(chunks[num_train:], num_test_samples, "{}/test.bin".format(cfg.output))
 
-    with open('{}/test.bin'.format(cfg.output), 'wb') as f:
-        for _ in range(num_test):
-            data = next(gen)
-            f.write(data)
-
-    print("Written data to {}*.bin".format(cfg.output))
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
     mp.freeze_support()
+    sys.exit(main(sys.argv[1:]))
