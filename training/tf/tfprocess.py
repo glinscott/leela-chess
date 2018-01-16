@@ -56,7 +56,7 @@ class TFProcess:
 
         # TF variables
         self.next_train_batch = next_train_batch
-        self.next_test_batch = next_test_batch if next_train_batch else next_train_batch
+        self.next_test_batch = next_test_batch if next_test_batch else next_train_batch
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         self.x = next_train_batch[0]  # tf.placeholder(tf.float32, [None, 120, 8 * 8])
         self.y_ = next_train_batch[1] # tf.placeholder(tf.float32, [None, 1924])
