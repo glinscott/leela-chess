@@ -325,7 +325,7 @@ void generate_supervised_data(const std::string& filename) {
     auto game = parser.parse();
     if (game == nullptr) {
       printf("Invalid game in %s\n", filename.c_str());
-      continue;
+      break;
     }
     printf("\rProcessed %d games", ++games);
     BoardHistory bh;
