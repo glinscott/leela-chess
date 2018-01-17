@@ -193,15 +193,16 @@ class TFProcess:
         if steps % 2000 == 0:
             sum_accuracy = 0
             sum_mse = 0
-            for _ in range(0, 15):
+            num_evals = 15
+            for _ in range(0, num_evals):
                 train_accuracy, train_mse, _ = self.session.run(
                     [self.accuracy, self.mse_loss, self.next_test_batch],
                     feed_dict={self.training: False})
                 sum_accuracy += train_accuracy
                 sum_mse += train_mse
-            sum_accuracy /= 10.0
+            sum_accuracy /= num_evals
             # Additionally rescale to [0, 1] so divide by 4
-            sum_mse /= (4.0 * 10.0)
+            sum_mse /= (4.0 * num_evals)
             test_summaries = tf.Summary(value=[
                 tf.Summary.Value(tag="Accuracy", simple_value=sum_accuracy),
                 tf.Summary.Value(tag="MSE Loss", simple_value=sum_mse)])
