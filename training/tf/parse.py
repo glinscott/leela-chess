@@ -108,9 +108,10 @@ class ChunkParser:
                 with gzip.open(chunk, 'r') as chunk_file:
                     file_content = chunk_file.readlines()
                     item_count = len(file_content) // DATA_ITEM_LINES
-
-                    for item_idx in range(0, item_count, self.skip):
-                        ridx =  item_idx if self.skip == 1 else min(item_idx + random.randint(0, 1), item_count)
+                    start = 0 if self.skip == 1 else random.randint(0, self.skip)
+                    for item_idx in range(start, item_count, self.skip):
+                        # make sure we randomly select both colors within a game
+                        ridx = item_idx if self.skip == 1 else item_idx + random.randint(0, 1)
                         pick_offset = ridx * DATA_ITEM_LINES
                         item = file_content[pick_offset:pick_offset + DATA_ITEM_LINES]
                         str_items = [str(line, 'ascii').strip() for line in item]
