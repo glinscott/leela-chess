@@ -34,13 +34,15 @@ def get_configuration():
         help='Ratio for training / testing', type=float)
     parser.add_argument('-o', '--output', default=".",
         help='Output directory', type=str)
+    parser.add_argument('-s', '--skip', default=70, type=int,
+        help='Skip this many positions in a chunk')
     parser.add_argument('directories', default="", nargs='+',
         help='Directories with leela-chess chunks in gzip format')
     return parser.parse_args()
 
 
-def generate_dataset(chunks, num_samples, filename):
-    parser = parse.ChunkParser(chunks, 16)
+def generate_dataset(chunks, num_samples, filename, skip):
+    parser = parse.ChunkParser(chunks, skip)
     gen = parser.parse_chunk()
 
     with open(filename, 'wb') as f:
@@ -62,8 +64,6 @@ def main(args):
         print("Not enough chunks")
         return 1
 
-    random.shuffle(chunks)
-
     num_train = int(len(chunks)*cfg.train_ratio)
     num_train_samples = int(cfg.num_samples*cfg.train_ratio)
     num_test_samples = cfg.num_samples - num_train_samples
@@ -72,8 +72,8 @@ def main(args):
     if cfg.output != ".":
         os.makedirs(cfg.output)
 
-    generate_dataset(chunks[:num_train], num_train_samples, "{}/train.bin".format(cfg.output))
-    generate_dataset(chunks[num_train:], num_test_samples, "{}/test.bin".format(cfg.output))
+    generate_dataset(chunks[:num_train], num_train_samples, "{}/train.bin".format(cfg.output), cfg.skip)
+    generate_dataset(chunks[num_train:], num_test_samples, "{}/test.bin".format(cfg.output), cfg.skip)
 
 
 if __name__ == "__main__":
