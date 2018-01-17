@@ -51,6 +51,10 @@ UCTSearch::UCTSearch(BoardHistory&& bh)
     set_playout_limit(cfg_max_playouts);
 }
 
+void UCTSearch::set_quiet(bool quiet) {
+  quiet_ = quiet;
+}
+
 SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
     const auto& cur = bh.cur();
     const auto color = cur.side_to_move();
@@ -277,9 +281,10 @@ Move UCTSearch::think() {
         return MOVE_NONE;
     }
 
-    // display search info
-    // myprintf("\n");
-    // dump_stats(bh_, m_root);
+    if (!quiet_) {
+      // display search info
+      dump_stats(bh_, m_root);
+    }
     Training::record(bh_, m_root);
 
     Time elapsed;

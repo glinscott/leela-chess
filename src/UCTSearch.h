@@ -87,6 +87,8 @@ private:
     std::atomic<int> m_playouts{0};
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
+
+    bool quiet_ = true;
 };
 
 class UCTWorker {
