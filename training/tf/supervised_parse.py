@@ -64,13 +64,12 @@ def main(args):
     train_next_batch = iterator.get_next()
 
     print("Creating testset from {}".format(sys.argv[2]))
-    test_parser = Parser(sys.argv[2], parse.BATCH_SIZE*2)
+    test_parser = Parser(sys.argv[2], parse.BATCH_SIZE)
     test_ds = tf.data.Dataset.from_generator(
         train_parser.parse_chunk, output_types=(tf.string))
     test_ds = test_ds.map(parse._parse_function)
 
-    print("Test batch size {}".format(parse.BATCH_SIZE*2))
-    test_ds = test_ds.batch(parse.BATCH_SIZE*2)
+    test_ds = test_ds.batch(parse.BATCH_SIZE)
     test_ds = test_ds.prefetch(16)
     iterator = test_ds.make_one_shot_iterator()
     test_next_batch = iterator.get_next()

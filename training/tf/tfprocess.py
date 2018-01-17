@@ -81,7 +81,7 @@ class TFProcess:
         self.reg_term = \
             tf.contrib.layers.apply_regularization(regularizer, reg_variables)
 
-        loss = 1.0 * self.policy_loss + 1.0 * self.mse_loss + self.reg_term
+        loss = 1.0 * self.policy_loss + 0.01 * self.mse_loss + self.reg_term
 
         opt_op = tf.train.MomentumOptimizer(
             learning_rate=0.05, momentum=0.9, use_nesterov=True)
@@ -193,15 +193,16 @@ class TFProcess:
         if steps % 2000 == 0:
             sum_accuracy = 0
             sum_mse = 0
-            for _ in range(0, 15):
+            N = 122
+            for _ in range(0, N):
                 train_accuracy, train_mse, _ = self.session.run(
                     [self.accuracy, self.mse_loss, self.next_test_batch],
                     feed_dict={self.training: False})
                 sum_accuracy += train_accuracy
                 sum_mse += train_mse
-            sum_accuracy /= 10.0
+            sum_accuracy /= N
             # Additionally rescale to [0, 1] so divide by 4
-            sum_mse /= (4.0 * 10.0)
+            sum_mse /= (4.0 * N)
             test_summaries = tf.Summary(value=[
                 tf.Summary.Value(tag="Accuracy", simple_value=sum_accuracy),
                 tf.Summary.Value(tag="MSE Loss", simple_value=sum_mse)])
