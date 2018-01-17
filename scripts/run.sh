@@ -6,8 +6,12 @@
 
 # Add -debug to see engine output
 # Missing -repeat and -openings (-t2 gives some randomness...)
-./cutechess-cli -rounds 100 -tournament gauntlet -concurrency 1 \
- -pgnout results.pgn \
- -engine name=lc_new cmd=/home/gary/tmp/leela-chess/src/lczero arg="-t2" arg="--weights=/home/gary/tmp/leela-chess/src/newweights.txt" \
- -engine name=lc_base cmd=/home/gary/tmp/leela-chess/src/lczero arg="-t2" arg="--weights=/home/gary/tmp/leela-chess/src/weights.txt" \
- -each proto=uci tc=inf
+#./cutechess-cli -rounds 100 -tournament gauntlet -concurrency 1 \
+./cutechess-cli \
+ -engine name=supervised cmd=/home/fhuizing/Workspace/leela-chess/build/lczero arg="-t2" arg="--weights=/home/fhuizing/Workspace/leela-chess/scripts/newweights.txt" \
+ -engine name=random cmd=/home/fhuizing/Workspace/leela-chess/build/lczero arg="-t2" arg="--weights=/home/fhuizing/Workspace/leela-chess/scripts/weights.txt" \
+ -each proto=uci tc=inf \
+ -rounds 100 \
+ -tournament gauntlet \
+ -concurrency 2 \
+ -pgnout results.pgn
