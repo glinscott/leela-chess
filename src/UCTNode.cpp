@@ -48,6 +48,12 @@ UCTNode::UCTNode(Move move, float score, float init_eval)
     assert(m_score >= 0.0 && m_score <= 1.0);
 }
 
+UCTNode::~UCTNode() {
+    LOCK(m_nodemutex, lock);
+    // Empty the children array while the lock is held
+    m_children.clear();
+}
+
 bool UCTNode::first_visit() const {
     return m_visits == 0;
 }
@@ -57,20 +63,19 @@ bool UCTNode::create_children(std::atomic<int>& nodecount, const BoardHistory& s
     if (has_children()) {
         return false;
     }
-    {
-      // acquire the lock
-      std::lock_guard<std::mutex> guard(m_nodemutex);
-      // check whether somebody beat us to it (after taking the lock)
-      if (has_children()) {
-          return false;
-      }
-      // Someone else is running the expansion
-      if (m_is_expanding) {
-          return false;
-      }
-      // We'll be the one queueing this node for expansion, stop others
-      m_is_expanding = true;
+    // acquire the lock
+    LOCK(m_nodemutex, lock);
+    // check whether somebody beat us to it (after taking the lock)
+    if (has_children()) {
+        return false;
     }
+    // Someone else is running the expansion
+    if (m_is_expanding) {
+        return false;
+    }
+    // We'll be the one queueing this node for expansion, stop others
+    m_is_expanding = true;
+    lock.unlock();
 
     auto raw_netlist = Network::get_scored_moves(state);
     // no successors in final state
@@ -113,7 +118,7 @@ void UCTNode::link_nodelist(std::atomic<int>& nodecount, std::vector<Network::sc
     // Use best to worst order, so highest go first
     std::stable_sort(rbegin(nodelist), rend(nodelist));
 
-    std::lock_guard<std::mutex> guard(m_nodemutex);
+    LOCK(m_nodemutex, lock);
 
     m_children.reserve(nodelist.size());
     for (const auto& node : nodelist) {
@@ -276,7 +281,7 @@ UCTNode* UCTNode::uct_select_child(Color color) {
     UCTNode* best = nullptr;
     float best_value = -1000.0f;
 
-    std::lock_guard<std::mutex> guard(m_nodemutex);
+    LOCK(m_nodemutex, lock);
     // Count parentvisits.
     // We do this manually to avoid issues with transpositions.
     auto parentvisits = size_t{0};
@@ -328,13 +333,13 @@ private:
 };
 
 void UCTNode::sort_root_children(Color color) {
-    std::lock_guard<std::mutex> guard(m_nodemutex);
+    LOCK(m_nodemutex, lock);
     std::stable_sort(begin(m_children), end(m_children), NodeComp(color));
     std::reverse(begin(m_children), end(m_children));
 }
 
 UCTNode& UCTNode::get_best_root_child(Color color) {
-    std::lock_guard<std::mutex> guard(m_nodemutex);
+    LOCK(m_nodemutex, lock);
     assert(!m_children.empty());
 
     return *(std::max_element(begin(m_children), end(m_children),
