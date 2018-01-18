@@ -47,6 +47,7 @@ int cfg_max_playouts;
 int cfg_lagbuffer_cs;
 int cfg_resignpct;
 int cfg_noise;
+int cfg_randomize;
 int cfg_min_resign_moves;
 uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
@@ -80,6 +81,7 @@ void Parameters::setup_default_parameters() {
     cfg_min_resign_moves = 20;
     cfg_resignpct = 10;
     cfg_noise = false;
+    cfg_randomize = false;
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     

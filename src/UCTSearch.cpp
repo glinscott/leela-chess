@@ -108,6 +108,12 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
     // sort children, put best move on top
     m_root.sort_root_children(color);
 
+    // Check whether to randomize the best move proportional
+    // to the playout counts.
+    if (cfg_randomize) {
+        m_root.randomize_first_proportionally();
+    }
+
     if (parent.get_first_child()->first_visit()) {
         return;
     }

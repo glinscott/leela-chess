@@ -65,7 +65,8 @@ static std::string parse_commandline(int argc, char *argv[]) {
                        "Requires --noponder.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
                         "Resign when winrate is less than x%.")
-        ("noise,n", "Enable policy network randomization.")
+        ("noise,n", "Apply dirichlet noise to root.")
+        ("randomize", "Randomize move selection at root (only useful for training).")
         ("seed,s", po::value<std::uint64_t>(),
                    "Random number generation seed.")
         ("weights,w", po::value<std::string>(), "File with network weights.")
@@ -178,6 +179,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("noise")) {
         cfg_noise = true;
+    }
+
+    if (vm.count("randomize")) {
+        cfg_randomize = true;
     }
 
     if (vm.count("playouts")) {
