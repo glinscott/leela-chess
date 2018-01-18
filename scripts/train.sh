@@ -1,4 +1,4 @@
 #!/bin/bash
 
 mkdir data
-./lczero --weights=weights.txt -t2 -n --start=train >training.out
+./lczero --weights=weights.txt --randomize -n --start=train >training.out

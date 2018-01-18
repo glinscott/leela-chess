@@ -37,7 +37,7 @@ ifeq ($(THE_OS),Darwin)
 # for macOS (comment out the Linux part)
 	LIBS += -framework Accelerate
 	LIBS += -framework OpenCL
-	CXXFLAGS += -I/System/Library/Frameworks/Accelerate.framework/Versions/Current/Headers -Wno-deprecated-declarations -Wno-ignored-attributes
+	CXXFLAGS += -I/System/Library/Frameworks/Accelerate.framework/Versions/Current/Headers -Wno-deprecated-declarations
 endif
 
 # for MKL instead of OpenBLAS
@@ -45,12 +45,12 @@ endif
 #CXXFLAGS += -I/opt/intel/mkl/include
 #LDFLAGS  += -L/opt/intel/mkl/lib/intel64/
 
-CXXFLAGS += -I.
+CXXFLAGS += -I. -Wno-ignored-attributes
 CPPFLAGS += -MD -MP
 
 sources = Network.cpp Training.cpp UCTSearch.cpp Utils.cpp Random.cpp Parameters.cpp \
-		UCTNode.cpp OpenCL.cpp TTable.cpp Timing.cpp main.cpp \
-		Bitboard.cpp Movegen.cpp Position.cpp UCI.cpp pgn.cpp
+		UCTNode.cpp OpenCL.cpp TTable.cpp Timing.cpp main.cpp Tuner.cpp \
+		Bitboard.cpp Movegen.cpp Position.cpp UCI.cpp pgn.cpp SMP.cpp
 
 objects = $(sources:.cpp=.o)
 deps = $(sources:%.cpp=%.d)
