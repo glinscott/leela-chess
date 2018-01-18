@@ -28,11 +28,13 @@ extern int cfg_max_playouts;
 extern int cfg_lagbuffer_cs;
 extern int cfg_resignpct;
 extern int cfg_noise;
+extern int cfg_randomize;
 extern int cfg_min_resign_moves;
 extern uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
 extern std::vector<int> cfg_gpus;
-extern int cfg_rowtiles;
+extern bool cfg_sgemm_exhaustive;
+extern bool cfg_tune_only;
 #endif
 extern float cfg_puct;
 extern float cfg_softmax_temp;
