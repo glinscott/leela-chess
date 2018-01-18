@@ -53,6 +53,7 @@ def generate_dataset(chunks, num_samples, filename, skip):
 
 def main(args):
     cfg = get_configuration()
+    print(cfg.directories)
 
     chunks = []
     for d in cfg.directories:
@@ -64,6 +65,7 @@ def main(args):
         print("Not enough chunks")
         return 1
 
+    random.shuffle(chunks)
     num_train = int(len(chunks)*cfg.train_ratio)
     num_train_samples = int(cfg.num_samples*cfg.train_ratio)
     num_test_samples = cfg.num_samples - num_train_samples

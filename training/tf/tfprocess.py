@@ -43,13 +43,14 @@ def conv2d(x, W):
                         strides=[1, 1, 1, 1], padding='SAME')
 
 class TFProcess:
-    def __init__(self, next_train_batch, next_test_batch=None):
+    def __init__(self, next_train_batch, next_test_batch=None, num_eval = 10):
         #from tensorflow.python.client import device_lib
         #print(device_lib.list_local_devices())
 
         gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.75)
         config = tf.ConfigProto(gpu_options=gpu_options)
         self.session = tf.Session(config=config)
+        self.num_eval = num_eval
 
         # For exporting
         self.weights = []
@@ -193,16 +194,15 @@ class TFProcess:
         if steps % 2000 == 0:
             sum_accuracy = 0
             sum_mse = 0
-            N = 122
-            for _ in range(0, N):
+            for _ in range(0, self.num_eval):
                 train_accuracy, train_mse, _ = self.session.run(
                     [self.accuracy, self.mse_loss, self.next_test_batch],
                     feed_dict={self.training: False})
                 sum_accuracy += train_accuracy
                 sum_mse += train_mse
-            sum_accuracy /= N
+            sum_accuracy /= self.num_eval 
             # Additionally rescale to [0, 1] so divide by 4
-            sum_mse /= (4.0 * N)
+            sum_mse /= (4.0 * self.num_eval)
             test_summaries = tf.Summary(value=[
                 tf.Summary.Value(tag="Accuracy", simple_value=sum_accuracy),
                 tf.Summary.Value(tag="MSE Loss", simple_value=sum_mse)])

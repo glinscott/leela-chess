@@ -50,31 +50,29 @@ class Parser:
             for i in range(self.batch_size):
                 yield data[i*self.example_len:i*self.example_len+self.example_len]
 
+def dataset_iterator(filename, batch_size):
+    parser = Parser(filename, batch_size)
+    ds = tf.data.Dataset.from_generator(
+        parser.parse_chunk, output_types=(tf.string))
+    ds = ds.shuffle(65536)
+    ds = ds.map(parse._parse_function)
+    ds = ds.batch(batch_size)
+    ds = ds.prefetch(16)
+    iterator = ds.make_one_shot_iterator()
+    return iterator.get_next(), parser
 
 def main(args):
+    train_next_batch, parser = dataset_iterator(sys.argv[1], parse.BATCH_SIZE)
     print("Creating trainingset from {}".format(sys.argv[1]))
-    train_parser = Parser(sys.argv[1], parse.BATCH_SIZE)
-    train_ds = tf.data.Dataset.from_generator(
-        train_parser.parse_chunk, output_types=(tf.string))
-    train_ds = train_ds.shuffle(65536)
-    train_ds = train_ds.map(parse._parse_function)
-    train_ds = train_ds.batch(parse.BATCH_SIZE)
-    train_ds = train_ds.prefetch(16)
-    iterator = train_ds.make_one_shot_iterator()
-    train_next_batch = iterator.get_next()
+    num_eval = parser.num_samples() // parse.BATCH_SIZE
+    print("Train epoch in {} steps".format(num_eval))
 
+    test_next_batch, parser = dataset_iterator(sys.argv[2], parse.BATCH_SIZE)
     print("Creating testset from {}".format(sys.argv[2]))
-    test_parser = Parser(sys.argv[2], parse.BATCH_SIZE)
-    test_ds = tf.data.Dataset.from_generator(
-        train_parser.parse_chunk, output_types=(tf.string))
-    test_ds = test_ds.map(parse._parse_function)
-
-    test_ds = test_ds.batch(parse.BATCH_SIZE)
-    test_ds = test_ds.prefetch(16)
-    iterator = test_ds.make_one_shot_iterator()
-    test_next_batch = iterator.get_next()
-
-    tfprocess = TFProcess(train_next_batch, test_next_batch)
+    num_eval = parser.num_samples() // parse.BATCH_SIZE
+    print("Test epoch in {} steps".format(num_eval))
+    
+    tfprocess = TFProcess(train_next_batch, test_next_batch, num_eval)
     if args and len(sys.argv) == 4:
         print("Restoring neural net from {}".format(sys.argv[3]))
         tfprocess.restore(sys.argv[3])
