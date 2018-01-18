@@ -21,7 +21,7 @@ list (APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
 # Required Packages
 set (Boost_MIN_VERSION "1.58.0")
 set (Boost_USE_MULTITHREADED ON)
-find_package (Boost 1.58.0 REQUIRED program_options)
+find_package (Boost 1.58.0 REQUIRED program_options filesystem)
 find_package (Threads REQUIRED)
 find_package (ZLIB REQUIRED)
 find_package (OpenCL REQUIRED)
