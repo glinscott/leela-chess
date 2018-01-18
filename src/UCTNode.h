@@ -26,8 +26,9 @@
 #include <mutex>
 #include <tuple>
 
-#include "Position.h"
 #include "Network.h"
+#include "Position.h"
+#include "SMP.h"
 
 class UCTNode {
 public:
@@ -40,7 +41,7 @@ public:
 
     explicit UCTNode(Move move, float score, float init_eval);
     UCTNode() = delete;
-    ~UCTNode() = default;
+    ~UCTNode();
     bool first_visit() const;
     bool has_children() const;
     bool create_children(std::atomic<int> & nodecount, const BoardHistory& state, float& eval);
@@ -82,7 +83,7 @@ private:
     // Is someone adding scores to this node?
     // We don't need to unset this.
     bool m_is_expanding{false};
-    std::mutex m_nodemutex;
+    SMP::Mutex m_nodemutex;
 
     // Tree data
     std::atomic<bool> m_has_children{false};
