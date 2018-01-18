@@ -1,6 +1,17 @@
 *.d
 *.o
+autogtp/Makefile
+autogtp/autogtp
+autogtp/moc_Production.cpp
+autogtp/moc_Validation.cpp
+src/data
 src/lczero
+src/leelaz_opencl_tuning
+src/supervise
+src/weights.txt
 build/
 cmake-build*/
+training/tf/__pycache__/
+training/tf/checkpoint
 training/tf/leelaz-model-*
+training/tf/leelalogs

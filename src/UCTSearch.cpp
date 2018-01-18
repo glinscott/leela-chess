@@ -51,6 +51,10 @@ UCTSearch::UCTSearch(BoardHistory&& bh)
     set_playout_limit(cfg_max_playouts);
 }
 
+void UCTSearch::set_quiet(bool quiet) {
+  quiet_ = quiet;
+}
+
 SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
     const auto& cur = bh.cur();
     const auto color = cur.side_to_move();
@@ -135,6 +139,13 @@ Move UCTSearch::get_best_move() {
 
     // Make sure best is first
     m_root.sort_root_children(color);
+
+    // Check whether to randomize the best move proportional
+    // to the playout counts.
+    if (cfg_randomize) {
+        m_root.randomize_first_proportionally();
+    }
+
     Move bestmove = m_root.get_first_child()->get_move();
 
     // do we have statistics on the moves?
@@ -277,9 +288,10 @@ Move UCTSearch::think() {
         return MOVE_NONE;
     }
 
-    // display search info
-    // myprintf("\n");
-    // dump_stats(bh_, m_root);
+    if (!quiet_) {
+      // display search info
+      dump_stats(bh_, m_root);
+    }
     Training::record(bh_, m_root);
 
     Time elapsed;

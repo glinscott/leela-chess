@@ -260,6 +260,7 @@ Bg3 15. f4 d6 16. cxd6+ Ke8 17. Kg1 Bd7 18. a4 Rd8 {0.50s} 19. a5 Ra8 {0.54s}
   */
 
   auto search = std::make_unique<UCTSearch>(std::move(game->bh));
+  search->set_quiet(false);
   search->think();
 }
 

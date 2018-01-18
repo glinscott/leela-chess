@@ -24,6 +24,7 @@
 #include <iostream>
 #include <random>
 
+#include "config.h"
 #include "Bitboard.h"
 #include "Position.h"
 #include "Parameters.h"
@@ -65,7 +66,8 @@ static std::string parse_commandline(int argc, char *argv[]) {
                        "Requires --noponder.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
                         "Resign when winrate is less than x%.")
-        ("noise,n", "Enable policy network randomization.")
+        ("noise,n", "Apply dirichlet noise to root.")
+        ("randomize", "Randomize move selection at root (only useful for training).")
         ("seed,s", po::value<std::uint64_t>(),
                    "Random number generation seed.")
         ("weights,w", po::value<std::string>(), "File with network weights.")
@@ -75,12 +77,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("start", po::value<std::string>(), "Start command {train, bench}.")
         ("supervise", po::value<std::string>(), "Dump supervised learning data from the pgn.")
 #ifdef USE_OPENCL
-        /*
         ("gpu",  po::value<std::vector<int> >(),
                 "ID of the OpenCL device(s) to use (disables autodetection).")
-        ("rowtiles", po::value<int>()->default_value(cfg_rowtiles),
-                     "Split up the board in # tiles.")
-        */
+        ("full-tuner", "Try harder to find an optimal OpenCL tuning.")
+        ("tune-only", "Tune OpenCL only and then exit.")
 #endif
 #ifdef USE_TUNER
         ("puct", po::value<float>())
@@ -182,6 +182,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
         cfg_noise = true;
     }
 
+    if (vm.count("randomize")) {
+        cfg_randomize = true;
+    }
+
     if (vm.count("playouts")) {
         cfg_max_playouts = vm["playouts"].as<int>();
         if (!vm.count("noponder")) {
@@ -197,21 +201,17 @@ static std::string parse_commandline(int argc, char *argv[]) {
     }
 
 #ifdef USE_OPENCL
-    /*
     if (vm.count("gpu")) {
         cfg_gpus = vm["gpu"].as<std::vector<int> >();
     }
 
-    if (vm.count("rowtiles")) {
-        int rowtiles = vm["rowtiles"].as<int>();
-        rowtiles = std::min(19, rowtiles);
-        rowtiles = std::max(1, rowtiles);
-        if (rowtiles != cfg_rowtiles) {
-            myprintf("Splitting the board in %d tiles.\n", rowtiles);
-            cfg_rowtiles = rowtiles;
-        }
+    if (vm.count("full-tuner")) {
+        cfg_sgemm_exhaustive = true;
     }
-    */
+
+    if (vm.count("tune-only")) {
+        cfg_tune_only = true;
+    }
 #endif
 
     std::string start = "";
