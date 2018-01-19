@@ -24,7 +24,7 @@ clang:
 		LDFLAGS='$(LDFLAGS) -flto -fuse-linker-plugin' \
 		lczero
 
-DYNAMIC_LIBS = -lboost_program_options -lpthread -lz
+DYNAMIC_LIBS = -lboost_program_options -lboost_system -lboost_filesystem -lpthread -lz
 LIBS =
 
 ifeq ($(THE_OS),Linux)

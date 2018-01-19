@@ -18,6 +18,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <boost/filesystem.hpp>
 #include <cassert>
 #include <iostream>
 #include <sstream>
@@ -216,9 +217,19 @@ int play_one_game() {
   return game_score;
 }
 
-void generate_training_games(unsigned long long n = std::numeric_limits<unsigned long long>::max()) {
-  auto chunker = OutputChunker{"data/training", true};
-  for (unsigned long long i = 0; i < n; i++) {
+void generate_training_games(istringstream& is, int64_t n = std::numeric_limits<int64_t>::max()) {
+  namespace fs = boost::filesystem;
+  std::string suffix;
+  if (!(is >> suffix)) {
+    suffix = "0";
+  }
+  fs::path dir("data-" + suffix);
+  if (!fs::exists(dir)) {
+    fs::create_directories(dir);
+    printf("Created dirs %s\n", dir.string().c_str());
+  }
+  auto chunker = OutputChunker{dir.string() + "/training", true};
+  for (int64_t i = 0; i < n; i++) {
     Training::dump_training(play_one_game(), chunker);
   }
 }
@@ -315,7 +326,7 @@ void UCI::loop(const std::string& start) {
       else if (token == "isready")    sync_cout << "readyok" << sync_endl;
 
       // Additional custom non-UCI commands, mainly for debugging
-      else if (token == "train")   generate_training_games();
+      else if (token == "train")   generate_training_games(is);
       else if (token == "bench")   bench();
       //else if (token == "d")     sync_cout << pos << sync_endl;
       //else if (token == "eval")  sync_cout << Eval::trace(pos) << sync_endl;
