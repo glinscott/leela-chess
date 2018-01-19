@@ -37,7 +37,6 @@ class Parser:
         return self.len // self.example_len
 
     def parse_chunk(self):
-        n = self.num_samples()
         chunk_size = self.example_len*self.batch_size
         while True:
             # cache a batch
