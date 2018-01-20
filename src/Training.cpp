@@ -22,6 +22,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <boost/filesystem.hpp>
 #include <boost/utility.hpp>
 #include "stdlib.h"
 #include "zlib.h"
@@ -45,6 +46,12 @@ OutputChunker::OutputChunker(const std::string& basename,
                              bool compress,
                              size_t chunk_size)
     : m_basename(basename), m_compress(compress), chunk_size_(chunk_size) {
+    namespace fs = boost::filesystem;
+    m_chunk_count = std::count_if(
+        fs::directory_iterator(fs::path(basename).parent_path()),
+        fs::directory_iterator(),
+        static_cast<bool(*)(const fs::path&)>(fs::is_regular_file));
+    Utils::myprintf("Found %d existing chunks in %s\n", m_chunk_count, basename.c_str());
 }
 
 OutputChunker::~OutputChunker() {
