@@ -67,6 +67,10 @@ void OutputChunker::append(const std::string& str) {
 }
 
 void OutputChunker::flush_chunks() {
+    if (m_buffer.empty()) {
+        return;
+    }
+
     if (m_compress) {
         auto chunk_name = gen_chunk_name();
         auto out = gzopen(chunk_name.c_str(), "wb9");
