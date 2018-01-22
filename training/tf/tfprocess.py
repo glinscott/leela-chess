@@ -21,6 +21,7 @@ import numpy as np
 import time
 import tensorflow as tf
 
+
 def weight_variable(shape):
     """Xavier initialization"""
     stddev = np.sqrt(2.0 / (sum(shape)))
@@ -43,11 +44,12 @@ def conv2d(x, W):
                         strides=[1, 1, 1, 1], padding='SAME')
 
 class TFProcess:
-    def __init__(self, next_train_batch, next_test_batch=None, num_eval = 10):
+    def __init__(self, cfg, next_train_batch, next_test_batch=None, num_eval = 10):
+        self.cfg = cfg
+        self.root_dir = os.path.join(self.cfg['training']['path'], self.cfg['name'])
         #from tensorflow.python.client import device_lib
         #print(device_lib.list_local_devices())
-
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.75)
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.20, allow_growth=True)
         config = tf.ConfigProto(gpu_options=gpu_options)
         self.session = tf.Session(config=config)
         self.num_eval = num_eval
@@ -64,28 +66,37 @@ class TFProcess:
         self.z_ = next_train_batch[2] # tf.placeholder(tf.float32, [None, 1])
         self.training = tf.placeholder(tf.bool)
         self.batch_norm_count = 0
-        self.y_conv, self.z_conv = self.construct_net(self.x)
 
-        # Calculate loss on policy head
-        cross_entropy = \
-            tf.nn.softmax_cross_entropy_with_logits(labels=self.y_,
-                                                    logits=self.y_conv)
-        self.policy_loss = tf.reduce_mean(cross_entropy)
+        with tf.device('/device:GPU:{}'.format(self.cfg['gpu'])):
+            self.y_conv, self.z_conv = self.construct_net(self.x)
 
-        # Loss on value head
-        self.mse_loss = \
-            tf.reduce_mean(tf.squared_difference(self.z_, self.z_conv))
+            # loss on policy head
+            cross_entropy = \
+                tf.nn.softmax_cross_entropy_with_logits(labels=self.y_,
+                                                        logits=self.y_conv)
+            self.policy_loss = tf.reduce_mean(cross_entropy)
+
+            # Loss on value head
+            self.mse_loss = \
+                tf.reduce_mean(tf.squared_difference(self.z_, self.z_conv))
 
         # Regularizer
         regularizer = tf.contrib.layers.l2_regularizer(scale=0.0001)
         reg_variables = tf.trainable_variables()
         self.reg_term = \
             tf.contrib.layers.apply_regularization(regularizer, reg_variables)
+        
+        pol_loss_w = self.cfg['training']['policy_loss_weight']
+        val_loss_w = self.cfg['training']['value_loss_weight']
+        loss = pol_loss_w * self.policy_loss + val_loss_w * self.mse_loss + self.reg_term
 
-        loss = 1.0 * self.policy_loss + 1.0 * self.mse_loss + self.reg_term
-
+        # Following AlphaGo Zero paper for supervised learningparameters
+        starter_learning_rate = self.cfg['training']['learning_rate']
+        decay_step = self.cfg['training']['decay_step']
+        decay_rate = self.cfg['training']['decay_rate']
+        learning_rate = tf.train.exponential_decay(starter_learning_rate, self.global_step, decay_step, decay_rate, staircase=True)
         opt_op = tf.train.MomentumOptimizer(
-            learning_rate=0.05, momentum=0.9, use_nesterov=True)
+            learning_rate, momentum=0.9, use_nesterov=True)
 
         self.update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.update_ops):
@@ -104,9 +115,9 @@ class TFProcess:
 
         # Summary part
         self.test_writer = tf.summary.FileWriter(
-            os.path.join(os.getcwd(), "leelalogs/test"), self.session.graph)
+            os.path.join(os.getcwd(), "leelalogs/{}-test".format(self.cfg['name'])), self.session.graph)
         self.train_writer = tf.summary.FileWriter(
-            os.path.join(os.getcwd(), "leelalogs/train"), self.session.graph)
+            os.path.join(os.getcwd(), "leelalogs/{}-train".format(self.cfg['name'])), self.session.graph)
 
         self.init = tf.global_variables_initializer()
         self.saver = tf.train.Saver()
@@ -177,12 +188,12 @@ class TFProcess:
             self.avg_reg_term = decay * self.avg_reg_term + (1 - decay) * reg_term
         else:
             self.avg_reg_term = reg_term
-        if steps % 100 == 0:
+        if steps % 200 == 0:
             time_end = time.time()
             speed = 0
             if self.time_start:
                 elapsed = time_end - self.time_start
-                speed = batch_size * (100.0 / elapsed)
+                speed = batch_size * (200.0 / elapsed)
             print("step {}, policy loss={:g} mse={:g} reg={:g} ({:g} pos/s)".format(
                 steps, self.avg_policy_loss, self.avg_mse_loss, self.avg_reg_term, speed))
             train_summaries = tf.Summary(value=[
@@ -191,7 +202,7 @@ class TFProcess:
             self.train_writer.add_summary(train_summaries, steps)
             self.time_start = time_end
         # Ideally this would use a seperate dataset and so on...
-        if steps % 2000 == 0:
+        if steps % 4000 == 0:
             sum_accuracy = 0
             sum_mse = 0
             for _ in range(0, self.num_eval):
@@ -209,7 +220,7 @@ class TFProcess:
             self.test_writer.add_summary(test_summaries, steps)
             print("step {}, training accuracy={:g}%, mse={:g}".format(
                 steps, sum_accuracy*100.0, sum_mse))
-            path = os.path.join(os.getcwd(), "leelaz-model")
+            path = os.path.join(self.root_dir, self.cfg['name'])
             save_path = self.saver.save(self.session, path, global_step=steps)
             print("Model saved in file: {}".format(save_path))
             leela_path = path + "-" + str(steps) + ".txt"
@@ -336,8 +347,8 @@ class TFProcess:
 
     def construct_net(self, planes):
         # Network structure
-        RESIDUAL_FILTERS = 64
-        RESIDUAL_BLOCKS = 5
+        RESIDUAL_FILTERS = self.cfg['model']['filters']
+        RESIDUAL_BLOCKS = self.cfg['model']['residual_blocks']
 
         # NCHW format
         # batch, 120 input channels, 8 x 8

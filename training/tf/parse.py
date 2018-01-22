@@ -17,6 +17,7 @@
 #    along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 
 import binascii
+import yaml
 import sys
 import glob
 import gzip
@@ -29,8 +30,6 @@ import tensorflow as tf
 from tfprocess import TFProcess
 
 DATA_ITEM_LINES = 121
-
-BATCH_SIZE = 512
 
 class ChunkParser:
     def __init__(self, chunks, skip = 1):
@@ -217,11 +216,21 @@ def benchmark(parser):
         end = time.time()
         print("{} pos/sec {} secs".format( 10000. / (end - start), (end - start)))
 
-def main(args):
+def get_checkpoint(root_dir):
+    checkpoint = os.path.join(root_dir, 'checkpoint')
+    with open(checkpoint, 'r') as f:
+        cp = f.readline().split()[1][1:-1]
+    return cp
 
-    train_data_prefix = args.pop(0)
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: {} config.yaml".format(sys.argv[0]))
+        return 1
 
-    chunks = get_chunks(train_data_prefix)
+    cfg = yaml.safe_load(open(sys.argv[1], 'r').read())
+    print(yaml.dump(cfg, default_flow_style=False))
+
+    chunks = get_chunks(cfg['dataset']['input'])
     print("Found {0} chunks".format(len(chunks)))
 
     if not chunks:
@@ -236,18 +245,20 @@ def main(args):
         parser.parse_chunk, output_types=(tf.string))
     dataset = dataset.shuffle(65536)
     dataset = dataset.map(_parse_function)
-    dataset = dataset.batch(BATCH_SIZE)
+    dataset = dataset.batch(cfg['training']['batch_size'])
     dataset = dataset.prefetch(16)
     iterator = dataset.make_one_shot_iterator()
     next_batch = iterator.get_next()
 
-    tfprocess = TFProcess(next_batch)
-    if args:
-        restore_file = args.pop(0)
-        tfprocess.restore(restore_file)
+    tfprocess = TFProcess(cfg, next_batch)
+    root_dir = os.path.join(cfg['training']['path'], cfg['name'])
+    if os.path.exists(os.path.join(root_dir, 'checkpoint')):
+        checkpoint = get_checkpoint(root_dir)
+        tfprocess.restore(checkpoint)
+
     while True:
-        tfprocess.process(BATCH_SIZE)
+        tfprocess.process(cfg['training']['batch_size'])
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
     mp.freeze_support()
