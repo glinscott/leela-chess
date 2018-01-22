@@ -15,3 +15,5 @@ training/tf/__pycache__/
 training/tf/checkpoint
 training/tf/leelaz-model-*
 training/tf/leelalogs
+training/tf/models/
+.idea/
