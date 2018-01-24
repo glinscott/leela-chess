@@ -57,56 +57,54 @@ class TFProcess:
         self.weights = []
 
         # TF variables
-        with tf.device('/cpu:0'):
-            self.next_train_batch = next_train_batch
-            self.next_test_batch = next_test_batch if next_test_batch else next_train_batch
-            self.global_step = tf.Variable(0, name='global_step', trainable=False)
-            self.x = next_train_batch[0]  # tf.placeholder(tf.float32, [None, 120, 8 * 8])
-            self.y_ = next_train_batch[1] # tf.placeholder(tf.float32, [None, 1924])
-            self.z_ = next_train_batch[2] # tf.placeholder(tf.float32, [None, 1])
-            self.training = tf.placeholder(tf.bool)
-            self.batch_norm_count = 0
+        self.next_train_batch = next_train_batch
+        self.next_test_batch = next_test_batch if next_test_batch else next_train_batch
+        self.global_step = tf.Variable(0, name='global_step', trainable=False)
+        self.x = next_train_batch[0]  # tf.placeholder(tf.float32, [None, 120, 8 * 8])
+        self.y_ = next_train_batch[1] # tf.placeholder(tf.float32, [None, 1924])
+        self.z_ = next_train_batch[2] # tf.placeholder(tf.float32, [None, 1])
+        self.training = tf.placeholder(tf.bool)
+        self.batch_norm_count = 0
 
-            with tf.device('/device:GPU:{}'.format(self.cfg['gpu'])):
-                self.y_conv, self.z_conv = self.construct_net(self.x)
+        self.y_conv, self.z_conv = self.construct_net(self.x)
 
-                # loss on policy head
-                cross_entropy = \
-                    tf.nn.softmax_cross_entropy_with_logits(labels=self.y_,
-                                                            logits=self.y_conv)
-                self.policy_loss = tf.reduce_mean(cross_entropy)
+        # loss on policy head
+        cross_entropy = \
+            tf.nn.softmax_cross_entropy_with_logits(labels=self.y_,
+                                                    logits=self.y_conv)
+        self.policy_loss = tf.reduce_mean(cross_entropy)
 
-                # Loss on value head
-                self.mse_loss = \
-                    tf.reduce_mean(tf.squared_difference(self.z_, self.z_conv))
+        # Loss on value head
+        self.mse_loss = \
+            tf.reduce_mean(tf.squared_difference(self.z_, self.z_conv))
 
-                # Regularizer
-                regularizer = tf.contrib.layers.l2_regularizer(scale=0.0001)
-                reg_variables = tf.trainable_variables()
-                self.reg_term = \
-                    tf.contrib.layers.apply_regularization(regularizer, reg_variables)
-                
-                pol_loss_w = self.cfg['training']['policy_loss_weight']
-                val_loss_w = self.cfg['training']['value_loss_weight']
-                loss = pol_loss_w * self.policy_loss + val_loss_w * self.mse_loss + self.reg_term
+        # Regularizer
+        regularizer = tf.contrib.layers.l2_regularizer(scale=0.0001)
+        reg_variables = tf.trainable_variables()
+        self.reg_term = \
+            tf.contrib.layers.apply_regularization(regularizer, reg_variables)
+        
+        pol_loss_w = self.cfg['training']['policy_loss_weight']
+        val_loss_w = self.cfg['training']['value_loss_weight']
+        loss = pol_loss_w * self.policy_loss + val_loss_w * self.mse_loss + self.reg_term
 
-                # Following AlphaGo Zero paper for supervised learningparameters
-                starter_learning_rate = self.cfg['training']['learning_rate']
-                decay_step = self.cfg['training']['decay_step']
-                decay_rate = self.cfg['training']['decay_rate']
-                learning_rate = tf.train.exponential_decay(starter_learning_rate, self.global_step, decay_step, decay_rate, staircase=True)
-                opt_op = tf.train.MomentumOptimizer(
-                    learning_rate, momentum=0.9, use_nesterov=True)
+        # Following AlphaGo Zero paper for supervised learningparameters
+        starter_learning_rate = self.cfg['training']['learning_rate']
+        decay_step = self.cfg['training']['decay_step']
+        decay_rate = self.cfg['training']['decay_rate']
+        learning_rate = tf.train.exponential_decay(starter_learning_rate, self.global_step, decay_step, decay_rate, staircase=True)
+        opt_op = tf.train.MomentumOptimizer(
+            learning_rate, momentum=0.9, use_nesterov=True)
 
-                self.update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-                with tf.control_dependencies(self.update_ops):
-                    self.train_op = \
-                        opt_op.minimize(loss, global_step=self.global_step)
+        self.update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(self.update_ops):
+            self.train_op = \
+                opt_op.minimize(loss, global_step=self.global_step)
 
-                correct_prediction = \
-                    tf.equal(tf.argmax(self.y_conv, 1), tf.argmax(self.y_, 1))
-                correct_prediction = tf.cast(correct_prediction, tf.float32)
-                self.accuracy = tf.reduce_mean(correct_prediction)
+        correct_prediction = \
+            tf.equal(tf.argmax(self.y_conv, 1), tf.argmax(self.y_, 1))
+        correct_prediction = tf.cast(correct_prediction, tf.float32)
+        self.accuracy = tf.reduce_mean(correct_prediction)
 
         self.avg_policy_loss = None
         self.avg_mse_loss = None
@@ -117,7 +115,7 @@ class TFProcess:
         self.init = tf.global_variables_initializer()
         self.saver = tf.train.Saver()
 
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.20, allow_growth=True)
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.20, allow_growth=True, visible_device_list="{}".format(self.cfg['gpu']))
         config = tf.ConfigProto(allow_soft_placement=True,
                         #log_device_placement=True,
                         gpu_options=gpu_options)
