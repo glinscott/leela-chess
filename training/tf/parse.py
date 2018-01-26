@@ -17,6 +17,7 @@
 #    along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 
 import binascii
+import os
 import yaml
 import sys
 import glob
