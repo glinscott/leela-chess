@@ -21,6 +21,8 @@ import numpy as np
 import time
 import tensorflow as tf
 
+NUM_STEP_TRAIN = 200
+NUM_STEP_TEST = 4000
 
 def weight_variable(shape):
     """Xavier initialization"""
@@ -49,9 +51,6 @@ class TFProcess:
         self.root_dir = os.path.join(self.cfg['training']['path'], self.cfg['name'])
         #from tensorflow.python.client import device_lib
         #print(device_lib.list_local_devices())
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.20, allow_growth=True)
-        config = tf.ConfigProto(gpu_options=gpu_options)
-        self.session = tf.Session(config=config)
         self.num_eval = num_eval
 
         # For exporting
@@ -67,18 +66,17 @@ class TFProcess:
         self.training = tf.placeholder(tf.bool)
         self.batch_norm_count = 0
 
-        with tf.device('/device:GPU:{}'.format(self.cfg['gpu'])):
-            self.y_conv, self.z_conv = self.construct_net(self.x)
+        self.y_conv, self.z_conv = self.construct_net(self.x)
 
-            # loss on policy head
-            cross_entropy = \
-                tf.nn.softmax_cross_entropy_with_logits(labels=self.y_,
-                                                        logits=self.y_conv)
-            self.policy_loss = tf.reduce_mean(cross_entropy)
+        # loss on policy head
+        cross_entropy = \
+            tf.nn.softmax_cross_entropy_with_logits(labels=self.y_,
+                                                    logits=self.y_conv)
+        self.policy_loss = tf.reduce_mean(cross_entropy)
 
-            # Loss on value head
-            self.mse_loss = \
-                tf.reduce_mean(tf.squared_difference(self.z_, self.z_conv))
+        # Loss on value head
+        self.mse_loss = \
+            tf.reduce_mean(tf.squared_difference(self.z_, self.z_conv))
 
         # Regularizer
         regularizer = tf.contrib.layers.l2_regularizer(scale=0.0001)
@@ -113,16 +111,22 @@ class TFProcess:
         self.avg_reg_term = None
         self.time_start = None
 
+
+        self.init = tf.global_variables_initializer()
+        self.saver = tf.train.Saver()
+
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.20, allow_growth=True, visible_device_list="{}".format(self.cfg['gpu']))
+        config = tf.ConfigProto(allow_soft_placement=True,
+                        #log_device_placement=True,
+                        gpu_options=gpu_options)
+        self.session = tf.Session(config=config)
+        self.session.run(self.init)
+
         # Summary part
         self.test_writer = tf.summary.FileWriter(
             os.path.join(os.getcwd(), "leelalogs/{}-test".format(self.cfg['name'])), self.session.graph)
         self.train_writer = tf.summary.FileWriter(
             os.path.join(os.getcwd(), "leelalogs/{}-train".format(self.cfg['name'])), self.session.graph)
-
-        self.init = tf.global_variables_initializer()
-        self.saver = tf.train.Saver()
-
-        self.session.run(self.init)
 
     def replace_weights(self, new_weights):
         for e, weights in enumerate(self.weights):
@@ -188,12 +192,13 @@ class TFProcess:
             self.avg_reg_term = decay * self.avg_reg_term + (1 - decay) * reg_term
         else:
             self.avg_reg_term = reg_term
-        if steps % 200 == 0:
+
+        if steps % NUM_STEP_TRAIN == 0:
             time_end = time.time()
             speed = 0
             if self.time_start:
                 elapsed = time_end - self.time_start
-                speed = batch_size * (200.0 / elapsed)
+                speed = batch_size * (NUM_STEP_TRAIN / elapsed)
             print("step {}, policy loss={:g} mse={:g} reg={:g} ({:g} pos/s)".format(
                 steps, self.avg_policy_loss, self.avg_mse_loss, self.avg_reg_term, speed))
             train_summaries = tf.Summary(value=[
@@ -201,8 +206,8 @@ class TFProcess:
                 tf.Summary.Value(tag="MSE Loss", simple_value=self.avg_mse_loss)])
             self.train_writer.add_summary(train_summaries, steps)
             self.time_start = time_end
-        # Ideally this would use a seperate dataset and so on...
-        if steps % 4000 == 0:
+
+        if steps % NUM_STEP_TEST == 0:
             sum_accuracy = 0
             sum_mse = 0
             for _ in range(0, self.num_eval):
