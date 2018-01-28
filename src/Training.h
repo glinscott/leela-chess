@@ -44,7 +44,7 @@ public:
     void append(const std::string& str);
 
     // Group this many positions in a batch.
-    static constexpr size_t CHUNK_SIZE = 150;
+    static constexpr size_t CHUNK_SIZE = 200;
 private:
     std::string gen_chunk_name() const;
     void flush_chunks();

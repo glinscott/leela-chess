@@ -217,19 +217,22 @@ int play_one_game() {
   return game_score;
 }
 
-void generate_training_games(istringstream& is, int64_t n = std::numeric_limits<int64_t>::max()) {
+void generate_training_games(istringstream& is) {
   namespace fs = boost::filesystem;
   std::string suffix;
   if (!(is >> suffix)) {
     suffix = "0";
   }
+  int64_t num_games = std::numeric_limits<int64_t>::max();
+  is >> num_games;
+
   fs::path dir("data-" + suffix);
   if (!fs::exists(dir)) {
     fs::create_directories(dir);
     printf("Created dirs %s\n", dir.string().c_str());
   }
   auto chunker = OutputChunker{dir.string() + "/training", true};
-  for (int64_t i = 0; i < n; i++) {
+  for (int64_t i = 0; i < num_games; i++) {
     Training::dump_training(play_one_game(), chunker);
   }
 }
@@ -331,7 +334,7 @@ void UCI::loop(const std::string& start) {
       //else if (token == "d")     sync_cout << pos << sync_endl;
       //else if (token == "eval")  sync_cout << Eval::trace(pos) << sync_endl;
       else
-          sync_cout << "Unknown command: " << cmd << sync_endl;
+          sync_cout << "Unknown command: " << token << " " << cmd << sync_endl;
 
   } while (token != "quit" && start.empty()); // Command line args are one-shot
 }

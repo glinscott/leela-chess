@@ -249,8 +249,6 @@ Move UCTSearch::think() {
         m_root.dirichlet_noise(0.25f, 0.3f);
     }
 
-    myprintf("NN eval=%f\n", (bh_.cur().side_to_move() == WHITE ? root_eval : 1.0f - root_eval));
-
     m_run = true;
     int cpus = cfg_num_threads;
     ThreadGroup tg(thread_pool);
@@ -297,7 +295,8 @@ Move UCTSearch::think() {
     Time elapsed;
     int centiseconds_elapsed = Time::timediff(start, elapsed);
     if (centiseconds_elapsed > 0) {
-        myprintf("%d visits, %d nodes, %d playouts, %d n/s\n\n",
+        myprintf("eval=%f, %d visits, %d nodes, %d playouts, %d n/s\n",
+                 bh_.cur().side_to_move() == WHITE ? root_eval : 1.0f - root_eval,
                  m_root.get_visits(),
                  static_cast<int>(m_nodes),
                  static_cast<int>(m_playouts),
