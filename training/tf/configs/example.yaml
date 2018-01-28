@@ -1,3 +1,4 @@
+%YAML 1.2
 ---
 name: 'kb1-64x5'                       # ideally no spaces
 gpu: 0                                 # gpu id to process on
