@@ -24,7 +24,7 @@ just randomly initialized.
 
 After compiling lczero (see below), try the following:
 ```
-cd src
+cd build
 cp ../scripts/train.sh .
 ./train.sh
 ```
