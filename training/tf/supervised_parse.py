@@ -55,10 +55,10 @@ def dataset_iterator(filename, batch_size):
     parser = BinaryParser(filename, batch_size)
     ds = tf.data.Dataset.from_generator(
         parser.parse_chunk, output_types=(tf.string))
-    ds = ds.shuffle(65536)
+    ds = ds.shuffle(1<<16)
     ds = ds.map(parse._parse_function)
     ds = ds.batch(batch_size)
-    ds = ds.prefetch(16)
+    ds = ds.prefetch(8)
     iterator = ds.make_one_shot_iterator()
     return iterator.get_next(), parser
 
