@@ -106,16 +106,16 @@ class TFProcess:
         correct_prediction = tf.cast(correct_prediction, tf.float32)
         self.accuracy = tf.reduce_mean(correct_prediction)
 
-        self.avg_policy_loss = None
-        self.avg_mse_loss = None
-        self.avg_reg_term = None
+        self.avg_policy_loss = []
+        self.avg_mse_loss = []
+        self.avg_reg_term = []
         self.time_start = None
 
 
         self.init = tf.global_variables_initializer()
         self.saver = tf.train.Saver()
 
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.20, allow_growth=True, visible_device_list="{}".format(self.cfg['gpu']))
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9, allow_growth=True, visible_device_list="{}".format(self.cfg['gpu']))
         config = tf.ConfigProto(allow_soft_placement=True,
                         #log_device_placement=True,
                         gpu_options=gpu_options)
@@ -176,36 +176,35 @@ class TFProcess:
         steps = tf.train.global_step(self.session, self.global_step)
         # Keep running averages
         # XXX: use built-in support like tf.moving_average_variables?
-        # Google's paper scales MSE by 1/4 to a [0, 1] range, so do the same to
-        # get comparable values.
-        mse_loss = mse_loss / 4.0
-        decay = 0.999
-        if self.avg_policy_loss:
-            self.avg_policy_loss = decay * self.avg_policy_loss + (1 - decay) * policy_loss
-        else:
-            self.avg_policy_loss = policy_loss
-        if self.avg_mse_loss:
-            self.avg_mse_loss = decay * self.avg_mse_loss + (1 - decay) * mse_loss
-        else:
-            self.avg_mse_loss = mse_loss
-        if self.avg_reg_term:
-            self.avg_reg_term = decay * self.avg_reg_term + (1 - decay) * reg_term
-        else:
-            self.avg_reg_term = reg_term
-
+        mse_loss /= 4.0
+        self.avg_policy_loss.append(policy_loss)
+        self.avg_mse_loss.append(mse_loss)
+        self.avg_reg_term.append(reg_term)
         if steps % NUM_STEP_TRAIN == 0:
+            pol_loss_w = self.cfg['training']['policy_loss_weight']
+            val_loss_w = self.cfg['training']['value_loss_weight']
             time_end = time.time()
             speed = 0
             if self.time_start:
                 elapsed = time_end - self.time_start
                 speed = batch_size * (NUM_STEP_TRAIN / elapsed)
-            print("step {}, policy loss={:g} mse={:g} reg={:g} ({:g} pos/s)".format(
-                steps, self.avg_policy_loss, self.avg_mse_loss, self.avg_reg_term, speed))
+            avg_policy_loss = np.mean(self.avg_policy_loss or [0])
+            avg_mse_loss = np.mean(self.avg_mse_loss or [0])
+            avg_reg_term = np.mean(self.avg_reg_term or [0])
+            print("step {}, policy={:g} mse={:g} reg={:g} total={:g} ({:g} pos/s)".format(
+                steps, avg_policy_loss, avg_mse_loss, avg_reg_term,
+                # Scale mse_loss back to the original to reflect the actual
+                # value being optimized.
+                # If you changed the factor in the loss formula above, you need
+                # to change it here as well for correct outputs.
+                pol_loss_w * avg_policy_loss + val_loss_w * avg_mse_loss + avg_reg_term,
+                speed))
             train_summaries = tf.Summary(value=[
-                tf.Summary.Value(tag="Policy Loss", simple_value=self.avg_policy_loss),
-                tf.Summary.Value(tag="MSE Loss", simple_value=self.avg_mse_loss)])
+                tf.Summary.Value(tag="Policy Loss", simple_value=avg_policy_loss),
+                tf.Summary.Value(tag="MSE Loss", simple_value=avg_mse_loss)])
             self.train_writer.add_summary(train_summaries, steps)
             self.time_start = time_end
+            self.avg_policy_loss, self.avg_mse_loss, self.avg_reg_term = [], [], []
 
         if steps % NUM_STEP_TEST == 0:
             sum_accuracy = 0
@@ -217,14 +216,14 @@ class TFProcess:
                 sum_accuracy += train_accuracy
                 sum_mse += train_mse
             sum_accuracy /= self.num_eval 
-            # Additionally rescale to [0, 1] so divide by 4
+            sum_accuracy *= 100
             sum_mse /= (4.0 * self.num_eval)
             test_summaries = tf.Summary(value=[
                 tf.Summary.Value(tag="Accuracy", simple_value=sum_accuracy),
                 tf.Summary.Value(tag="MSE Loss", simple_value=sum_mse)])
             self.test_writer.add_summary(test_summaries, steps)
             print("step {}, training accuracy={:g}%, mse={:g}".format(
-                steps, sum_accuracy*100.0, sum_mse))
+                steps, sum_accuracy, sum_mse))
             path = os.path.join(self.root_dir, self.cfg['name'])
             save_path = self.saver.save(self.session, path, global_step=steps)
             print("Model saved in file: {}".format(save_path))
@@ -371,9 +370,9 @@ class TFProcess:
         # Policy head
         conv_pol = self.conv_block(flow, filter_size=1,
                                    input_channels=RESIDUAL_FILTERS,
-                                   output_channels=2)
-        h_conv_pol_flat = tf.reshape(conv_pol, [-1, 2*8*8])
-        W_fc1 = weight_variable([2*8*8, 1924])
+                                   output_channels=32)
+        h_conv_pol_flat = tf.reshape(conv_pol, [-1, 32*8*8])
+        W_fc1 = weight_variable([32*8*8, 1924])
         b_fc1 = bias_variable([1924])
         self.weights.append(W_fc1)
         self.weights.append(b_fc1)
@@ -382,14 +381,14 @@ class TFProcess:
         # Value head
         conv_val = self.conv_block(flow, filter_size=1,
                                    input_channels=RESIDUAL_FILTERS,
-                                   output_channels=1)
-        h_conv_val_flat = tf.reshape(conv_val, [-1, 8*8])
-        W_fc2 = weight_variable([8 * 8, 256])
-        b_fc2 = bias_variable([256])
+                                   output_channels=32)
+        h_conv_val_flat = tf.reshape(conv_val, [-1, 32*8*8])
+        W_fc2 = weight_variable([32 * 8 * 8, 128])
+        b_fc2 = bias_variable([128])
         self.weights.append(W_fc2)
         self.weights.append(b_fc2)
         h_fc2 = tf.nn.relu(tf.add(tf.matmul(h_conv_val_flat, W_fc2), b_fc2))
-        W_fc3 = weight_variable([256, 1])
+        W_fc3 = weight_variable([128, 1])
         b_fc3 = bias_variable([1])
         self.weights.append(W_fc3)
         self.weights.append(b_fc3)

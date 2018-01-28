@@ -75,19 +75,19 @@ static std::vector<std::vector<float>> batchnorm_stddivs;
 // Policy head
 static std::vector<float> conv_pol_w;
 static std::vector<float> conv_pol_b;
-static std::array<float, 2> bn_pol_w1;
-static std::array<float, 2> bn_pol_w2;
+static std::array<float, Network::NUM_POLICY_INPUT_PLANES> bn_pol_w1;
+static std::array<float, Network::NUM_POLICY_INPUT_PLANES> bn_pol_w2;
 
-static std::array<float, Network::NUM_OUTPUT_POLICY*8*8*2> ip_pol_w;
+static std::array<float, Network::NUM_OUTPUT_POLICY*8*8*Network::NUM_POLICY_INPUT_PLANES> ip_pol_w;
 static std::array<float, Network::NUM_OUTPUT_POLICY> ip_pol_b;
 
 // Value head
 static std::vector<float> conv_val_w;
 static std::vector<float> conv_val_b;
-static std::array<float, 1> bn_val_w1;
-static std::array<float, 1> bn_val_w2;
+static std::array<float, Network::NUM_VALUE_INPUT_PLANES> bn_val_w1;
+static std::array<float, Network::NUM_VALUE_INPUT_PLANES> bn_val_w2;
 
-static std::array<float, Network::NUM_VALUE_CHANNELS*8*8> ip1_val_w;
+static std::array<float, Network::NUM_VALUE_CHANNELS*8*8*Network::NUM_VALUE_INPUT_PLANES> ip1_val_w;
 static std::array<float, Network::NUM_VALUE_CHANNELS> ip1_val_b;
 
 static std::array<float, Network::NUM_VALUE_CHANNELS> ip2_val_w;
@@ -661,7 +661,7 @@ void innerproduct(const std::vector<float>& input,
 
     for (unsigned int o = 0; o < outputs; o++) {
         float val = biases[o] + output[o];
-        if (outputs == 256) {
+        if (outputs == Network::NUM_VALUE_CHANNELS) {
             val = lambda_ReLU(val);
         }
         output[o] = val;
@@ -823,8 +823,8 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     const auto convolve_channels = conv_pol_w.size() / conv_pol_b.size();
     std::vector<net_t> input_data;
     std::vector<net_t> output_data(convolve_channels * width * height);
-    std::vector<float> policy_data(2 * width * height);
-    std::vector<float> value_data(1 * width * height);
+    std::vector<float> policy_data(Network::NUM_POLICY_INPUT_PLANES * width * height);
+    std::vector<float> value_data(Network::NUM_VALUE_INPUT_PLANES * width * height);
     std::vector<float> policy_out(Network::NUM_OUTPUT_POLICY);
     std::vector<float> softmax_data(Network::NUM_OUTPUT_POLICY);
     std::vector<float> winrate_data(Network::NUM_VALUE_CHANNELS);
@@ -866,16 +866,16 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     // GPU. See issue #185.
 
     // Get the moves
-    convolve<1>(2, output_data, conv_pol_w, conv_pol_b, policy_data);
-    batchnorm<width*height>(2, policy_data, bn_pol_w1.data(), bn_pol_w2.data());
-    innerproduct<2*width*height, Network::NUM_OUTPUT_POLICY>(policy_data, ip_pol_w, ip_pol_b, policy_out);
+    convolve<1>(Network::NUM_POLICY_INPUT_PLANES, output_data, conv_pol_w, conv_pol_b, policy_data);
+    batchnorm<width*height>(Network::NUM_POLICY_INPUT_PLANES, policy_data, bn_pol_w1.data(), bn_pol_w2.data());
+    innerproduct<Network::NUM_POLICY_INPUT_PLANES*width*height, Network::NUM_OUTPUT_POLICY>(policy_data, ip_pol_w, ip_pol_b, policy_out);
     softmax(policy_out, softmax_data, cfg_softmax_temp);
     std::vector<float>& outputs = softmax_data;
 
     // Now get the score
-    convolve<1>(1, output_data, conv_val_w, conv_val_b, value_data);
-    batchnorm<width*height>(1, value_data, bn_val_w1.data(), bn_val_w2.data());
-    innerproduct<width*height, NUM_VALUE_CHANNELS>(value_data, ip1_val_w, ip1_val_b, winrate_data);
+    convolve<1>(Network::NUM_VALUE_INPUT_PLANES, output_data, conv_val_w, conv_val_b, value_data);
+    batchnorm<width*height>(Network::NUM_VALUE_INPUT_PLANES, value_data, bn_val_w1.data(), bn_val_w2.data());
+    innerproduct<Network::NUM_VALUE_INPUT_PLANES*width*height, NUM_VALUE_CHANNELS>(value_data, ip1_val_w, ip1_val_b, winrate_data);
     innerproduct<NUM_VALUE_CHANNELS, 1>(winrate_data, ip2_val_w, ip2_val_b, winrate_out);
 
     // Sigmoid
