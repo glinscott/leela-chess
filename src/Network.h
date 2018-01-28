@@ -50,7 +50,9 @@ public:
     static constexpr int INPUT_CHANNELS = 8 + 14 * T_HISTORY;
 
     static constexpr int NUM_OUTPUT_POLICY = 1924;
-    static constexpr int NUM_VALUE_CHANNELS = 256;
+    static constexpr int NUM_VALUE_CHANNELS = 128;
+    static constexpr int NUM_VALUE_INPUT_PLANES = 32;
+    static constexpr int NUM_POLICY_INPUT_PLANES = 32;
 
     // Winograd filter transformation changes 3x3 filters to 4x4
     static constexpr auto WINOGRAD_ALPHA = 4;
