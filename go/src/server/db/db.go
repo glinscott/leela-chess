@@ -1,21 +1,35 @@
 package db
 
 import (
+	"fmt"
+	"log"
+
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
-	"log"
 )
 
 var db *gorm.DB
 var err error
 
-func Init() {
-	db, err = gorm.Open("postgres", "host=localhost user=gorm dbname=gorm sslmode=disable password=gorm")
+func Init(prod bool) {
+	dbname := "gorm_test"
+	if prod {
+		dbname = "gorm"
+	}
+	conn := fmt.Sprintf("host=localhost user=gorm dbname=%s sslmode=disable password=gorm", dbname)
+	db, err = gorm.Open("postgres", conn)
 	if err != nil {
 		log.Fatal("Unable to connect to DB", err)
 	}
+}
 
+func SetupDB() {
 	db.AutoMigrate(&User{})
+	db.AutoMigrate(&TrainingRun{})
+	db.AutoMigrate(&Network{})
+	db.AutoMigrate(&Match{})
+	db.AutoMigrate(&MatchGame{})
+	db.AutoMigrate(&TrainingGame{})
 }
 
 func GetDB() *gorm.DB {
