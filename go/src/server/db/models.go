@@ -16,6 +16,9 @@ type User struct {
 type TrainingRun struct {
 	gorm.Model
 
+	BestNetwork Network
+	Matches     []Match
+
 	Name string
 }
 
@@ -23,18 +26,45 @@ type Network struct {
 	ID        uint `gorm:"primary_key"`
 	CreatedAt time.Time
 
-	Sha string
+	Sha  string
+	Path string
 }
 
-type Game struct {
+type Match struct {
+	gorm.Model
+
+	Candidate   Network
+	CurrentBest Network
+
+	Wins   int
+	Losses int
+	Draws  int
+
+	GameCap int
+	Done    bool
+}
+
+type MatchGame struct {
 	ID        uint64 `gorm:"primary_key"`
 	CreatedAt time.Time
 
-	UserID        uint
-	TrainingRunID uint
-	NetworkID     uint
+	User  User
+	Match Match
 
 	Version uint
-	Path    string
 	Pgn     string
+}
+
+type TrainingGame struct {
+	ID        uint64 `gorm:"primary_key"`
+	CreatedAt time.Time
+
+	User        User
+	TrainingRun TrainingRun
+	Network     Network
+
+	Version   uint
+	Path      string
+	Pgn       string
+	Compacted bool
 }

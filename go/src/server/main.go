@@ -3,7 +3,9 @@ package main
 import (
 	// "compress/gzip"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"server/db"
 	"strconv"
@@ -11,66 +13,107 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func nextGame(c *gin.Context) {
+	var training_run db.TrainingRun
+	// TODO(gary): Need to set some sort of priority system here.
+	gerr := db.GetDB().First(&training_run)
+	if gerr != nil {
+		log.Println(gerr)
+		c.String(http.StatusBadRequest, "Invalid training run")
+		return
+	}
+
+	// TODO: Check for active matches.
+
+	result := gin.H{
+		"type": "train",
+		"sha:": training_run.BestNetwork.Sha,
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 func uploadGame(c *gin.Context) {
 	var user db.User
 	gerr := db.GetDB().Where(db.User{Username: c.PostForm("user")}).FirstOrInit(&user)
 	if gerr != nil {
-		c.String(http.StatusBadRequest, fmt.Sprintf("Invalid user: %s", gerr))
+		log.Println(gerr)
+		c.String(http.StatusBadRequest, "Invalid user")
 		return
 	}
 
 	// Ensure passwords match
 	if user.Password != c.PostForm("password") {
-		c.String(http.StatusBadRequest, fmt.Sprintf("Incorrect password"))
+		c.String(http.StatusBadRequest, "Incorrect password")
 		return
 	}
 
 	var training_run db.TrainingRun
 	gerr = db.GetDB().Where("id = ?", c.PostForm("training_id")).First(&training_run)
 	if gerr != nil {
-		c.String(http.StatusBadRequest, fmt.Sprintf("Invalid training run: %s", gerr))
+		log.Println(gerr)
+		c.String(http.StatusBadRequest, "Invalid training run")
 		return
 	}
 
 	var network db.Network
 	gerr = db.GetDB().Where("id = ?", c.PostForm("network_id")).First(&network)
 	if gerr != nil {
-		c.String(http.StatusBadRequest, fmt.Sprintf("Invalid network: %s", gerr))
+		log.Println(gerr)
+		c.String(http.StatusBadRequest, "Invalid network")
 		return
 	}
 
 	// Source
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.String(http.StatusBadRequest, fmt.Sprintf("get form err: %s", err.Error()))
+		log.Println(err.Error())
+		c.String(http.StatusBadRequest, "Missing file")
 		return
 	}
 
 	// Create new game
 	version, err := strconv.ParseUint(c.PostForm("version"), 10, 64)
 	if err != nil {
-		c.String(http.StatusBadRequest, fmt.Sprintf("Invalid version: %s", err.Error()))
+		log.Println(err.Error())
+		c.String(http.StatusBadRequest, "Invalid version")
+		return
 	}
-	game := db.Game{UserID: user.ID, TrainingRunID: training_run.ID, NetworkID: network.ID, Version: uint(version), Pgn: c.PostForm("pgn")}
+	game := db.TrainingGame{
+		User:        user,
+		TrainingRun: training_run,
+		Network:     network,
+		Version:     uint(version),
+		Pgn:         c.PostForm("pgn"),
+	}
 	db.GetDB().Create(&game)
 	db.GetDB().Model(&game).Update("path", filepath.Join("games", fmt.Sprintf("run%d/training.%d.gz", training_run.ID, game.ID)))
 
-	// Save in the directory
+	os.MkdirAll(filepath.Dir(game.Path), os.ModePerm)
+
+	// Save the file
 	if err := c.SaveUploadedFile(file, game.Path); err != nil {
-		c.String(http.StatusBadRequest, fmt.Sprintf("upload file err: %s", err.Error()))
+		log.Println(err.Error())
+		c.String(500, "Saving file")
 		return
 	}
 
 	c.String(http.StatusOK, fmt.Sprintf("File %s uploaded successfully with fields user=%s.", file.Filename, user))
 }
 
-func main() {
-	db.Init()
-	defer db.Close()
-
+func setupRouter() *gin.Engine {
 	router := gin.Default()
 	router.MaxMultipartMemory = 32 << 20 // 8 MiB
 	router.Static("/", "./public")
+	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
+	return router
+}
+
+func main() {
+	db.Init(true)
+	db.SetupDB()
+	defer db.Close()
+
+	router := setupRouter()
 	router.Run(":8080")
 }
