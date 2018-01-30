@@ -16,9 +16,9 @@ import (
 func nextGame(c *gin.Context) {
 	var training_run db.TrainingRun
 	// TODO(gary): Need to set some sort of priority system here.
-	gerr := db.GetDB().First(&training_run)
-	if gerr != nil {
-		log.Println(gerr)
+	err := db.GetDB().Preload("BestNetwork").First(&training_run).Error
+	if err != nil {
+		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid training run")
 		return
 	}
@@ -27,16 +27,16 @@ func nextGame(c *gin.Context) {
 
 	result := gin.H{
 		"type": "train",
-		"sha:": training_run.BestNetwork.Sha,
+		"sha":  training_run.BestNetwork.Sha,
 	}
 	c.JSON(http.StatusOK, result)
 }
 
 func uploadGame(c *gin.Context) {
 	var user db.User
-	gerr := db.GetDB().Where(db.User{Username: c.PostForm("user")}).FirstOrInit(&user)
-	if gerr != nil {
-		log.Println(gerr)
+	err := db.GetDB().Where(db.User{Username: c.PostForm("user")}).FirstOrInit(&user).Error
+	if err != nil {
+		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid user")
 		return
 	}
@@ -48,17 +48,17 @@ func uploadGame(c *gin.Context) {
 	}
 
 	var training_run db.TrainingRun
-	gerr = db.GetDB().Where("id = ?", c.PostForm("training_id")).First(&training_run)
-	if gerr != nil {
-		log.Println(gerr)
+	err = db.GetDB().Where("id = ?", c.PostForm("training_id")).First(&training_run).Error
+	if err != nil {
+		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid training run")
 		return
 	}
 
 	var network db.Network
-	gerr = db.GetDB().Where("id = ?", c.PostForm("network_id")).First(&network)
-	if gerr != nil {
-		log.Println(gerr)
+	err = db.GetDB().Where("id = ?", c.PostForm("network_id")).First(&network).Error
+	if err != nil {
+		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid network")
 		return
 	}
