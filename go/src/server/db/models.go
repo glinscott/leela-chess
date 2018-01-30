@@ -26,12 +26,16 @@ type Network struct {
 	ID        uint `gorm:"primary_key"`
 	CreatedAt time.Time
 
+	TrainingRunID uint
+
 	Sha  string
 	Path string
 }
 
 type Match struct {
 	gorm.Model
+
+	TrainingRunID uint
 
 	Candidate   Network
 	CurrentBest Network
