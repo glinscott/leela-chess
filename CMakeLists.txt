@@ -68,6 +68,10 @@ if (GccSpecificFlags)
   endif (NOT CMAKE_BUILD_TYPE)
 endif(GccSpecificFlags)
 
+if (FEATURE_USE_CPU_ONLY)
+  add_definitions (-DFEATURE_USE_CPU_ONLY)
+endif()
+
 set (IncludePath "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set (SrcPath "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
