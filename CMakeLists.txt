@@ -18,6 +18,8 @@ cmake_minimum_required (VERSION 3.1)
 set (CMAKE_CXX_STANDARD 14)
 list (APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
 
+add_subdirectory(gtest EXCLUDE_FROM_ALL) # We don't want to install gtest, exclude it from `all`
+
 # Required Packages
 set (Boost_MIN_VERSION "1.58.0")
 set (Boost_USE_MULTITHREADED ON)
@@ -66,6 +68,10 @@ if (GccSpecificFlags)
   endif (NOT CMAKE_BUILD_TYPE)
 endif(GccSpecificFlags)
 
+if (FEATURE_USE_CPU_ONLY)
+  add_definitions (-DFEATURE_USE_CPU_ONLY)
+endif()
+
 set (IncludePath "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set (SrcPath "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
@@ -83,10 +89,27 @@ endif ()
 
 file (GLOB lczero_SRC "${SrcPath}/*.cpp" "${SrcPath}/*.h")
 
-add_executable (lczero ${lczero_SRC})
+set (lczero_MAIN "${SrcPath}/main.cpp")
+file (GLOB lczero_SRC "${SrcPath}/*.cpp")
+list (REMOVE_ITEM lczero_SRC ${lczero_MAIN})
+
+# Reuse for leelaz and gtest
+add_library (objs OBJECT ${lczero_SRC})
+add_executable (lczero $<TARGET_OBJECTS:objs> ${lczero_MAIN})
 
 target_link_libraries (lczero ${Boost_LIBRARIES})
 target_link_libraries (lczero ${BLAS_LIBRARIES})
 target_link_libraries (lczero ${OpenCL_LIBRARIES})
 target_link_libraries (lczero ${ZLIB_LIBRARIES})
 target_link_libraries (lczero ${CMAKE_THREAD_LIBS_INIT})
+install (TARGETS lczero DESTINATION bin)
+
+# Google Test below
+file (GLOB tests_SRC "${SrcPath}/tests/*.cpp")
+add_executable (tests ${tests_SRC} $<TARGET_OBJECTS:objs>)
+
+target_link_libraries (tests ${Boost_LIBRARIES})
+target_link_libraries (tests ${BLAS_LIBRARIES})
+target_link_libraries (tests ${OpenCL_LIBRARIES})
+target_link_libraries (tests ${ZLIB_LIBRARIES})
+target_link_libraries (tests gtest_main ${CMAKE_THREAD_LIBS_INIT})
