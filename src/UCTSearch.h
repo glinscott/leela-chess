@@ -78,7 +78,7 @@ public:
 private:
     void dump_stats(BoardHistory& pos, UCTNode& parent);
     std::string get_pv(BoardHistory& pos, UCTNode& parent);
-    void dump_analysis(int playouts);
+    void dump_analysis(int elapsed, bool force_output);
     Move get_best_move();
 
     BoardHistory bh_;
