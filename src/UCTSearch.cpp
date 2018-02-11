@@ -189,8 +189,8 @@ std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent) {
     return res;
 }
 
-void UCTSearch::dump_analysis(int playouts) {
-    if (cfg_quiet) {
+void UCTSearch::dump_analysis(int elapsed, bool force_output) {
+    if (cfg_quiet && !force_output) {
         return;
     }
 
@@ -198,9 +198,18 @@ void UCTSearch::dump_analysis(int playouts) {
     Color color = bh.cur().side_to_move();
 
     std::string pvstring = get_pv(bh, m_root);
-    float winrate = 100.0f * m_root.get_eval(color);
-    myprintf("Playouts: %d, Win: %5.2f%%, PV: %s\n",
-             playouts, winrate, pvstring.c_str());
+    float feval = m_root.get_eval(color);
+    float winrate = 100.0f * feval;
+    // UCI-like output wants a depth and a cp.
+    // convert winrate to a cp estimate ... assume winrate = 1 / (1 + exp(-cp / 650))
+    // (650 can be tuned to have an output more or less matching e.g. SF, once both have similar strength)
+    int   cp = -650 * log(1 / feval - 1);
+    // same for nodes to depth, assume nodes = 1.8 ^ depth.
+    int   depth = log(float(m_nodes)) / log(1.8);
+    myprintf("info depth %d nodes %d nps %d playouts %d pps %d score cp %d winrate %5.2f%% time %d pv %s\n",
+             depth, static_cast<int>(m_nodes), 100 * static_cast<int>(m_nodes) / (elapsed + 1),
+                 static_cast<int>(m_playouts), 100 * static_cast<int>(m_playouts) / (elapsed + 1),
+             cp, winrate, 10 * elapsed, pvstring.c_str());
 }
 
 bool UCTSearch::is_running() const {
@@ -265,18 +274,20 @@ Move UCTSearch::think() {
             increment_playouts();
         }
 
-        Time elapsed;
-        int centiseconds_elapsed = Time::timediff(start, elapsed);
-
-        // output some stats every few seconds
-        // check if we should still search
-        if (centiseconds_elapsed - last_update > 250) {
-            last_update = centiseconds_elapsed;
-            dump_analysis(static_cast<int>(m_playouts));
+        // assume nodes = 1.8 ^ depth.
+        int   depth = log(float(m_nodes)) / log(1.8);
+        if (depth != last_update) {
+            last_update = depth;
+            Time elapsed;
+            int centiseconds_elapsed = Time::timediff(start, elapsed);
+            dump_analysis(centiseconds_elapsed, false);
         }
+
+        // check if we should still search
         keeprunning = is_running();
 //        keeprunning &= (centiseconds_elapsed < time_for_move);
         keeprunning &= !playout_limit_reached();
+
     } while(keeprunning);
 
     // stop the search
@@ -295,12 +306,7 @@ Move UCTSearch::think() {
     Time elapsed;
     int centiseconds_elapsed = Time::timediff(start, elapsed);
     if (centiseconds_elapsed > 0) {
-        myprintf("eval=%f, %d visits, %d nodes, %d playouts, %d n/s\n",
-                 bh_.cur().side_to_move() == WHITE ? root_eval : 1.0f - root_eval,
-                 m_root.get_visits(),
-                 static_cast<int>(m_nodes),
-                 static_cast<int>(m_playouts),
-                 (m_playouts * 100) / (centiseconds_elapsed+1));
+        dump_analysis(centiseconds_elapsed, true);
     }
     Move bestmove = get_best_move();
     return bestmove;
