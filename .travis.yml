@@ -6,7 +6,6 @@ services:
 
 before_install:
   - docker pull ubuntu:16.04
-  - git submodule update --init
 
 script:
   - docker build .
