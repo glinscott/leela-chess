@@ -190,7 +190,7 @@ std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent) {
 }
 
 void UCTSearch::dump_analysis(int elapsed, bool force_output) {
-    if (cfg_quiet || force_output) {
+    if (cfg_quiet && !force_output) {
         return;
     }
 
