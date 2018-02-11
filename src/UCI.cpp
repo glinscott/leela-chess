@@ -141,38 +141,13 @@ namespace {
     printf("bestmove %s\n", UCI::move(move).c_str());
   }
 
-  // count number of legal nodes up to a given depth from a given position.
-  template<bool Root>
-  uint64_t perft(BoardHistory& bh, Depth depth) {
-
-    StateInfo st;
-    uint64_t cnt, nodes = 0;
-    const bool leaf = (depth == 2 * ONE_PLY);
-
-    for (const auto& m : MoveList<LEGAL>(bh.cur()))
-    {
-        if (Root && depth <= ONE_PLY)
-            cnt = 1, nodes++;
-        else
-        {
-            bh.cur().do_move(m, st);
-            cnt = leaf ? MoveList<LEGAL>(bh.cur()).size() : perft<false>(bh, depth - ONE_PLY);
-            nodes += cnt;
-            bh.cur().undo_move(m);
-        }
-        if (Root)
-            sync_cout << UCI::move(m) << ": " << cnt << sync_endl;
-    }
-    return nodes;
-  }
-
   // called when receiving the 'perft Depth' command
   void uci_perft(BoardHistory& bh, istringstream& is) {
        int d;
        is >> d;
 
        Depth depth = Depth(d);
-       uint64_t total = perft<true>(bh, depth);
+       uint64_t total = UCI::perft<true>(bh, depth);
        sync_cout << "Total: " << total << sync_endl;
   }
 
@@ -279,6 +254,31 @@ Bg3 15. f4 d6 16. cxd6+ Ke8 17. Kg1 Bd7 18. a4 Rd8 {0.50s} 19. a5 Ra8 {0.54s}
 }
 
 } // namespace
+
+// count number of legal nodes up to a given depth from a given position.
+template<bool Root>
+uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
+
+  StateInfo st;
+  uint64_t cnt, nodes = 0;
+  const bool leaf = (depth == 2 * ONE_PLY);
+
+  for (const auto& m : MoveList<LEGAL>(bh.cur()))
+  {
+      if (Root && depth <= ONE_PLY)
+          cnt = 1, nodes++;
+      else
+      {
+          bh.cur().do_move(m, st);
+          cnt = leaf ? MoveList<LEGAL>(bh.cur()).size() : UCI::perft<false>(bh, depth - ONE_PLY);
+          nodes += cnt;
+          bh.cur().undo_move(m);
+      }
+      if (Root)
+          sync_cout << UCI::move(m) << ": " << cnt << sync_endl;
+  }
+  return nodes;
+}
 
 
 /// UCI::loop() waits for a command from stdin, parses it and calls the appropriate
