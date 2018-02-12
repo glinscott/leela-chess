@@ -3,28 +3,36 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
+	"strconv"
+	"time"
 
 	"client/http"
 )
 
-func uploadFile(path string) {
+var HOSTNAME = flag.String("hostname", "http://162.217.248.187/", "Address of the server")
+var USER = flag.String("user", "", "Username")
+var PASSWORD = flag.String("password", "", "Password")
+
+func uploadFile(httpClient *http.Client, path string, nextGame client.NextGameResponse) {
 	extraParams := map[string]string{
-		"user":     "gary",
-		"password": "asdf",
+		"user":        *USER,
+		"password":    *PASSWORD,
+		"version":     "1",
+		"training_id": strconv.Itoa(int(nextGame.TrainingId)),
+		"network_id":  strconv.Itoa(int(nextGame.NetworkId)),
 	}
-	hostname := "127.0.0.1:8080"
-	request, err := client.BuildUploadRequest("http://"+hostname+"/upload_game", extraParams, "file", path)
+	request, err := client.BuildUploadRequest(*HOSTNAME+"/upload_game", extraParams, "file", path)
 	if err != nil {
 		log.Fatal(err)
 	}
-	client := &http.Client{}
-	resp, err := client.Do(request)
+	resp, err := httpClient.Do(request)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -49,7 +57,7 @@ func playMatch() {
 }
 */
 
-func train() {
+func train() string {
 	pid := 1
 
 	dir, _ := os.Getwd()
@@ -86,10 +94,27 @@ func train() {
 		log.Fatal(err)
 	}
 
-	train_file := path.Join(train_dir, "training.0.gz")
-	uploadFile(train_file)
+	return path.Join(train_dir, "training.0.gz")
 }
 
 func main() {
-	train()
+	flag.Parse()
+	if len(*USER) == 0 {
+		log.Fatal("You must specify a username")
+	}
+	if len(*PASSWORD) == 0 {
+		log.Fatal("You must specify a non-empty password")
+	}
+
+	httpClient := &http.Client{}
+	for {
+		nextGame, err := client.NextGame(httpClient, *HOSTNAME)
+		if err != nil {
+			log.Print(err)
+			log.Print("Sleeping for 30 seconds")
+			time.Sleep(30 * time.Second)
+		}
+		trainFile := train()
+		uploadFile(httpClient, trainFile, nextGame)
+	}
 }

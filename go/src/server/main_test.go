@@ -71,13 +71,16 @@ func (s *StoreSuite) TestNextGame() {
 	s.router.ServeHTTP(s.w, req)
 
 	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
-	assert.JSONEqf(s.T(), `{"type":"train","sha":"abcd"}`, s.w.Body.String(), "Body incorrect")
+	assert.JSONEqf(s.T(), `{"type":"train","trainingId":1,"networkId":1,"sha":"abcd"}`, s.w.Body.String(), "Body incorrect")
 }
 
 func (s *StoreSuite) TestUploadGameNewUser() {
 	extraParams := map[string]string{
-		"user":     "foo",
-		"password": "asdf",
+		"user":        "foo",
+		"password":    "asdf",
+		"training_id": "1",
+		"network_id":  "1",
+		"version":     "1",
 	}
 	tmpfile, _ := ioutil.TempFile("", "example")
 	defer os.Remove(tmpfile.Name())
