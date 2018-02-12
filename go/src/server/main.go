@@ -26,14 +26,17 @@ func nextGame(c *gin.Context) {
 	// TODO: Check for active matches.
 
 	result := gin.H{
-		"type": "train",
-		"sha":  training_run.BestNetwork.Sha,
+		"type":       "train",
+		"trainingId": training_run.ID,
+		"networkId":  training_run.BestNetwork.ID,
+		"sha":        training_run.BestNetwork.Sha,
 	}
 	c.JSON(http.StatusOK, result)
 }
 
 func uploadGame(c *gin.Context) {
 	var user db.User
+	user.Password = c.PostForm("password")
 	err := db.GetDB().Where(db.User{Username: c.PostForm("user")}).FirstOrInit(&user).Error
 	if err != nil {
 		log.Println(err)
@@ -48,7 +51,13 @@ func uploadGame(c *gin.Context) {
 	}
 
 	var training_run db.TrainingRun
-	err = db.GetDB().Where("id = ?", c.PostForm("training_id")).First(&training_run).Error
+	training_id, err := strconv.ParseUint(c.PostForm("training_id"), 10, 32)
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "training_id is not uint")
+		return
+	}
+	err = db.GetDB().Where("id = ?", training_id).First(&training_run).Error
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid training run")
