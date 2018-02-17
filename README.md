@@ -37,7 +37,7 @@ cd training/tf
 ./parse.py configs/your-config.yaml
 ```
 
-That will bring up Tensorflow and start running training. You can look at the config file in `training/tf/configs/example.yaml` to get an idea of all the configurable parameters. This config file is ment to be a unified configuration for all the executables pythonscripts in the training directory.  After starting the above command you should see output like this:
+That will bring up Tensorflow and start running training. You can look at the config file in `training/tf/configs/example.yaml` to get an idea of all the configurable parameters. This config file is meant to be a unified configuration for all the executable pythonscripts in the training directory.  After starting the above command you should see output like this:
 ```
 2018-01-12 09:57:00.089784: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1120] Creating TensorFlow device (/device:GPU:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0, compute capability: 5.2)
 2018-01-12 09:57:13.126277: I tensorflow/core/kernels/shuffle_dataset_op.cc:110] Filling up shuffle buffer (this may take a while): 43496 of 65536
@@ -49,14 +49,14 @@ step 400, policy loss=5.86768 mse=0.0748837 reg=0.258076 (3525.1 pos/s)
 step 500, policy loss=5.42553 mse=0.0680195 reg=0.259414 (3537.3 pos/s)
 step 600, policy loss=5.0178 mse=0.0618027 reg=0.260582 (3600.92 pos/s)
 ...
-step 2000, training accuracy=96.9141%, mse=0.00218292
-Model saved in file: /home/gary/tmp/leela-chess/training/tf/leelaz-model-2000
+step 4000, training accuracy=96.9141%, mse=0.00218292
+Model saved in file: /home/gary/tmp/leela-chess/training/tf/leelaz-model-4000
 ```
 
-It saves out the new model every 2000 steps.  To evaluate the model, you can play it against itself or another AI:
+It saves out the new model every 4000 steps.  To evaluate the model, you can play it against itself or another AI:
 ```
 cd src
-cp ../training/tf/leelaz-model-2000.txt ./newweights.txt
+cp ../training/tf/leelaz-model-4000.txt ./newweights.txt
 cd ../scripts
 ./run.sh
 ```
