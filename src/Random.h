@@ -61,7 +61,7 @@ public:
 	float randflt(void);
 
 	// UniformRandomBitGenerator interface
-	using result_type = uint64_t;  //uint64_t instead of uint64...?!
+	using result_type = uint64;  //uint64_t instead of uint64...?!
 	constexpr static result_type min() {
 		return std::numeric_limits<result_type>::min();
 	}
@@ -73,8 +73,8 @@ public:
 	}
 
 private:
-	uint64_t s;
-	uint64_t rand64() {
+	uint64 s;
+	uint64 rand64() {
 		s ^= s >> 12, s ^= s << 25, s ^= s >> 27;
 		return s * 2685821657736338717LL;
 	}
