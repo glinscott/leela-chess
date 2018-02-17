@@ -52,6 +52,7 @@ namespace Utils {
     }
 
     size_t lcm(size_t a, size_t b);
+    size_t ceilMultiple(size_t a, size_t b);
 }
 
 #endif
