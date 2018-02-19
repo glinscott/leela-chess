@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -91,4 +93,33 @@ func (s *StoreSuite) TestUploadGameNewUser() {
 	s.router.ServeHTTP(s.w, req)
 
 	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
+}
+
+func (s *StoreSuite) TestUploadNetwork() {
+	content := []byte("this_is_a_network")
+	sha := sha256.Sum256(content)
+	extraParams := map[string]string{
+		"sha": fmt.Sprintf("%x", sha),
+	}
+	tmpfile, _ := ioutil.TempFile("", "example")
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write(content); err != nil {
+		log.Fatal(err)
+	}
+	req, err := client.BuildUploadRequest("/upload_network", extraParams, "file", tmpfile.Name())
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.router.ServeHTTP(s.w, req)
+
+	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
+
+	// Trying to upload the same network should now fail
+	s.w = httptest.NewRecorder()
+	req, err = client.BuildUploadRequest("/upload_network", extraParams, "file", tmpfile.Name())
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.router.ServeHTTP(s.w, req)
+	assert.Equal(s.T(), 400, s.w.Code, s.w.Body.String())
 }

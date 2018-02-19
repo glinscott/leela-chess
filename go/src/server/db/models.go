@@ -30,6 +30,9 @@ type Network struct {
 
 	Sha  string
 	Path string
+
+	Layers  int
+	Filters int
 }
 
 type Match struct {

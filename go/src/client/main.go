@@ -71,6 +71,7 @@ func train() string {
 
 	num_games := 1
 	train_cmd := fmt.Sprintf("--start=train %v %v", pid, num_games)
+	// cmd := exec.Command(path.Join(dir, "lczero"), "--weights=weights.txt", "--randomize", "-n", "-t1", "-p20", "--noponder", train_cmd)
 	cmd := exec.Command(path.Join(dir, "lczero"), "--weights=weights.txt", "--randomize", "-n", "-t1", train_cmd)
 
 	stderr, err := cmd.StderrPipe()

@@ -34,6 +34,59 @@ func nextGame(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+func uploadNetwork(c *gin.Context) {
+	network := db.Network{
+		Sha: c.PostForm("sha"),
+	}
+	if len(network.Sha) != 64 {
+		c.String(400, fmt.Sprintf("Invalid sha length %d", len(network.Sha)))
+		return
+	}
+	var networkCount int
+	err := db.GetDB().Model(&network).Where(&network).Count(&networkCount).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+	if networkCount > 0 {
+		c.String(http.StatusBadRequest, "Network already exists")
+		return
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		log.Println(err.Error())
+		c.String(http.StatusBadRequest, "Missing file")
+		return
+	}
+
+	// Create new network
+	err = db.GetDB().Create(&network).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+	err = db.GetDB().Model(&network).Update("path", filepath.Join("networks", network.Sha)).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	os.MkdirAll(filepath.Dir(network.Path), os.ModePerm)
+
+	// Save the file
+	if err := c.SaveUploadedFile(file, network.Path); err != nil {
+		log.Println(err.Error())
+		c.String(500, "Saving file")
+		return
+	}
+
+	c.String(http.StatusOK, fmt.Sprintf("Network %s uploaded successfully.", network.Sha))
+}
+
 func uploadGame(c *gin.Context) {
 	var user db.User
 	user.Password = c.PostForm("password")
@@ -115,6 +168,7 @@ func setupRouter() *gin.Engine {
 	router.Static("/", "./public")
 	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
+	router.POST("/upload_network", uploadNetwork)
 	return router
 }
 
