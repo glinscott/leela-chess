@@ -2,12 +2,9 @@
 
 # Introduction
 
-This is an adaptation of [GCP](https://github.com/gcp)'s [Leela Zero](https://github.com/gcp/leela-zero/)
-repository to chess, using Stockfish's position representation and move generation. (No heuristics or prior
-knowledge are carried over from Stockfish.)
+This is an adaptation of [GCP](https://github.com/gcp)'s [Leela Zero](https://github.com/gcp/leela-zero/) repository to chess, using Stockfish's position representation and move generation. (No heuristics or prior knowledge are carried over from Stockfish.)
 
-The goal is to build a strong UCT chess AI following the same type of techniques as AlphaZero, as
-described in [Mastering Chess and Shogi by Self-Play with a General Reinforcement Learning Algorithm](https://arxiv.org/abs/1712.01815).
+The goal is to build a strong UCT chess AI following the same type of techniques as AlphaZero, as described in [Mastering Chess and Shogi by Self-Play with a General Reinforcement Learning Algorithm](https://arxiv.org/abs/1712.01815).
 
 We will need to do this with a distributed project, as it requires a huge amount of compute.
 
@@ -15,12 +12,11 @@ Please visit the LCZero forum to discuss: https://groups.google.com/forum/#!foru
 
 # Contributing
 
-The project is not quite ready to launch the distributed training component.
+The project is not quite ready to launch the distributed training component. However, we do appreciate code reviews, pull requests and Windows testers.
 
 ## Weights
 
-The weights are located at https://github.com/glinscott/lczero-weights.  The current weights are
-just randomly initialized.
+The weights are located at https://github.com/glinscott/lczero-weights. Currently, the best weights were obtained through supervised learning on a human dataset with elo ratings > 2000.
 
 # Training
 
@@ -31,24 +27,17 @@ cp ../scripts/train.sh .
 ./train.sh
 ```
 
-This should launch lczero in training mode.  It will begin self-play games,
-using the weights from weights.txt (initial weights can be downloaded from the
-repo above).  The training data will be written into the data subdirectory.
+This should launch lczero in training mode.  It will begin self-play games, using the weights from weights.txt (initial weights can be downloaded from the repo above).  The training data will be written into the data subdirectory.
 
 Once you have enough games, you can simply kill the process.
 
-To run the training process, you need to have CUDA and Tensorflow installed.
-See the instructions on the Tensorflow page (I used the pip installation method
-into a virtual environment).  NOTE: You need a GPU accelerated version of
-Tensorflow to train, the CPU version doesn't support the input data format that
-is used.
+To run the training process, you need to have CUDA and Tensorflow installed.  See the instructions on the Tensorflow page (I used the pip installation method into a virtual environment).  NOTE: You need a GPU accelerated version of Tensorflow to train, the CPU version doesn't support the input data format that is used.
 ```
 cd training/tf
-./parse.py ../../src/data/training
+./parse.py configs/your-config.yaml
 ```
 
-That will bring up Tensorflow and start running training.  You should see output
-like this:
+That will bring up Tensorflow and start running training. You can look at the config file in `training/tf/configs/example.yaml` to get an idea of all the configurable parameters. This config file is meant to be a unified configuration for all the executable pythonscripts in the training directory.  After starting the above command you should see output like this:
 ```
 2018-01-12 09:57:00.089784: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1120] Creating TensorFlow device (/device:GPU:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0, compute capability: 5.2)
 2018-01-12 09:57:13.126277: I tensorflow/core/kernels/shuffle_dataset_op.cc:110] Filling up shuffle buffer (this may take a while): 43496 of 65536
@@ -60,20 +49,19 @@ step 400, policy loss=5.86768 mse=0.0748837 reg=0.258076 (3525.1 pos/s)
 step 500, policy loss=5.42553 mse=0.0680195 reg=0.259414 (3537.3 pos/s)
 step 600, policy loss=5.0178 mse=0.0618027 reg=0.260582 (3600.92 pos/s)
 ...
-step 2000, training accuracy=96.9141%, mse=0.00218292
-Model saved in file: /home/gary/tmp/leela-chess/training/tf/leelaz-model-2000
+step 4000, training accuracy=96.9141%, mse=0.00218292
+Model saved in file: /home/gary/tmp/leela-chess/training/tf/leelaz-model-4000
 ```
 
-It saves out the new model every 2000 steps.  To evaluate the model, I do the
-following:
+It saves out the new model every 4000 steps.  To evaluate the model, you can play it against itself or another AI:
 ```
 cd src
-cp ../training/tf/leelaz-model-2000.txt ./newweights.txt
+cp ../training/tf/leelaz-model-4000.txt ./newweights.txt
 cd ../scripts
 ./run.sh
 ```
 
-This runs an evaluation match using cutechess-cli.
+This runs an evaluation match using [cutechess-cli](https://github.com/cutechess/cutechess).
 
 # Compiling
 
@@ -104,9 +92,13 @@ This runs an evaluation match using cutechess-cli.
     # Clone github repo
     git clone git@github.com:glinscott/leela-chess.git
     cd leela-chess
+    git submodule update --init --recursive
     mkdir build && cd build
+    
+    # Configure, build and run tests
     cmake ..
     make
+    ./tests
 
 # Other projects
 

@@ -93,7 +93,7 @@ set (lczero_MAIN "${SrcPath}/main.cpp")
 file (GLOB lczero_SRC "${SrcPath}/*.cpp")
 list (REMOVE_ITEM lczero_SRC ${lczero_MAIN})
 
-# Reuse for leelaz and gtest
+# Reuse for lczero and gtest
 add_library (objs OBJECT ${lczero_SRC})
 add_executable (lczero $<TARGET_OBJECTS:objs> ${lczero_MAIN})
 
