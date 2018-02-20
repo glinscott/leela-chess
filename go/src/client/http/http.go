@@ -2,7 +2,10 @@ package client
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -69,5 +72,33 @@ func NextGame(httpClient *http.Client, hostname string) (NextGameResponse, error
 	resp := NextGameResponse{}
 	err := postJson(httpClient, hostname+"/next_game", &resp)
 
+	if len(resp.Sha) == 0 {
+		return resp, errors.New("Server gave back empty SHA")
+	}
+
 	return resp, err
+}
+
+func DownloadNetwork(httpClient *http.Client, hostname string, networkPath string, sha string) error {
+	uri := hostname + fmt.Sprintf("/get_network?sha=%s", sha)
+	r, err := httpClient.Get(uri)
+	defer r.Body.Close()
+	if err != nil {
+		return err
+	}
+
+	out, err := os.Create(networkPath)
+	defer out.Close()
+	if err != nil {
+		return err
+	}
+
+	// Copy while decompressing
+	zr, err := gzip.NewReader(r.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = io.Copy(out, zr)
+	return err
 }
