@@ -1,5 +1,6 @@
 ## Setup
 
+Install nginx as the proxy:
 ```
 sudo apt-get install ufw
 sudo ufw allow ssh
@@ -58,4 +59,11 @@ export GOPATH=~/go:~/leela-chess/go
 
 ```
 curl -F 'file=@weights.txt.gz' -F 'training_id=1' -F 'layers=6' -F 'filters=64' http://localhost:8080/upload_network
+```
+
+### Server maintenance
+
+Connecting through psql:
+```
+sudo -u postgres psql -d gorm
 ```

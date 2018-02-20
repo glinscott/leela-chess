@@ -21,6 +21,8 @@ server {
 	listen 80 default_server;
 	listen [::]:80 default_server;
 
+	client_max_body_size 64M;
+
 	# SSL configuration
 	#
 	# listen 443 ssl default_server;
