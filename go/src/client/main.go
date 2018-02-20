@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -20,31 +21,34 @@ var HOSTNAME = flag.String("hostname", "http://162.217.248.187/", "Address of th
 var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
 
-func uploadFile(httpClient *http.Client, path string, nextGame client.NextGameResponse) {
+func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse) error {
 	extraParams := map[string]string{
 		"user":        *USER,
 		"password":    *PASSWORD,
 		"version":     "1",
 		"training_id": strconv.Itoa(int(nextGame.TrainingId)),
 		"network_id":  strconv.Itoa(int(nextGame.NetworkId)),
+		"pgn":         pgn,
 	}
 	request, err := client.BuildUploadRequest(*HOSTNAME+"/upload_game", extraParams, "file", path)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	resp, err := httpClient.Do(request)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	body := &bytes.Buffer{}
 	_, err = body.ReadFrom(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	resp.Body.Close()
 	fmt.Println(resp.StatusCode)
 	fmt.Println(resp.Header)
 	fmt.Println(body)
+
+	return nil
 }
 
 /*
@@ -57,7 +61,8 @@ func playMatch() {
 }
 */
 
-func train() string {
+func train(networkPath string) (string, string) {
+	// pid is intended for use in multi-threaded training
 	pid := 1
 
 	dir, _ := os.Getwd()
@@ -71,17 +76,39 @@ func train() string {
 
 	num_games := 1
 	train_cmd := fmt.Sprintf("--start=train %v %v", pid, num_games)
-	// cmd := exec.Command(path.Join(dir, "lczero"), "--weights=weights.txt", "--randomize", "-n", "-t1", "-p20", "--noponder", train_cmd)
-	cmd := exec.Command(path.Join(dir, "lczero"), "--weights=weights.txt", "--randomize", "-n", "-t1", train_cmd)
+	weights := fmt.Sprintf("--weights=%s", networkPath)
+	// cmd := exec.Command(path.Join(dir, "lczero"), weights, "--randomize", "-n", "-t1", "-p20", "--noponder", "--quiet", train_cmd)
+	cmd := exec.Command(path.Join(dir, "lczero"), weights, "--randomize", "-n", "-t1", "--quiet", train_cmd)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	stdoutScanner := bufio.NewScanner(stdout)
+	pgn := ""
+	go func() {
+		reading_pgn := false
+		for stdoutScanner.Scan() {
+			line := stdoutScanner.Text()
+			fmt.Printf("%s\n", line)
+			if line == "PGN" {
+				reading_pgn = true
+			} else if line == "END" {
+				reading_pgn = false
+			} else if reading_pgn {
+				pgn += line
+			}
+		}
+	}()
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		log.Fatal(err)
 	}
-	scanner := bufio.NewScanner(stderr)
+	stderrScanner := bufio.NewScanner(stderr)
 	go func() {
-		for scanner.Scan() {
-			fmt.Printf("%s\n", scanner.Text())
+		for stderrScanner.Scan() {
+			fmt.Printf("%s\n", stderrScanner.Text())
 		}
 	}()
 
@@ -95,7 +122,40 @@ func train() string {
 		log.Fatal(err)
 	}
 
-	return path.Join(train_dir, "training.0.gz")
+	return path.Join(train_dir, "training.0.gz"), pgn
+}
+
+func getNetwork(httpClient *http.Client, sha string) (string, error) {
+	// Sha already exists?
+	path := filepath.Join("networks", sha)
+	if _, err := os.Stat(path); err == nil {
+		return path, nil
+	}
+
+	// Clean out any old networks
+	os.RemoveAll("networks")
+	os.MkdirAll("networks", os.ModePerm)
+
+	// Otherwise, let's download it
+	err := client.DownloadNetwork(httpClient, *HOSTNAME, path, sha)
+	if err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func nextGame(httpClient *http.Client, hostname string) error {
+	nextGame, err := client.NextGame(httpClient, *HOSTNAME)
+	if err != nil {
+		return err
+	}
+	networkPath, err := getNetwork(httpClient, nextGame.Sha)
+	if err != nil {
+		return err
+	}
+	trainFile, pgn := train(networkPath)
+	uploadGame(httpClient, trainFile, pgn, nextGame)
+	return nil
 }
 
 func main() {
@@ -109,13 +169,12 @@ func main() {
 
 	httpClient := &http.Client{}
 	for {
-		nextGame, err := client.NextGame(httpClient, *HOSTNAME)
+		err := nextGame(httpClient, *HOSTNAME)
 		if err != nil {
 			log.Print(err)
-			log.Print("Sleeping for 30 seconds")
+			log.Print("Sleeping for 30 seconds...")
 			time.Sleep(30 * time.Second)
+			continue
 		}
-		trainFile := train()
-		uploadFile(httpClient, trainFile, nextGame)
 	}
 }

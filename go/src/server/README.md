@@ -53,3 +53,9 @@ export GOPATH=~/go:~/leela-chess/go
 ```
 ./prod.sh
 ```
+
+### Uploading new networks
+
+```
+curl -F 'file=@weights.txt.gz' -F 'training_id=1' -F 'layers=6' -F 'filters=64' http://localhost:8080/upload_network
+```

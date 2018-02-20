@@ -156,7 +156,7 @@ func uploadNetwork(c *gin.Context) {
 func uploadGame(c *gin.Context) {
 	var user db.User
 	user.Password = c.PostForm("password")
-	err := db.GetDB().Where(db.User{Username: c.PostForm("user")}).FirstOrInit(&user).Error
+	err := db.GetDB().Where(db.User{Username: c.PostForm("user")}).FirstOrCreate(&user).Error
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid user")
@@ -218,13 +218,69 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 
-	c.String(http.StatusOK, fmt.Sprintf("File %s uploaded successfully with fields user=%s.", file.Filename, user))
+	c.String(http.StatusOK, fmt.Sprintf("File %s uploaded successfully with fields user=%s.", file.Filename, user.Username))
+}
+
+func getNetwork(c *gin.Context) {
+	network := db.Network{
+		Sha: c.Param("sha"),
+	}
+
+	// Check for existing network
+	err := db.GetDB().Where(&network).First(&network).Error
+	if err != nil {
+		log.Println(err)
+		c.String(400, "Unknown network")
+		return
+	}
+
+	// Serve the file
+	c.File(network.Path)
+}
+
+func getActiveUsers() ([]gin.H, error) {
+	users := []db.User{}
+	err := db.GetDB().Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := []gin.H{}
+	for _, user := range users {
+		result = append(result, gin.H{
+			"user":         user.Username,
+			"games_hour":   0,
+			"system":       "",
+			"version":      "",
+			"last_updated": user.UpdatedAt,
+		})
+	}
+	return result, nil
+}
+
+func frontPage(c *gin.Context) {
+	users, err := getActiveUsers()
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	log.Println(users)
+	c.HTML(http.StatusOK, "index.tmpl", gin.H{
+		"Users": users,
+	})
 }
 
 func setupRouter() *gin.Engine {
 	router := gin.Default()
-	router.MaxMultipartMemory = 32 << 20 // 8 MiB
-	router.Static("/", "./public")
+	router.LoadHTMLGlob("templates/*")
+	router.MaxMultipartMemory = 32 << 20 // 32 MiB
+	router.Static("/css", "./public/css")
+	router.Static("/js", "./public/js")
+
+	router.GET("/", frontPage)
+	router.GET("/get_network", getNetwork)
 	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
 	router.POST("/upload_network", uploadNetwork)

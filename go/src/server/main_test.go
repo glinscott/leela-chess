@@ -95,6 +95,12 @@ func (s *StoreSuite) TestUploadGameNewUser() {
 	s.router.ServeHTTP(s.w, req)
 
 	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
+
+	user := db.User{}
+	err = db.GetDB().Where("username = ?", "foo").First(&user).Error
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func (s *StoreSuite) TestUploadNetwork() {
