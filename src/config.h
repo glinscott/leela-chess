@@ -18,17 +18,11 @@
 #ifndef CONFIG_INCLUDED
 #define CONFIG_INCLUDED
 
-/*  Timing code. Define one or none of:
- *
- *  GETTICKCOUNT, GETTIMEOFDAY
- */
 #ifdef _WIN32
-#define GETTICKCOUNT
 #undef HAVE_SELECT
 #define NOMINMAX
 #else
 #define HAVE_SELECT
-#define GETTIMEOFDAY
 #endif
 
 /* Features */
@@ -76,17 +70,5 @@ using net_t = float;
 #if (_MSC_VER >= 1400) /* VC8+ Disable all deprecation warnings */
     #pragma warning(disable : 4996)
 #endif /* VC8+ */
-
-#ifdef GETTICKCOUNT
-    typedef int rtime_t;
-#else
-    #if defined(GETTIMEOFDAY)
-        #include <sys/time.h>
-        #include <time.h>
-        typedef struct timeval rtime_t;
-    #else
-        typedef time_t rtime_t;
-    #endif
 #endif
 
-#endif

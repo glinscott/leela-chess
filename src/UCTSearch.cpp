@@ -279,7 +279,7 @@ Move UCTSearch::think() {
         if (depth != last_update) {
             last_update = depth;
             Time elapsed;
-            int centiseconds_elapsed = Time::timediff(start, elapsed);
+            int centiseconds_elapsed = Time::timediff_centis(start, elapsed);
             dump_analysis(centiseconds_elapsed, false);
         }
 
@@ -304,7 +304,7 @@ Move UCTSearch::think() {
     Training::record(bh_, m_root);
 
     Time elapsed;
-    int centiseconds_elapsed = Time::timediff(start, elapsed);
+    int centiseconds_elapsed = Time::timediff_centis(start, elapsed);
     if (centiseconds_elapsed > 0) {
         dump_analysis(centiseconds_elapsed, true);
     }
