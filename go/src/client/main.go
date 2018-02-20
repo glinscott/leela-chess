@@ -17,7 +17,7 @@ import (
 	"client/http"
 )
 
-var HOSTNAME = flag.String("hostname", "http://162.217.248.187/", "Address of the server")
+var HOSTNAME = flag.String("hostname", "http://162.217.248.187", "Address of the server")
 var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
 
