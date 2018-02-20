@@ -12,7 +12,9 @@ Please visit the LCZero forum to discuss: https://groups.google.com/forum/#!foru
 
 # Contributing
 
-The project is not quite ready to launch the distributed training component. However, we do appreciate code reviews, pull requests and Windows testers.
+The server is live at http://162.217.248.187/.  Please download the client and give it a try.
+
+Of course, we also appreciate code reviews, pull requests and Windows testers!
 
 ## Weights
 
