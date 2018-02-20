@@ -275,7 +275,7 @@ Move UCTSearch::think() {
         }
 
         // assume nodes = 1.8 ^ depth.
-        int   depth = log(float(m_nodes)) / log(1.8);
+        int depth = log(float(m_nodes)) / log(1.8);
         if (depth != last_update) {
             last_update = depth;
             Time elapsed;

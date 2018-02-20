@@ -186,7 +186,7 @@ int play_one_game() {
   Training::clear_training();
   int game_score = play_one_game(bh);
 
-  printf("%s\n", bh.pgn().c_str());
+  printf("PGN\n%s\nEND\n", bh.pgn().c_str());
   printf("Score: %d\n", game_score);
 
   return game_score;

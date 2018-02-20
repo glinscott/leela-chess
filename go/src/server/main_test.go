@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -91,4 +95,53 @@ func (s *StoreSuite) TestUploadGameNewUser() {
 	s.router.ServeHTTP(s.w, req)
 
 	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
+
+	user := db.User{}
+	err = db.GetDB().Where("username = ?", "foo").First(&user).Error
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func (s *StoreSuite) TestUploadNetwork() {
+	content := []byte("this_is_a_network")
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	zw.Write(content)
+	zw.Close()
+
+	extraParams := map[string]string{
+		"training_id": "1",
+		"layers":      "6",
+		"filters":     "64",
+	}
+	tmpfile, _ := ioutil.TempFile("", "example")
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write(buf.Bytes()); err != nil {
+		log.Fatal(err)
+	}
+	req, err := client.BuildUploadRequest("/upload_network", extraParams, "file", tmpfile.Name())
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.router.ServeHTTP(s.w, req)
+
+	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
+
+	// Trying to upload the same network should now fail
+	s.w = httptest.NewRecorder()
+	req, err = client.BuildUploadRequest("/upload_network", extraParams, "file", tmpfile.Name())
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.router.ServeHTTP(s.w, req)
+	assert.Equal(s.T(), 400, s.w.Code, s.w.Body.String())
+
+	// Now we should be able to query for this network
+	s.w = httptest.NewRecorder()
+	sha := sha256.Sum256(content)
+	req, _ = http.NewRequest("POST", "/next_game", nil)
+	s.router.ServeHTTP(s.w, req)
+	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
+	assert.JSONEqf(s.T(), fmt.Sprintf(`{"type":"train","trainingId":1,"networkId":2,"sha":"%x"}`, sha), s.w.Body.String(), "Body incorrect")
 }
