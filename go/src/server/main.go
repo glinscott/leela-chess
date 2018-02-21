@@ -285,7 +285,7 @@ func user(c *gin.Context) {
 	}
 
 	games := []db.TrainingGame{}
-	err = db.GetDB().Model(&user).Limit(50).Order("created_at DESC").Related(&games).Error
+	err = db.GetDB().Model(&user).Preload("Network").Limit(50).Order("created_at DESC").Related(&games).Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -295,9 +295,9 @@ func user(c *gin.Context) {
 	gamesJson := []gin.H{}
 	for _, game := range games {
 		gamesJson = append(gamesJson, gin.H{
-			"id":      game.ID,
-			"created": game.CreatedAt,
-			"network": game.Network.ID,
+			"id":         game.ID,
+			"created_at": game.CreatedAt.String(),
+			"network":    game.Network.Sha,
 		})
 	}
 
