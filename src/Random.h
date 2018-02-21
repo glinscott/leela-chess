@@ -1,6 +1,7 @@
 /*
     This file is part of Leela Zero.
     Copyright (C) 2017 Gian-Carlo Pascutto
+    Copyright (C) 2018 Folkert Huizinga
 
     Leela Zero is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,66 +20,52 @@
 #ifndef RANDOM_H_INCLUDED
 #define RANDOM_H_INCLUDED
 
-#include "config.h"
-#include <cassert>
 #include <limits>
-
-/// xorshift64star Pseudo-Random Number Generator
-/// This class is based on original code written and dedicated
-/// to the public domain by Sebastiano Vigna (2014).
-/// It has the following characteristics:
-///
-///  -  Outputs 64-bit numbers
-///  -  Passes Dieharder and SmallCrush test batteries
-///  -  Does not require warm-up, no zeroland to escape
-///  -  Internal state is a single 64-bit integer
-///  -  Period is 2^64 - 1
-///  -  Speed: 1.60 ns/call (Core i7 @3.40GHz)
-///
-/// For further analysis see
-///   <http://vigna.di.unimi.it/ftp/papers/xorshift.pdf>
-
+#include <random>
 
 class Random {
-public:
-    Random() = delete;
-    Random(uint64 seed = 0);
+ public:
+  Random() = delete;
+  Random(std::uint64_t seed = 0);
 
-    // return the thread local RNG
-    static Random& get_Rng(void);
+  static Random& GetRng(void);
 
-	template<typename T> T rand() { return T(rand64()); }
-	
-	/// Special generator used to fast init magic numbers.
-	/// Output values only have 1/8th of their bits set on average.
-	template<typename T> T sparse_rand() { return T(rand64() & rand64() & rand64()); }
-	
-	uint16 randuint16(const uint16 max);
-	uint32 randuint32(const uint32 max);
-	uint32 randuint32();
-	
-	// random float from 0 to 1
-	float randflt(void);
+  template <typename T = std::uint64_t>
+  T RandInt(T max = std::numeric_limits<T>::max()) {
+    static_assert(std::is_integral<T>::value, "Integral type required");
+    std::uniform_int_distribution<T> uni_dist(T(0), max - T(1));
+    return uni_dist(rand_engine_);
+  }
 
-	// UniformRandomBitGenerator interface
-	using result_type = uint64;  //uint64_t instead of uint64...?!
-	constexpr static result_type min() {
-		return std::numeric_limits<result_type>::min();
-	}
-	constexpr static result_type max() {
-		return std::numeric_limits<result_type>::max();
-	}
-	result_type operator()() {
-		return rand64();
-	}
+  template <typename T = float>
+  T RandFlt(T max = std::numeric_limits<T>::max()) {
+    static_assert(std::is_floating_point<T>::value,
+                  "Floating point type required");
+    std::uniform_real_distribution<T> uni_dist(T(0), max);
+    return uni_dist(rand_engine_);
+  }
 
-private:
-	uint64 s;
-	uint64 rand64() {
-		s ^= s >> 12, s ^= s << 25, s ^= s >> 27;
-		return s * 2685821657736338717LL;
-	}
+  template <typename T, int N = 3>
+  T SparseRand() {
+    std::uniform_int_distribution<T> uni_dist;
+    T v = uni_dist(rand_engine_);
+    for (int i = 1; i < N; i++) {
+      v &= uni_dist(rand_engine_);
+    }
+    return v;
+  }
+
+  // UniformRandomBitGenerator interface
+  constexpr static std::uint64_t min() {
+    return std::numeric_limits<std::uint64_t>::min();
+  }
+  constexpr static std::uint64_t max() {
+    return std::numeric_limits<std::uint64_t>::max();
+  }
+  std::uint64_t operator()();
+
+ private:
+  std::mt19937_64 rand_engine_;
 };
-
 
 #endif

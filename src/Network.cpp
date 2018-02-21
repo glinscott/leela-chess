@@ -911,7 +911,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
 #ifdef USE_OPENCL_SELFCHECK
     // Both implementations are available, self-check the OpenCL driver by
     // running both with a probability of 1/2000.
-    if (Random::get_Rng().randuint16(SELFCHECK_PROBABILITY) == 0) {
+    if (Random::GetRng().RandInt(SELFCHECK_PROBABILITY) == 0) {
         auto cpu_policy_data = std::vector<float>(policy_data.size());
         auto cpu_value_data = std::vector<float>(value_data.size());
         forward_cpu(input_data, cpu_policy_data, cpu_value_data);

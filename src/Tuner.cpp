@@ -282,7 +282,7 @@ std::string Tuner::tune_sgemm(const int m, const int n, const int k,
         TuneParameters param = get_parameters_by_int(opts, i);
         if (valid_config_sgemm(param, cfg_sgemm_exhaustive)) {
             if (cfg_sgemm_exhaustive) {
-                if (rng.randuint16(16) != 0) {
+                if (rng.RandInt<std::uint16_t>(16) != 0) {
                     continue;
                 }
             }
