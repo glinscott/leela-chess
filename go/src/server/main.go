@@ -277,7 +277,7 @@ func user(c *gin.Context) {
 	user := db.User{
 		Username: name,
 	}
-	err := db.GetDB().Find(&user).Error
+	err := db.GetDB().Where(&user).First(&user).Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -285,7 +285,7 @@ func user(c *gin.Context) {
 	}
 
 	games := []db.TrainingGame{}
-	err = db.GetDB().Limit(50).Order("created_at DESC").Where("user = ?", user.Username).Find(&games).Error
+	err = db.GetDB().Model(&user).Limit(50).Order("created_at DESC").Related(&games).Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
