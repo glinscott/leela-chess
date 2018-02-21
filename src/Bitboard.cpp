@@ -300,7 +300,7 @@ namespace {
         for (int i = 0; i < size; )
         {
             for (m.magic = 0; popcount((m.magic * m.mask) >> 56) < 6; )
-                m.magic = rng.sparse_rand<Bitboard>();
+                m.magic = rng.SparseRand<Bitboard>();
 
             // A good magic must map every possible occupancy to an index that
             // looks up the correct sliding attack in the attacks[s] database.
