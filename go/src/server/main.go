@@ -14,6 +14,7 @@ import (
 	"server/db"
 	"strconv"
 
+	"github.com/gin-contrib/multitemplate"
 	"github.com/gin-gonic/gin"
 )
 
@@ -266,21 +267,63 @@ func frontPage(c *gin.Context) {
 		return
 	}
 
-	log.Println(users)
-	c.HTML(http.StatusOK, "index.tmpl", gin.H{
+	c.HTML(http.StatusOK, "index", gin.H{
 		"Users": users,
 	})
 }
 
+func user(c *gin.Context) {
+	name := c.Param("name")
+	user := db.User{
+		Username: name,
+	}
+	err := db.GetDB().Find(&user).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	games := []db.TrainingGame{}
+	err = db.GetDB().Limit(50).Order("created_at DESC").Where("user = ?", user.Username).Find(&games).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	gamesJson := []gin.H{}
+	for _, game := range games {
+		gamesJson = append(gamesJson, gin.H{
+			"id":      game.ID,
+			"created": game.CreatedAt,
+			"network": game.Network.ID,
+		})
+	}
+
+	c.HTML(http.StatusOK, "user", gin.H{
+		"user":  user.Username,
+		"games": gamesJson,
+	})
+}
+
+func createTemplates() multitemplate.Render {
+	r := multitemplate.New()
+	r.AddFromFiles("index", "templates/base.tmpl", "templates/index.tmpl")
+	r.AddFromFiles("user", "templates/base.tmpl", "templates/user.tmpl")
+	return r
+}
+
 func setupRouter() *gin.Engine {
 	router := gin.Default()
-	router.LoadHTMLGlob("templates/*")
+	router.HTMLRender = createTemplates()
 	router.MaxMultipartMemory = 32 << 20 // 32 MiB
 	router.Static("/css", "./public/css")
 	router.Static("/js", "./public/js")
 
 	router.GET("/", frontPage)
 	router.GET("/get_network", getNetwork)
+	router.GET("/user/:name", user)
 	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
 	router.POST("/upload_network", uploadNetwork)

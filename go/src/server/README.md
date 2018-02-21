@@ -38,6 +38,7 @@ ALTER ROLE gorm WITH PASSWORD 'gorm';
 
 ```
 go get github.com/gin-gonic/gin
+go get github.com/gin-contrib/multitemplate
 go get -u github.com/jinzhu/gorm
 go get github.com/lib/pq
 go build main.go
