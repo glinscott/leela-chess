@@ -20,6 +20,9 @@ list (APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
 
 add_subdirectory(gtest EXCLUDE_FROM_ALL) # We don't want to install gtest, exclude it from `all`
 
+# Options
+option (ENABLE_POPCOUNT "Enable builtin popcount support" OFF) # Ideally we'd autodetect
+
 # Required Packages
 set (Boost_MIN_VERSION "1.58.0")
 set (Boost_USE_MULTITHREADED ON)
@@ -67,6 +70,10 @@ if (GccSpecificFlags)
     set (CMAKE_BUILD_TYPE "RelWithDebInfo")
   endif (NOT CMAKE_BUILD_TYPE)
 endif(GccSpecificFlags)
+
+if (ENABLE_POPCOUNT)
+  add_definitions (-DUSE_POPCNT)
+endif()
 
 if (FEATURE_USE_CPU_ONLY)
   add_definitions (-DFEATURE_USE_CPU_ONLY)
