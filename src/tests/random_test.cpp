@@ -103,9 +103,14 @@ TEST(RandomTest, Randuint64_max) {
   EXPECT_PRED2(rngBucketsLookRandom, p, ALPHA);
 }
 
-TEST(RandomTest, RandSparse) {
+TEST(RandomTest, SparseRand) {
   // Using seed = 0 results in pseudo-random seed.
   auto rng = std::make_unique<Random>(0);
+
+#ifndef USE_POPCNT
+  // Required for popcount when USE_POPCNT is disabled
+  Bitboards::init();
+#endif
 
   int n = 10'000;
   int sum = 0;
