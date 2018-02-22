@@ -265,9 +265,9 @@ inline int popcount(Bitboard b) {
 
 #ifndef USE_POPCNT
 
-  int r;
-  for (r = 0; b; r++, b &= b - 1);
-  return r;
+  extern uint8_t PopCnt16[1 << 16];
+  union { Bitboard bb; uint16_t u[4]; } v = { b };
+  return PopCnt16[v.u[0]] + PopCnt16[v.u[1]] + PopCnt16[v.u[2]] + PopCnt16[v.u[3]];
 
 #elif defined(_MSC_VER) || defined(__INTEL_COMPILER)
 
