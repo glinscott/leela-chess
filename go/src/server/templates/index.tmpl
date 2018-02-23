@@ -21,7 +21,7 @@
     <thead>
       <tr>
         <th>User</th>
-        <th>Games / Hour</th>
+        <th>Games / Day</th>
         <th>System</th>
         <th>Version</th>
         <th>Last Updated</th>
@@ -31,10 +31,10 @@
       {{range .Users}}
       <tr>
         <td><a href="/user/{{.user}}">{{.user}}</a></td>
-        <td>{{.games_hour}}</td>
+        <td>{{.games_today}}</td>
         <td>{{.system}}</td>
         <td>{{.version}}</td>
-        <td>{{.last_update}}</td>
+        <td>{{.last_updated}}</td>
       </tr>
       {{end}}
     </tbody>

@@ -14,6 +14,7 @@ import (
 	"server/db"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-contrib/multitemplate"
 	"github.com/gin-gonic/gin"
@@ -241,22 +242,37 @@ func getNetwork(c *gin.Context) {
 }
 
 func getActiveUsers() ([]gin.H, error) {
-	users := []db.User{}
-	err := db.GetDB().Find(&users).Error
+	rows, err := db.GetDB().Raw(`SELECT username, training_games.version, training_games.created_at, c.count FROM users
+LEFT JOIN training_games
+ON users.id = training_games.user_id
+  AND training_games.id = (SELECT MAX(training_games.id) FROM training_games WHERE training_games.user_id = users.id)
+LEFT JOIN (SELECT user_id, count(*)
+FROM training_games
+WHERE created_at >= now() - INTERVAL '1 day'
+GROUP BY user_id) as c
+ON c.user_id = training_games.user_id`).Rows()
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	result := []gin.H{}
-	for _, user := range users {
+	for rows.Next() {
+		var username string
+		var version int
+		var created_at time.Time
+		var count uint64
+		rows.Scan(&username, &version, &created_at, &count)
+
 		result = append(result, gin.H{
-			"user":         user.Username,
-			"games_hour":   0,
+			"user":         username,
+			"games_today":  count,
 			"system":       "",
-			"version":      "",
-			"last_updated": user.UpdatedAt,
+			"version":      version,
+			"last_updated": created_at,
 		})
 	}
+
 	return result, nil
 }
 
