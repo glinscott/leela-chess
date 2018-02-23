@@ -342,9 +342,10 @@ func game(c *gin.Context) {
 		return
 	}
 
-	log.Print(strings.Replace(game.Pgn, "\n", " ", -1))
+	oneLinePgn := strings.Replace(game.Pgn, "\n", " ", -1) 
+	log.Print(oneLinePgn)
 	c.HTML(http.StatusOK, "game", gin.H{
-		"pgn": game.Pgn,
+		"pgn": oneLinePgn,
 	})
 }
 
