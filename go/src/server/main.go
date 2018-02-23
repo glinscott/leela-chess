@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"server/db"
 	"strconv"
+	"strings"
 
 	"github.com/gin-contrib/multitemplate"
 	"github.com/gin-gonic/gin"
@@ -307,10 +308,35 @@ func user(c *gin.Context) {
 	})
 }
 
+func game(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	game := db.TrainingGame{
+		ID: uint64(id),
+	}
+	err = db.GetDB().Where(&game).First(&game).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	log.Print(strings.Replace(game.Pgn, "\n", " ", -1))
+	c.HTML(http.StatusOK, "game", gin.H{
+		"pgn": game.Pgn,
+	})
+}
+
 func createTemplates() multitemplate.Render {
 	r := multitemplate.New()
 	r.AddFromFiles("index", "templates/base.tmpl", "templates/index.tmpl")
 	r.AddFromFiles("user", "templates/base.tmpl", "templates/user.tmpl")
+	r.AddFromFiles("game", "templates/base.tmpl", "templates/game.tmpl")
 	return r
 }
 
@@ -324,6 +350,7 @@ func setupRouter() *gin.Engine {
 	router.GET("/", frontPage)
 	router.GET("/get_network", getNetwork)
 	router.GET("/user/:name", user)
+	router.GET("/game/:id", game)
 	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
 	router.POST("/upload_network", uploadNetwork)

@@ -96,7 +96,7 @@ func train(networkPath string) (string, string) {
 			} else if line == "END" {
 				reading_pgn = false
 			} else if reading_pgn {
-				pgn += line
+				pgn += line + "\n"
 			}
 		}
 	}()

@@ -1,0 +1,22 @@
+{{define "content"}}
+<!-- Support libraries from Yahoo YUI project -->  
+<script type="text/javascript" src="http://chesstempo.com/js/pgnyui.js"></script>
+<script type="text/javascript" src="http://chesstempo.com/js/pgnviewer.js"></script>
+<link type="text/css" rel="stylesheet" href="http://chesstempo.com/css/board-min.css"></link>
+
+<script>
+new PgnViewer(
+  { boardName: "training",
+    pgnString: '{{.pgn}}',
+    pieceSet: 'merida',
+    pieceSize: 55
+  }
+);
+</script>
+
+<div id="training-container"></div>  
+<div id="training-moves"></div>
+{{end}}
+
+{{define "scripts"}}
+{{end}}
