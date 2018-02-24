@@ -25,6 +25,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/utility.hpp>
 #include "stdlib.h"
+#include "zlib.h"
 #include "string.h"
 
 #include "Training.h"
@@ -213,3 +214,8 @@ void Training::dump_stats(OutputChunker& outchunk) {
         outchunk.append(out.str());
     }
 }
+
+//void Training::process_game(Position& state, size_t& train_pos, Color who_won, const std::vector<int>& tree_moves, OutputChunker& outchunker) //--killed
+
+//void Training::dump_supervised(const std::string& sgf_name, const std::string& out_filename) //--killed
+
