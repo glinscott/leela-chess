@@ -80,7 +80,7 @@ include_directories (${Boost_INCLUDE_DIRS})
 include_directories (${OpenCL_INCLUDE_DIRS})
 include_directories (${ZLIB_INCLUDE_DIRS})
 
-if (UNIX AND NOT APPLE)
+if ((UNIX AND NOT APPLE) OR WIN32)
   include_directories (${BLAS_INCLUDE_DIRS})
 endif ()
 if (APPLE)
