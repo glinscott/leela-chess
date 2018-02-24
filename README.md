@@ -102,6 +102,10 @@ This runs an evaluation match using [cutechess-cli](https://github.com/cutechess
     make
     ./tests
 
+# Compiling Client
+
+See https://github.com/glinscott/leela-chess/tree/master/go/src/client/README.md.
+
 # Other projects
 
 * [mokemokechicken/reversi-alpha-zero](https://github.com/mokemokechicken/reversi-alpha-zero)
