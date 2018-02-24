@@ -72,7 +72,6 @@ This runs an evaluation match using [cutechess-cli](https://github.com/cutechess
 * GCC, Clang or MSVC, any C++14 compiler
 * boost 1.58.x or later (libboost-all-dev on Debian/Ubuntu)
 * BLAS Library: OpenBLAS (libopenblas-dev) or (optionally) Intel MKL
-* zlib library (zlib1g & zlib1g-dev on Debian/Ubuntu)
 * Standard OpenCL C headers (opencl-headers on Debian/Ubuntu, or at
   https://github.com/KhronosGroup/OpenCL-Headers/tree/master/opencl22/)
 * OpenCL ICD loader (ocl-icd-libopencl1 on Debian/Ubuntu, or reference implementation at https://github.com/KhronosGroup/OpenCL-ICD-Loader)
@@ -86,7 +85,7 @@ This runs an evaluation match using [cutechess-cli](https://github.com/cutechess
 ## Example of compiling - Ubuntu 16.04
 
     # Install dependencies
-    sudo apt install libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
+    sudo apt install libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev
 
     # Test for OpenCL support & compatibility
     sudo apt install clinfo && clinfo
