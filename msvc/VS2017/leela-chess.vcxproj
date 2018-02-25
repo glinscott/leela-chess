@@ -27,6 +27,7 @@
     <ClInclude Include="..\..\src\Movegen.h" />
     <ClInclude Include="..\..\src\Network.h" />
     <ClInclude Include="..\..\src\OpenCL.h" />
+    <ClInclude Include="..\..\src\OpenCLScheduler.h" />
     <ClInclude Include="..\..\src\Parameters.h" />
     <ClInclude Include="..\..\src\Position.h" />
     <ClInclude Include="..\..\src\Random.h" />
@@ -49,6 +50,7 @@
     <ClCompile Include="..\..\src\Movegen.cpp" />
     <ClCompile Include="..\..\src\Network.cpp" />
     <ClCompile Include="..\..\src\OpenCL.cpp" />
+    <ClCompile Include="..\..\src\OpenCLScheduler.cpp" />
     <ClCompile Include="..\..\src\Parameters.cpp" />
     <ClCompile Include="..\..\src\Position.cpp" />
     <ClCompile Include="..\..\src\Random.cpp" />
