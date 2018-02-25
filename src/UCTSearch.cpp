@@ -102,6 +102,7 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
     if (cfg_quiet || !parent.has_children()) {
         return;
     }
+    myprintf("\n");
 
     const Color color = state.cur().side_to_move();
 
@@ -112,17 +113,14 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
         return;
     }
 
-    int movecount = 0;
     for (const auto& node : parent.get_children()) {
-        if (++movecount > 2 && !node->get_visits()) break;
-
         std::string tmp = UCI::move(node->get_move());
         std::string pvstring(tmp);
 
         myprintf("%4s -> %7d (V: %5.2f%%) (N: %5.2f%%) PV: ",
             tmp.c_str(),
             node->get_visits(),
-            node->get_visits() > 0 ? node->get_eval(color)*100.0f : 0.0f,
+            node->get_eval(color)*100.0f,
             node->get_score() * 100.0f);
 
         StateInfo si;
@@ -132,6 +130,7 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
 
         myprintf("%s\n", pvstring.c_str());
     }
+    myprintf("\n");
 }
 
 Move UCTSearch::get_best_move() {
@@ -297,10 +296,8 @@ Move UCTSearch::think() {
         return MOVE_NONE;
     }
 
-    if (!quiet_) {
-      // display search info
-      dump_stats(bh_, m_root);
-    }
+    // display search info
+    dump_stats(bh_, m_root);
     Training::record(bh_, m_root);
 
     Time elapsed;
