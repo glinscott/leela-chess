@@ -15,12 +15,14 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <boost/math/distributions/chi_squared.hpp>
 #include <gtest/gtest.h>
-#include <vector>
-#include <Bitboard.h>
-#include <fstream>
 
+#include <boost/math/distributions/chi_squared.hpp>
+#include <fstream>
+#include <memory>
+#include <vector>
+
+#include "Bitboard.h"
 #include "Random.h"
 
 // Test should fail about this often from distribution not looking uniform.
