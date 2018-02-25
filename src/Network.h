@@ -50,23 +50,20 @@ public:
     static constexpr int INPUT_CHANNELS = 8 + 14 * T_HISTORY;
 
     static constexpr int NUM_OUTPUT_POLICY = 1924;
+    static constexpr int NUM_OUTPUT_VALUE = 1;
     static constexpr int NUM_VALUE_CHANNELS = 128;
     static constexpr int NUM_VALUE_INPUT_PLANES = 32;
     static constexpr int NUM_POLICY_INPUT_PLANES = 32;
 
-    // Winograd filter transformation changes 3x3 filters to 4x4
-    static constexpr auto WINOGRAD_ALPHA = 4;
-    static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
-
+    using scored_node = std::pair<float, Move>;
+    using Netresult = std::pair<std::vector<scored_node>, float>;
     using BoardPlane = std::bitset<8 * 8>;
+
     struct NNPlanes {
       std::array<BoardPlane, INPUT_CHANNELS - 3> bit;
       int rule50_count;
       int move_count;
     };
-
-    using scored_node = std::pair<float, Move>;
-    using Netresult = std::pair<std::vector<scored_node>, float>;
 
     struct DebugRawData {
       std::vector<float> input;
@@ -77,20 +74,29 @@ public:
       std::string getJson() const;
     };
 
+    static Netresult get_scored_moves(const BoardHistory& state,
+                                      DebugRawData* debug_data=nullptr);
+
+    // Winograd filter transformation changes 3x3 filters to 4x4
+    static constexpr auto WINOGRAD_ALPHA = 4;
+    static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
+
+    static void initialize();
+    //static void benchmark(const GameState * state, int iterations = 1600);
+    static void softmax(const std::vector<float>& input,
+                        std::vector<float>& output,
+                        float temperature = 1.0f);
+
     static int lookup(Move move);
-
-    static Netresult get_scored_moves(const BoardHistory& state, DebugRawData* debug_data=nullptr);
-
-    static void init();
-//    static void benchmark(Position* state, int iterations = 1600);
-    static void show_heatmap(const BoardHistory& state, Netresult& netres, bool topmoves);
-    static void softmax(const std::vector<float>& input, std::vector<float>& output, float temperature = 1.0f);
     static void gather_features(const BoardHistory& pos, NNPlanes& planes);
 
 private:
+    static std::pair<int, int> load_v1_network(std::ifstream& wtfile);
+    static std::pair<int, int> load_network_file(std::string filename);
+    static void process_bn_var(std::vector<float>& weights,
+                               const float epsilon=1e-5f);
     static std::unordered_map<Move, int, std::hash<int>> move_lookup;
 
-    static void process_bn_var(std::vector<float>& weights, const float epsilon=1e-5f);
     static std::vector<float> winograd_transform_f(const std::vector<float>& f,
         const int outputs, const int channels);
     static std::vector<float> zeropad_U(const std::vector<float>& U,
@@ -115,7 +121,9 @@ private:
     static Netresult get_scored_moves_internal(const BoardHistory& state, NNPlanes& planes, DebugRawData* debug_data);
 #if defined(USE_BLAS)
     static void forward_cpu(std::vector<float>& input,
-                            std::vector<float>& output);
+                            std::vector<float>& output_pol,
+                            std::vector<float>& output_val);
+
 #endif
 };
 
