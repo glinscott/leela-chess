@@ -1,0 +1,27 @@
+{{define "content"}}
+<div class="table-responsive">
+  <table class="table table-striped table-sm">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Description</th>
+        <th>Train Params</th>
+        <th>Active</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .training_runs}}
+      <tr>
+        <td><a href="/training_run/{{.id}}">{{.id}}</a></td>
+        <td>{{.description}}</td>
+        <td>{{.trainParams}}</td>
+        <td>{{.active}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+{{define "scripts"}}
+{{end}}

@@ -20,9 +20,11 @@ import (
 )
 
 func nextGame(c *gin.Context) {
-	var training_run db.TrainingRun
+	training_run := db.TrainingRun{
+		Active: true,
+	}
 	// TODO(gary): Need to set some sort of priority system here.
-	err := db.GetDB().Preload("BestNetwork").First(&training_run).Error
+	err := db.GetDB().Preload("BestNetwork").Where(&training_run).First(&training_run).Error
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid training run")
@@ -36,6 +38,7 @@ func nextGame(c *gin.Context) {
 		"trainingId": training_run.ID,
 		"networkId":  training_run.BestNetwork.ID,
 		"sha":        training_run.BestNetwork.Sha,
+		"params":     training_run.TrainParameters,
 	}
 	c.JSON(http.StatusOK, result)
 }
@@ -390,12 +393,37 @@ func viewNetworks(c *gin.Context) {
 	})
 }
 
+func viewTrainingRuns(c *gin.Context) {
+	training_runs := []db.TrainingRun{}
+	err := db.GetDB().Find(&training_runs).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	rows := []gin.H{}
+	for _, training_run := range training_runs {
+		rows = append(rows, gin.H{
+			"id":          training_run.ID,
+			"active":      training_run.Active,
+			"trainParams": training_run.TrainParameters,
+			"description": training_run.Description,
+		})
+	}
+
+	c.HTML(http.StatusOK, "training_runs", gin.H{
+		"training_runs": rows,
+	})
+}
+
 func createTemplates() multitemplate.Render {
 	r := multitemplate.New()
 	r.AddFromFiles("index", "templates/base.tmpl", "templates/index.tmpl")
 	r.AddFromFiles("user", "templates/base.tmpl", "templates/user.tmpl")
 	r.AddFromFiles("game", "templates/base.tmpl", "templates/game.tmpl")
 	r.AddFromFiles("networks", "templates/base.tmpl", "templates/networks.tmpl")
+	r.AddFromFiles("training_runs", "templates/base.tmpl", "templates/training_runs.tmpl")
 	return r
 }
 
@@ -411,6 +439,7 @@ func setupRouter() *gin.Engine {
 	router.GET("/user/:name", user)
 	router.GET("/game/:id", game)
 	router.GET("/networks", viewNetworks)
+	router.GET("/training_runs", viewTrainingRuns)
 	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
 	router.POST("/upload_network", uploadNetwork)
