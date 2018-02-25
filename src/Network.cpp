@@ -404,8 +404,32 @@ void Network::initialize(void) {
         }
 
         // Output head convolutions
-        opencl_net->push_convolve1(channels, NUM_POLICY_INPUT_PLANES, conv_pol_w);
-        opencl_net->push_convolve1(channels, NUM_VALUE_INPUT_PLANES, conv_val_w);
+        std::vector<float> bn_pol_means(bn_pol_w1.begin(), bn_pol_w1.end());
+        std::vector<float> bn_pol_stddivs(bn_pol_w2.begin(), bn_pol_w2.end());
+
+        std::vector<float> bn_val_means(bn_val_w1.begin(), bn_val_w1.end());
+        std::vector<float> bn_val_stddivs(bn_val_w2.begin(), bn_val_w2.end());
+
+        std::vector<float> ip_pol_w_vec(ip_pol_w.begin(), ip_pol_w.end());
+        std::vector<float> ip_pol_b_vec(ip_pol_b.begin(), ip_pol_b.end());
+
+        std::vector<float> ip_val_w_vec(ip1_val_w.begin(), ip1_val_w.end());
+        std::vector<float> ip_val_b_vec(ip1_val_b.begin(), ip1_val_b.end());
+
+        constexpr unsigned int width = 8;
+        constexpr unsigned int height = 8;
+
+        opencl_net->push_policy(channels, NUM_POLICY_INPUT_PLANES,
+                NUM_POLICY_INPUT_PLANES*width*height, NUM_OUTPUT_POLICY,
+                conv_pol_w,
+                bn_pol_means, bn_pol_stddivs,
+                ip_pol_w_vec, ip_pol_b_vec);
+
+        opencl_net->push_value(channels, NUM_VALUE_INPUT_PLANES,
+                NUM_VALUE_INPUT_PLANES*width*height, NUM_VALUE_CHANNELS,
+                conv_val_w,
+                bn_val_means, bn_val_stddivs,
+                ip_val_w_vec, ip_val_b_vec);
     }
 #endif
 #ifdef USE_BLAS
@@ -778,6 +802,9 @@ void Network::forward_cpu(std::vector<float>& input,
     auto V = std::vector<float>(WINOGRAD_TILE * input_channels * tiles);
     auto M = std::vector<float>(WINOGRAD_TILE * output_channels * tiles);
 
+    std::vector<float> policy_data(Network::NUM_POLICY_INPUT_PLANES * width * height);
+    std::vector<float> value_data(Network::NUM_VALUE_INPUT_PLANES * width * height);
+
     winograd_convolve3(output_channels, input, conv_weights[0], V, M, conv_out);
     batchnorm<64>(output_channels, conv_out,
                   batchnorm_means[0].data(),
@@ -805,8 +832,14 @@ void Network::forward_cpu(std::vector<float>& input,
                       batchnorm_stddivs[i + 1].data(),
                       res.data());
     }
-    convolve<1>(NUM_POLICY_INPUT_PLANES, conv_out, conv_pol_w, conv_pol_b, output_pol);
-    convolve<1>(NUM_VALUE_INPUT_PLANES, conv_out, conv_val_w, conv_val_b, output_val);
+    convolve<1>(NUM_POLICY_INPUT_PLANES, conv_out, conv_pol_w, conv_pol_b, policy_data);
+    convolve<1>(NUM_VALUE_INPUT_PLANES, conv_out, conv_val_w, conv_val_b, value_data);
+    batchnorm<width*height>(NUM_POLICY_INPUT_PLANES, policy_data, bn_pol_w1.data(), bn_pol_w2.data());
+
+    batchnorm<width*height>(NUM_VALUE_INPUT_PLANES, value_data, bn_val_w1.data(), bn_val_w2.data());
+
+    innerproduct<NUM_POLICY_INPUT_PLANES*width*height, NUM_OUTPUT_POLICY>(policy_data, ip_pol_w, ip_pol_b, output_pol);
+    innerproduct<NUM_VALUE_INPUT_PLANES*width*height, NUM_VALUE_CHANNELS>(value_data, ip1_val_w, ip1_val_b, output_val);
 }
 
 template<typename T>
@@ -886,9 +919,8 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     const auto convolve_channels = conv_pol_w.size() / conv_pol_b.size();
     std::vector<net_t> input_data;
     std::vector<net_t> output_data(convolve_channels * width * height);
-    std::vector<float> policy_data(Network::NUM_POLICY_INPUT_PLANES * width * height);
     std::vector<float> value_data(Network::NUM_VALUE_INPUT_PLANES * width * height);
-    std::vector<float> policy_out(Network::NUM_OUTPUT_POLICY);
+    std::vector<float> policy_data(Network::NUM_OUTPUT_POLICY);
     std::vector<float> softmax_data(Network::NUM_OUTPUT_POLICY);
     std::vector<float> winrate_data(Network::NUM_VALUE_CHANNELS);
     std::vector<float> winrate_out(1);
@@ -925,21 +957,13 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
         compare_net_outputs(value_data, cpu_value_data);
     }
 #endif
-    // We calculate both network heads on the CPU. They are irregular
-    // and have a much lower compute densitity than the residual layers,
-    // which means they don't get much - if any - speedup from being on the
-    // GPU. See issue #185.
 
     // Get the moves
-    batchnorm<width*height>(NUM_POLICY_INPUT_PLANES, policy_data, bn_pol_w1.data(), bn_pol_w2.data());
-    innerproduct<NUM_POLICY_INPUT_PLANES*width*height, NUM_OUTPUT_POLICY>(policy_data, ip_pol_w, ip_pol_b, policy_out);
-    softmax(policy_out, softmax_data, cfg_softmax_temp);
+    softmax(policy_data, softmax_data, cfg_softmax_temp);
     std::vector<float>& outputs = softmax_data;
 
     // Now get the score
-    batchnorm<width*height>(NUM_VALUE_INPUT_PLANES, value_data, bn_val_w1.data(), bn_val_w2.data());
-    innerproduct<NUM_VALUE_INPUT_PLANES*width*height, NUM_VALUE_CHANNELS>(value_data, ip1_val_w, ip1_val_b, winrate_data);
-    innerproduct<NUM_VALUE_CHANNELS, 1>(winrate_data, ip2_val_w, ip2_val_b, winrate_out);
+    innerproduct<NUM_VALUE_CHANNELS, 1>(value_data, ip2_val_w, ip2_val_b, winrate_out);
 
     // Sigmoid
     auto winrate_sig = (1.0f + std::tanh(winrate_out[0])) / 2.0f;

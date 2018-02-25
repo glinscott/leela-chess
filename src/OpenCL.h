@@ -44,9 +44,12 @@ private:
     unsigned int channels{0};
     unsigned int outputs{0};
     unsigned int filter_size{0};
+    unsigned int ip_in_size{0};
+    unsigned int ip_out_size{0};
     bool is_input_convolution{false};
     bool is_residual_block{false};
-    bool is_convolve1{false};
+    bool is_policy{false};
+    bool is_value{false};
     std::vector<cl::Buffer> weights;
 };
 
@@ -60,6 +63,7 @@ private:
     cl::Kernel m_merge_kernel;
     cl::Kernel m_in_transform_kernel;
     cl::Kernel m_sgemm_kernel;
+    cl::Kernel m_sgemv_kernel;
     cl::Kernel m_out_transform_bn_kernel;
     cl::Kernel m_out_transform_bn_in_kernel;
     cl::Buffer m_inBuffer;
@@ -116,14 +120,48 @@ public:
         m_layers[layer].channels = channels;
     }
 
-    void push_convolve1(unsigned int channels,
+    void push_policy(unsigned int channels,
                        unsigned int outputs,
-                       const std::vector<float>& weights) {
+                       unsigned int ip_in,
+                       unsigned int ip_out,
+                       const std::vector<float>& weights,
+                       const std::vector<float>& means,
+                       const std::vector<float>& variances,
+                       const std::vector<float>& fc_w,
+                       const std::vector<float>& fc_b) {
         size_t layer = get_layer_count();
         push_weights(layer, weights);
-        m_layers[layer].is_convolve1 = true;
+        push_weights(layer, means);
+        push_weights(layer, variances);
+        push_weights(layer, fc_w);
+        push_weights(layer, fc_b);
+        m_layers[layer].is_policy = true;
         m_layers[layer].outputs = outputs;
         m_layers[layer].channels = channels;
+        m_layers[layer].ip_in_size = ip_in;
+        m_layers[layer].ip_out_size = ip_out;
+    }
+
+    void push_value(unsigned int channels,
+                       unsigned int outputs,
+                       unsigned int ip_in,
+                       unsigned int ip_out,
+                       const std::vector<float>& weights,
+                       const std::vector<float>& means,
+                       const std::vector<float>& variances,
+                       const std::vector<float>& fc_w,
+                       const std::vector<float>& fc_b) {
+        size_t layer = get_layer_count();
+        push_weights(layer, weights);
+        push_weights(layer, means);
+        push_weights(layer, variances);
+        push_weights(layer, fc_w);
+        push_weights(layer, fc_b);
+        m_layers[layer].is_value = true;
+        m_layers[layer].outputs = outputs;
+        m_layers[layer].channels = channels;
+        m_layers[layer].ip_in_size = ip_in;
+        m_layers[layer].ip_out_size = ip_out;
     }
 
     size_t get_layer_count() const {
@@ -157,6 +195,13 @@ private:
                   cl::Buffer& bufferOutput,
                   cl::Buffer& bufferMerge,
                   weight_slice_t weights);
+
+    void innerproduct(cl::Buffer& input,
+                  weight_slice_t weights,
+                  weight_slice_t biases,
+                  cl::Buffer& output,
+                  const int inputs, const int outputs,
+                  const int relu);
 
     OpenCL & m_opencl;
 
