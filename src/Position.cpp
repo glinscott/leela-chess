@@ -99,10 +99,10 @@ void Position::init() {
 
   for (Piece pc : Pieces)
       for (Square s = SQ_A1; s <= SQ_H8; ++s)
-          Zobrist::psq[pc][s] = rng.rand<Key>();
+          Zobrist::psq[pc][s] = rng.RandInt<Key>();
 
   for (File f = FILE_A; f <= FILE_H; ++f)
-      Zobrist::enpassant[f] = rng.rand<Key>();
+      Zobrist::enpassant[f] = rng.RandInt<Key>();
 
   for (int cr = NO_CASTLING; cr <= ANY_CASTLING; ++cr)
   {
@@ -111,12 +111,12 @@ void Position::init() {
       while (b)
       {
           Key k = Zobrist::castling[1ULL << pop_lsb(&b)];
-          Zobrist::castling[cr] ^= k ? k : rng.rand<Key>();
+          Zobrist::castling[cr] ^= k ? k : rng.RandInt<Key>();
       }
   }
 
-  Zobrist::side = rng.rand<Key>();
-  Zobrist::noPawns = rng.rand<Key>();
+  Zobrist::side = rng.RandInt<Key>();
+  Zobrist::noPawns = rng.RandInt<Key>();
 }
 
 /// Position::set() initializes the position object with the given FEN string.

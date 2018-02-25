@@ -259,10 +259,13 @@ std::string Tuner::tune_sgemm(const int m, const int n, const int k,
     sgemmBatched_ref(at, b, c_ref, m, n, k, batch_size);
 
     auto aBuffer = cl::Buffer(
+        m_context,
         CL_MEM_READ_WRITE, sizeof(float) * at_size, nullptr, nullptr);
     auto bBuffer = cl::Buffer(
+        m_context,
         CL_MEM_READ_WRITE, sizeof(float) * b_size, nullptr, nullptr);
     auto cBuffer = cl::Buffer(
+        m_context,
         CL_MEM_READ_WRITE, sizeof(float) * c_size, nullptr, nullptr);
 
     myprintf("\nStarted OpenCL SGEMM tuner.\n");
@@ -279,8 +282,7 @@ std::string Tuner::tune_sgemm(const int m, const int n, const int k,
         TuneParameters param = get_parameters_by_int(opts, i);
         if (valid_config_sgemm(param, cfg_sgemm_exhaustive)) {
             if (cfg_sgemm_exhaustive) {
-                auto pick = rng.randflt();
-                if (pick > (1.0f / 16.0f)) {
+                if (rng.RandInt<std::uint16_t>(16) != 0) {
                     continue;
                 }
             }
@@ -292,11 +294,11 @@ std::string Tuner::tune_sgemm(const int m, const int n, const int k,
     std::string best_params;
     auto best_time = unsigned{0};
 
-    auto queue = cl::CommandQueue(cl::Context::getDefault(),
-                                  cl::Device::getDefault(),
+    auto queue = cl::CommandQueue(m_context,
+                                  m_device,
                                   CL_QUEUE_PROFILING_ENABLE);
     auto event = cl::Event();
-    auto program = cl::Program(sourceCode_sgemm);
+    auto program = cl::Program(m_context, sourceCode_sgemm);
 
     auto m_ceil_prev = 0;
     auto n_ceil_prev = 0;
@@ -310,7 +312,7 @@ std::string Tuner::tune_sgemm(const int m, const int n, const int k,
         auto defines = parameters_to_defines(p);
 
         try {
-            auto args = opencl.m_cl_args + " " + defines;
+            auto args = m_opencl.m_cl_args + " " + defines;
             program.build(args.c_str());
         } catch (const cl::Error&) {
             // Failed to compile, get next parameter
@@ -319,9 +321,9 @@ std::string Tuner::tune_sgemm(const int m, const int n, const int k,
 
         auto sgemm_kernel = cl::Kernel(program, "XgemmBatched");
 
-        auto m_ceil = (int)lcm(lcm(m, p["MWG"]), p["VWM"]);
-        auto n_ceil = (int)lcm(lcm(n, p["NWG"]), p["VWN"]);
-        auto k_ceil = (int)lcm(lcm(k, p["KWG"]), p["VWM"]);
+        auto m_ceil = (int)ceilMultiple(ceilMultiple(m, p["MWG"]), p["VWM"]);
+        auto n_ceil = (int)ceilMultiple(ceilMultiple(n, p["NWG"]), p["VWN"]);
+        auto k_ceil = (int)ceilMultiple(ceilMultiple(k, p["KWG"]), p["VWM"]);
 
         if (m_ceil != m_ceil_prev
             || n_ceil != n_ceil_prev
@@ -417,7 +419,7 @@ void Tuner::store_sgemm_tuners(const int m, const int n, const int k,
     }
     auto file = std::ofstream{TUNER_FILE_LOCAL};
 
-    auto device_name = opencl.get_device_name();
+    auto device_name = m_opencl.get_device_name();
     auto tuning_params = std::stringstream{};
     tuning_params << m << ";" << n << ";" << k << ";" << batch_size;
 
@@ -436,6 +438,12 @@ void Tuner::store_sgemm_tuners(const int m, const int n, const int k,
 
     // Write new tuning
     file << tuning_line << std::endl;
+
+    if (file.fail()) {
+        myprintf("Could not save the tuning result.\n");
+        myprintf("Do I have write permissions on %s?\n",
+            TUNER_FILE_LOCAL.c_str());
+    }
 }
 
 std::string Tuner::sgemm_tuners_from_line(std::string line,
@@ -477,7 +485,7 @@ std::string Tuner::sgemm_tuners_from_line(std::string line,
         return "";
     }
 
-    if (s[7] != opencl.get_device_name()) {
+    if (s[7] != m_opencl.get_device_name()) {
         return "";
     }
 

@@ -29,11 +29,14 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <mutex>
 
 #include "Tuner.h"
 
 static constexpr auto WINOGRAD_P = 8 * 8 / 4;
 static constexpr auto WINOGRAD_TILE = 4 * 4;
+
+class OpenCL;
 
 class Layer {
     friend class OpenCL_Network;
@@ -41,9 +44,9 @@ private:
     unsigned int channels{0};
     unsigned int outputs{0};
     unsigned int filter_size{0};
-    bool is_batchnorm{false};
-    bool is_innerproduct{false};
+    bool is_input_convolution{false};
     bool is_residual_block{false};
+    bool is_convolve1{false};
     std::vector<cl::Buffer> weights;
 };
 
@@ -53,39 +56,39 @@ class ThreadData {
 private:
     bool m_is_initialized{false};
     cl::CommandQueue m_commandqueue;
+    cl::Kernel m_convolve1_kernel;
+    cl::Kernel m_merge_kernel;
     cl::Kernel m_in_transform_kernel;
     cl::Kernel m_sgemm_kernel;
-    cl::Kernel m_out_transform_kernel;
     cl::Kernel m_out_transform_bn_kernel;
-    cl::Kernel m_batchnorm_kernel;
+    cl::Kernel m_out_transform_bn_in_kernel;
     cl::Buffer m_inBuffer;
-    cl::Buffer m_tmpBuffer;
+    cl::Buffer m_inBuffer2;
     cl::Buffer m_VBuffer;
     cl::Buffer m_MBuffer;
-    cl::Buffer m_residualBuffer;
+    cl::Buffer m_pinnedOutBuffer_pol;
+    cl::Buffer m_pinnedOutBuffer_val;
     bool m_buffers_allocated{false};
 };
 
 class OpenCL_Network {
 public:
-    void push_batchnorm(unsigned int spatial_size,
-                        const std::vector<float>& means,
-                        const std::vector<float>& variances) {
-        size_t layer = get_layer_count();
-        push_weights(layer, means);
-        push_weights(layer, variances);
-        m_layers[layer].is_batchnorm = true;
-        m_layers[layer].channels = means.size();
-        m_layers[layer].outputs = means.size();
-        m_layers[layer].filter_size = spatial_size;
+    OpenCL_Network(OpenCL & opencl) : m_opencl(opencl) {}
+    OpenCL & getOpenCL() {
+        return m_opencl;
     }
 
-    void push_convolve(unsigned int filter_size,
+    void push_input_convolution(unsigned int filter_size,
                        unsigned int channels,
                        unsigned int outputs,
-                       const std::vector<float>& weights) {
+                       const std::vector<float>& weights,
+                       const std::vector<float>& means,
+                       const std::vector<float>& variances) {
         size_t layer = get_layer_count();
         push_weights(layer, weights);
+        push_weights(layer, means);
+        push_weights(layer, variances);
+        m_layers[layer].is_input_convolution = true;
         m_layers[layer].outputs = outputs;
         m_layers[layer].filter_size = filter_size;
         m_layers[layer].channels = channels;
@@ -113,11 +116,23 @@ public:
         m_layers[layer].channels = channels;
     }
 
+    void push_convolve1(unsigned int channels,
+                       unsigned int outputs,
+                       const std::vector<float>& weights) {
+        size_t layer = get_layer_count();
+        push_weights(layer, weights);
+        m_layers[layer].is_convolve1 = true;
+        m_layers[layer].outputs = outputs;
+        m_layers[layer].channels = channels;
+    }
+
     size_t get_layer_count() const {
         return m_layers.size();
     }
 
-    void forward(const std::vector<net_t>& input, std::vector<net_t>& output);
+    void forward(const std::vector<net_t>& input,
+            std::vector<net_t>& output_pol,
+            std::vector<net_t>& output_val);
 
 private:
     using weight_slice_t = std::vector<cl::Buffer>::const_iterator;
@@ -128,13 +143,28 @@ private:
     void add_weights(size_t layer, size_t size, const float* weights);
 
     void convolve3(int channels, int outputs,
-                    cl::Buffer& bufferInOut, cl::Buffer& bufferV,
+                    cl::Buffer& bufferIn,
+                    cl::Buffer& bufferOut,
+                    cl::Buffer& bufferV,
                     cl::Buffer& bufferM, weight_slice_t weights,
                     cl::Buffer* bufferResidual,
-                    weight_slice_t* bn_weights);
-    void batchnorm(int outputs, int channel_size, cl::Buffer& input,
-                   cl::Buffer& output, cl::Buffer* residual,
-                   weight_slice_t weights);
+                    weight_slice_t bn_weights,
+                    bool skip_in_transform,
+                    bool fuse_in_transform, bool store_inout);
+
+    void convolve1(int channels, int outputs,
+                  cl::Buffer& bufferInput,
+                  cl::Buffer& bufferOutput,
+                  cl::Buffer& bufferMerge,
+                  weight_slice_t weights);
+
+    OpenCL & m_opencl;
+
+    // this mutex is not required for correctness, but this exists simply
+    // because queue.finish() is a busy wait and having a lot of threads
+    // waiting here is counterproductive CPU-wise.  At least std::mutex
+    // isn't busy wait so it should be better.
+    std::mutex m_queue_finish_mutex;
     std::vector<Layer> m_layers;
 };
 
@@ -142,12 +172,15 @@ class OpenCL {
     friend class OpenCL_Network;
     friend class Tuner;
 public:
-    void initialize(const int channels);
+    void initialize(const int channels, const std::vector<int> & gpus,
+                    bool silent = false);
     void ensure_thread_initialized(void);
     std::string get_device_name();
 
     std::vector<size_t> get_sgemm_tuners(void);
 
+    cl::Device m_device;
+    cl::Context m_context;
 private:
     void tune_sgemm(void);
     void process_tuners(std::string tuners);
@@ -167,9 +200,7 @@ private:
     bool m_init_ok{false};
 };
 
-extern OpenCL opencl;
-extern OpenCL_Network opencl_net;
 extern thread_local ThreadData opencl_thread_data;
-extern std::string sourceCode_sgemm;
+extern const std::string sourceCode_sgemm;
 
 #endif

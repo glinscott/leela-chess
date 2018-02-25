@@ -320,8 +320,8 @@ int main(int argc, char* argv[]) {
   setbuf(stdin, nullptr);
 #endif
   thread_pool.initialize(cfg_num_threads);
-  // Random::get_Rng().seedrandom(cfg_rng_seed);
-  Network::init();
+  // Random::GetRng().seedrandom(cfg_rng_seed);
+  Network::initialize();
 
   if (!cfg_supervise.empty()) {
     generate_supervised_data(cfg_supervise);
