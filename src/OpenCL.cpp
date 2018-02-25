@@ -123,10 +123,12 @@ static std::string sourceCode_convolve1 = R"(
        }
     }
 
-__kernel void merge(
+__kernel void merge_bn(
                         __global const net_t * restrict in,
                         __global net_t * restrict out,
-                        __private const int channels) {
+                        __private const int channels,
+                        __constant const net_t * restrict means,
+                        __constant const net_t * restrict stddivs) {
         // cl::NDRange global(outputs, 8*8);
         const int gx = get_global_id(0);
         const int gy = get_global_id(1);
@@ -140,6 +142,13 @@ __kernel void merge(
         float sum = 0;
         for (int c = 0; c < channels; c++) {
             sum += vload_net_t((c * boardsize + b) * outputs + o, in);
+        }
+        if (means) {
+            const float mean = vload_net_t(o, means);
+            const float scale_stddiv = vload_net_t(o, stddivs);
+
+            sum = scale_stddiv * (sum - mean);
+            sum = sum > 0 ? sum : 0.0f;
         }
         vstore_net_t(sum, o * boardsize + b, out);
     }
@@ -393,6 +402,10 @@ const std::string sourceCode_sgemm =
     #include "clblast_level3/xgemm_batched.opencl"
 ;
 
+const std::string sourceCode_sgemv =
+    #include "clblast_level3/xgemv.opencl"
+;
+
 thread_local ThreadData opencl_thread_data;
 
 void OpenCL::ensure_thread_initialized() {
@@ -401,7 +414,7 @@ void OpenCL::ensure_thread_initialized() {
         opencl_thread_data.m_convolve1_kernel =
             cl::Kernel(m_program, "convolve1");
         opencl_thread_data.m_merge_kernel =
-            cl::Kernel(m_program, "merge");
+            cl::Kernel(m_program, "merge_bn");
         opencl_thread_data.m_in_transform_kernel =
             cl::Kernel(m_program, "in_transform");
         opencl_thread_data.m_sgemm_kernel =
@@ -410,6 +423,8 @@ void OpenCL::ensure_thread_initialized() {
             cl::Kernel(m_program, "out_transform_fused_bn");
         opencl_thread_data.m_out_transform_bn_in_kernel =
             cl::Kernel(m_program, "out_transform_fused_bn_in");
+        opencl_thread_data.m_sgemv_kernel =
+            cl::Kernel(m_program, "Xgemv");
         opencl_thread_data.m_commandqueue =
             cl::CommandQueue(m_context, m_device);
         opencl_thread_data.m_is_initialized = true;
@@ -439,12 +454,14 @@ void OpenCL_Network::add_weights(size_t layer,
 void OpenCL_Network::forward(const std::vector<net_t>& input,
                              std::vector<net_t>& output_pol,
                              std::vector<net_t>& output_val) {
-    constexpr auto width = 8;
-    constexpr auto height = 8;
     constexpr auto tiles = WINOGRAD_P;
-    constexpr auto one_plane = width * height * sizeof(net_t);
-    const auto finalSize_pol = m_layers[m_layers.size()-2].outputs * one_plane;
-    const auto finalSize_val = m_layers.back().outputs * one_plane;
+
+    auto finalSize_pol = m_layers[m_layers.size()-2].ip_out_size  * sizeof(net_t);
+    auto finalSize_val = m_layers.back().ip_out_size  * sizeof(net_t);
+
+    if (m_layers.back().is_policy) {
+        std::swap(finalSize_pol, finalSize_val);
+    }
 
     m_opencl.ensure_thread_initialized();
 
@@ -561,21 +578,32 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                       true, skip_next_in_trans, true);
             skip_in_trans = skip_next_in_trans;
         } else {
-            assert(layer.is_convolve1);
+            assert(layer.is_value || layer.is_policy);
 
             cl::Buffer out_buffer;
-            if (niter == cend(m_layers)) {
-                out_buffer = opencl_thread_data.m_pinnedOutBuffer_val;
-            } else {
+            if (layer.is_policy) {
                 out_buffer = opencl_thread_data.m_pinnedOutBuffer_pol;
+            } else {
+                out_buffer = opencl_thread_data.m_pinnedOutBuffer_val;
             }
+
+            auto ip_w = begin(layer.weights) + 3;
+            auto ip_b = begin(layer.weights) + 4;
 
             convolve1(layer.channels,
                     layer.outputs,
                     inBuffer,
-                    out_buffer,
+                    inBuffer2,
                     VBuffer,
                     begin(layer.weights));
+
+            innerproduct(inBuffer2,
+                    ip_w,
+                    ip_b,
+                    out_buffer,
+                    layer.ip_in_size,
+                    layer.ip_out_size,
+                    layer.is_value);
         }
     }
 
@@ -804,12 +832,56 @@ void OpenCL_Network::convolve1(int channels, int outputs,
         merge_kernel.setArg(0, bufferMerge);
         merge_kernel.setArg(1, bufferOutput);
         merge_kernel.setArg(2, channels >> channelShift);
+        merge_kernel.setArg(3, weights[1]);
+        merge_kernel.setArg(4, weights[2]);
 
         queue.enqueueNDRangeKernel(merge_kernel, cl::NullRange,
                                    cl::NDRange(outputs, boardsize),
                                    cl::NDRange(std::min(8, outputs), 8));
     } catch (const cl::Error &e) {
         std::cerr << "Error in merge: " << e.what() << ": "
+	        << e.err() << std::endl;
+        throw;
+    }
+}
+
+void OpenCL_Network::innerproduct(cl::Buffer& input,
+                  weight_slice_t weights,
+                  weight_slice_t biases,
+                  cl::Buffer& output,
+                  const int inputs, const int outputs,
+                  const int relu) {
+
+    auto sgemv_kernel = opencl_thread_data.m_sgemv_kernel;
+    cl::CommandQueue & queue = opencl_thread_data.m_commandqueue;
+
+    //TODO: Tune these
+    size_t wgs1 = 64;
+    size_t wpt1 = 1;
+
+    auto m_ceil = int(ceilMultiple(outputs, wgs1*wpt1));
+    auto global_size = m_ceil / wpt1;
+    auto local_size = wgs1;
+
+    try {
+        // Sets the kernel arguments
+        sgemv_kernel.setArg(0, static_cast<int>(outputs));
+        sgemv_kernel.setArg(1, static_cast<int>(inputs));
+        sgemv_kernel.setArg(2, weights[0]);
+        sgemv_kernel.setArg(3, static_cast<int>(0));
+        sgemv_kernel.setArg(4, static_cast<int>(inputs));
+        sgemv_kernel.setArg(5, input);
+        sgemv_kernel.setArg(6, static_cast<int>(0));
+        sgemv_kernel.setArg(7, output);
+        sgemv_kernel.setArg(8, static_cast<int>(0));
+        sgemv_kernel.setArg(9, biases[0]);
+        sgemv_kernel.setArg(10, static_cast<int>(relu));
+
+        queue.enqueueNDRangeKernel(sgemv_kernel, cl::NullRange,
+                                   cl::NDRange(global_size),
+                                   cl::NDRange(local_size));
+    } catch (const cl::Error &e) {
+        std::cerr << "Error in innerproduct: " << e.what() << ": "
 	        << e.err() << std::endl;
         throw;
     }
@@ -1045,7 +1117,8 @@ void OpenCL::initialize(const int channels, const std::vector<int> & gpus,
                                   sourceCode_config
                                 + sourceCode_convolve1
                                 + sourceCode_convolve3
-                                + sourceCode_sgemm);
+                                + sourceCode_sgemm
+                                + sourceCode_sgemv);
     } catch (const cl::Error &e) {
         myprintf("Error getting kernels: %s: %d", e.what(), e.err());
         throw std::runtime_error("Error getting OpenCL kernels.");
