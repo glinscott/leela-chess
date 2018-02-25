@@ -62,7 +62,7 @@ endif()
 
 if (GccSpecificFlags)
   set (CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic -pipe")
-  set (CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+  set (CMAKE_CXX_FLAGS_DEBUG "-Og -g")
   set (CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -flto -ffast-math -march=native -mtune=native")
   set (CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g")
   set (CMAKE_EXE_LINKER_FLAGS "-flto")
