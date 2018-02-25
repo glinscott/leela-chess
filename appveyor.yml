@@ -36,5 +36,5 @@ build_script:
 
     cmake --build . --config Release -- /maxcpucount:1
 artifacts:
-  - path: build/lczero.exe
+  - path: build/Release/lczero.exe
     name: LCZero
