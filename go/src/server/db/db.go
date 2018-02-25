@@ -32,12 +32,13 @@ func SetupDB() {
 	db.AutoMigrate(&TrainingGame{})
 }
 
-func CreateTrainingRun() {
-	training_run := TrainingRun{Name: "Initial"}
+func CreateTrainingRun(description string) *TrainingRun {
+	training_run := TrainingRun{Description: description}
 	err := db.Create(&training_run).Error
 	if err != nil {
 		log.Fatal(err)
 	}
+	return &training_run
 }
 
 func GetDB() *gorm.DB {

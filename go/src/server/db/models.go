@@ -20,7 +20,9 @@ type TrainingRun struct {
 	BestNetworkID uint
 	Matches       []Match
 
-	Name string
+	Description     string
+	TrainParameters string
+	Active          bool
 }
 
 type Network struct {
