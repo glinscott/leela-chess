@@ -344,6 +344,12 @@ void Network::initialize(void) {
         }
     }
 
+    if ((bn_val_w1.size() != conv_val_b.size()) ||
+        (bn_pol_w1.size() != conv_pol_b.size()) ) {
+            throw std::runtime_error("Weights are malformed. Incorrect number "
+             "of policy/value output planes.");
+    }
+
     for (auto i = size_t{0}; i < bn_val_w1.size(); i++) {
         bn_val_w1[i] -= conv_val_b[i];
         conv_val_b[i] = 0.0f;
