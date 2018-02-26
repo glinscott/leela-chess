@@ -36,7 +36,6 @@
 #include "Utils.h"
 #include "Network.h"
 #include "Timing.h"
-#include "TTable.h"
 #include "Parameters.h"
 #include "Training.h"
 #include "Types.h"
@@ -58,11 +57,9 @@ void UCTSearch::set_quiet(bool quiet) {
 SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
     const auto& cur = bh.cur();
     const auto color = cur.side_to_move();
-    const auto hash = cur.key();
 
     auto result = SearchResult{};
 
-    TTable::get()->sync(hash, node);
     node->virtual_loss();
 
     if (!node->has_children()) {
@@ -93,7 +90,6 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
         node->update(result.eval());
     }
     node->virtual_loss_undo();
-    TTable::get()->update(hash, node);
 
     return result;
 }
@@ -236,13 +232,6 @@ void UCTSearch::increment_playouts() {
 Move UCTSearch::think() {
     assert(m_playouts == 0);
     assert(m_nodes == 0);
-
-    // Clear the TTable for any positions in our history if we have a repetition.
-    if (bh_.cur().repetitions_count() > 0) {
-        for (int i = 0; i < static_cast<int>(bh_.positions.size()); ++i) {
-            TTable::get()->clear_entry(bh_.positions[i].key());
-        }
-    }
 
     // Start counting time for us
 //    m_rootstate.start_clock();

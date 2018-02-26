@@ -28,7 +28,6 @@
 #include "pgn.h"
 #include "Position.h"
 #include "Training.h"
-#include "TTable.h"
 #include "UCI.h"
 #include "UCTSearch.h"
 
@@ -154,7 +153,7 @@ namespace {
 
 // Return the score from the self-play game
 int play_one_game(BoardHistory& bh) {
-  for (int game_ply = 0; game_ply < 150; ++game_ply) {
+  for (int game_ply = 0; game_ply < 450; ++game_ply) {
     if (bh.cur().is_draw()) {
       return 0;
     }
@@ -182,7 +181,6 @@ int play_one_game() {
   BoardHistory bh;
   bh.set(Position::StartFEN);
 
-  TTable::get()->clear();
   Training::clear_training();
   int game_score = play_one_game(bh);
 
