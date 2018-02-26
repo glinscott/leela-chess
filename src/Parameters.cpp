@@ -34,7 +34,6 @@
 #include "UCTSearch.h"
 #include "UCTNode.h"
 #include "Network.h"
-#include "TTable.h"
 #include "Parameters.h"
 #include "Training.h"
 
