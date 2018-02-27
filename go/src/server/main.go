@@ -226,7 +226,7 @@ func uploadGame(c *gin.Context) {
 
 func getNetwork(c *gin.Context) {
 	network := db.Network{
-		Sha: c.Param("sha"),
+		Sha: c.Query("sha"),
 	}
 
 	// Check for existing network
