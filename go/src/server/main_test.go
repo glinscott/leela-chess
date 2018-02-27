@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -103,8 +104,9 @@ func (s *StoreSuite) TestUploadGameNewUser() {
 	}
 }
 
-func (s *StoreSuite) TestUploadNetwork() {
-	content := []byte("this_is_a_network")
+func uploadTestNetwork(s *StoreSuite, contentString string, networkId int) {
+	s.w = httptest.NewRecorder()
+	content := []byte(contentString)
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
 	zw.Write(content)
@@ -143,5 +145,27 @@ func (s *StoreSuite) TestUploadNetwork() {
 	req, _ = http.NewRequest("POST", "/next_game", nil)
 	s.router.ServeHTTP(s.w, req)
 	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
-	assert.JSONEqf(s.T(), fmt.Sprintf(`{"type":"train","trainingId":1,"networkId":2,"sha":"%x"}`, sha), s.w.Body.String(), "Body incorrect")
+	assert.JSONEqf(s.T(), fmt.Sprintf(`{"type":"train","trainingId":1,"networkId":%d,"sha":"%x"}`, networkId, sha), s.w.Body.String(), "Body incorrect")
+
+	// And let's download it now.
+	s.w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", fmt.Sprintf("/get_network?sha=%x", sha), nil)
+	s.router.ServeHTTP(s.w, req)
+	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
+
+	// Should match the contents
+	zr, err := gzip.NewReader(s.w.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	buf.Reset()
+	if _, err := io.Copy(&buf, zr); err != nil {
+		log.Fatal(err)
+	}
+	assert.Equal(s.T(), contentString, buf.String(), "Contents don't match")
+}
+
+func (s *StoreSuite) TestUploadNetwork() {
+	uploadTestNetwork(s, "this_is_a_network", 2)
+	uploadTestNetwork(s, "network2", 3)
 }
