@@ -342,7 +342,6 @@ func game(c *gin.Context) {
 		return
 	}
 
-	log.Print(strings.Replace(game.Pgn, "\n", " ", -1))
 	c.HTML(http.StatusOK, "game", gin.H{
 		"pgn": game.Pgn,
 	})
