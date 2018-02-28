@@ -870,8 +870,9 @@ T relative_difference(T a, T b) {
 void compare_net_outputs(std::vector<float>& data,
                          std::vector<float>& ref) {
     // Divide by an additional 2 as we're comparing 2 heads at a time
-    constexpr int min_correct_expansions = SELFCHECK_MIN_EXPANSIONS / SELFCHECK_PROBABILITY / 2;
-    static std::uint64_t num_expansions{0};
+    constexpr int64 min_correct_expansions = SELFCHECK_MIN_EXPANSIONS / SELFCHECK_PROBABILITY / 2;
+    static_assert(min_correct_expansions > 0, "Increase minimal nof expansions");
+    static int64 num_expansions{min_correct_expansions};
     num_expansions++;
 
     // We accept an error up to 5%, but output values
@@ -888,7 +889,7 @@ void compare_net_outputs(std::vector<float>& data,
                 throw std::runtime_error("OpenCL self-check mismatch.");
             }
             else {
-                num_expansions = 0;
+                num_expansions -= min_correct_expansions;
             }
         }
     }
