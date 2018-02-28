@@ -869,17 +869,27 @@ T relative_difference(T a, T b) {
 
 void compare_net_outputs(std::vector<float>& data,
                          std::vector<float>& ref) {
+    // Divide by an additional 2 as we're comparing 2 heads at a time
+    constexpr int min_correct_expansions = SELFCHECK_MIN_EXPANSIONS / SELFCHECK_PROBABILITY / 2;
+    static std::uint64_t num_expansions{0};
+    num_expansions++;
+
     // We accept an error up to 5%, but output values
     // smaller than 1/1000th are "rounded up" for the comparison.
     constexpr float relative_error = 5e-2f;
     for (auto idx = size_t{0}; idx < data.size(); ++idx) {
         auto err = relative_difference(data[idx], ref[idx]);
-        if (err > relative_error) {
-            printf("Error in OpenCL calculation: expected %f got %f "
+        myprintf("Error in OpenCL calculation: expected %f got %f "
                    "(error=%f%%)\n", ref[idx], data[idx], err * 100.0);
-            printf("Update your GPU drivers or reduce the amount of games "
-                   "played simultaneously.\n");
-            throw std::runtime_error("OpenCL self-check mismatch.");
+        if (err > relative_error) {
+            if (num_expansions < min_correct_expansions) {
+                printf("Update your GPU drivers or reduce the amount of games "
+                           "played simultaneously.\n");
+                throw std::runtime_error("OpenCL self-check mismatch.");
+            }
+            else {
+                num_expansions = 0;
+            }
         }
     }
 }
