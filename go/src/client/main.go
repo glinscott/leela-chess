@@ -20,6 +20,7 @@ import (
 var HOSTNAME = flag.String("hostname", "http://162.217.248.187", "Address of the server")
 var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
+var GPU = flag.Int("gpu", 0, "ID of the OpenCL device to use")
 
 func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse) error {
 	extraParams := map[string]string{
@@ -63,7 +64,7 @@ func playMatch() {
 
 func train(networkPath string) (string, string) {
 	// pid is intended for use in multi-threaded training
-	pid := 1
+	pid := os.Getpid()
 
 	dir, _ := os.Getwd()
 	train_dir := path.Join(dir, fmt.Sprintf("data-%v", pid))
@@ -75,10 +76,11 @@ func train(networkPath string) (string, string) {
 	}
 
 	num_games := 1
+	gpu_id := fmt.Sprintf("--gpu=%v", *GPU)
 	train_cmd := fmt.Sprintf("--start=train %v %v", pid, num_games)
 	weights := fmt.Sprintf("--weights=%s", networkPath)
 	// cmd := exec.Command(path.Join(dir, "lczero"), weights, "--randomize", "-n", "-t1", "-p20", "--noponder", "--quiet", train_cmd)
-	cmd := exec.Command(path.Join(dir, "lczero"), weights, "--randomize", "-n", "-t1", "--quiet", train_cmd)
+	cmd := exec.Command(path.Join(dir, "lczero"), weights, gpu_id, "--randomize", "-n", "-t1", "--quiet", train_cmd)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
