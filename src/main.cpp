@@ -170,6 +170,11 @@ static std::string parse_commandline(int argc, char *argv[]) {
         if (cfg_rng_seed == 0) {
           throw std::runtime_error("RNG seed cannot be 0");
         }
+
+        if (vm.count("threads") && cfg_num_threads > 1) {
+          throw std::runtime_error("Multithreading removes deterministic property");
+        }
+
         if (cfg_num_threads > 1) {
             cfg_num_threads = 1;
             myprintf("Using rng seed from cli, activating single thread mode!\n");
