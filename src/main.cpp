@@ -167,12 +167,20 @@ static std::string parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("seed")) {
         cfg_rng_seed = vm["seed"].as<std::uint64_t>();
-        if (cfg_num_threads > 1) {
-            myprintf("Seed specified but multiple threads enabled.\n");
-            myprintf("Games will likely not be reproducible.\n");
+        if (cfg_rng_seed == 0) {
+          throw std::runtime_error("RNG seed cannot be 0");
         }
+
+        if (vm.count("threads") && cfg_num_threads > 1) {
+          throw std::runtime_error("Multithreading removes deterministic property");
+        }
+
+        if (cfg_num_threads > 1) {
+            cfg_num_threads = 1;
+            myprintf("Using rng seed from cli, activating single thread mode!\n");
+        }
+        myprintf("RNG seed from cli: %llu\n", cfg_rng_seed);
     }
-    myprintf("RNG seed: %llu\n", cfg_rng_seed);
 
     if (vm.count("noponder")) {
         cfg_allow_pondering = false;
