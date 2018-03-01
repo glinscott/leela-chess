@@ -869,11 +869,14 @@ T relative_difference(T a, T b) {
 
 void compare_net_outputs(std::vector<float>& data,
                          std::vector<float>& ref) {
-    // Divide by an additional 2 as we're comparing 2 heads at a time
+    // The idea is to allow an OpenCL error > 5% every SELFCHECK_MIN_EXPANSIONS
+    // correct expansions. As the num_expansions increases between errors > 5%,
+    // we'll allow more errors to occur (max 3) before crashing. As if it
+    // builds up credit.
     constexpr int64 min_correct_expansions = SELFCHECK_MIN_EXPANSIONS / SELFCHECK_PROBABILITY / 2;
     static_assert(min_correct_expansions > 0, "Increase minimal nof expansions");
-    static int64 num_expansions{min_correct_expansions};
-    num_expansions++;
+    static std::atomic<int64> num_expansions{min_correct_expansions};
+    num_expansions = std::min(num_expansions + 1, 3*min_correct_expansions + 1);
 
     // We accept an error up to 5%, but output values
     // smaller than 1/1000th are "rounded up" for the comparison.
