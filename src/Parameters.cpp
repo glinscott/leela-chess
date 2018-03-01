@@ -83,18 +83,7 @@ void Parameters::setup_default_parameters() {
     cfg_randomize = false;
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
-    
-    // C++11 doesn't guarantee *anything* about how random this is,
-    // and in MinGW it isn't random at all. But we can mix it in, which
-    // helps when it *is* high quality (Linux, MSVC).
-    std::random_device rd;
-    std::ranlux48 gen(rd());
-    uint64 seed1 = (gen() << 16) ^ gen();
-    // If the above fails, this is one of our best, portable, bets.
-    uint64 seed2 = std::chrono::high_resolution_clock::
-    now().time_since_epoch().count();
-    cfg_rng_seed = seed1 ^ seed2;
-
+    cfg_rng_seed = 0;
     cfg_weightsfile = "weights.txt";
 }
 
