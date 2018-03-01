@@ -203,7 +203,6 @@ void Training::dump_stats(OutputChunker& outchunk) {
     std::stringstream out;
     out << "1" << std::endl; // File format version 1
     for (const auto& step : m_data) {
-        std::stringstream out;
         out << step.net_winrate
             << " " << step.root_uct_winrate
             << " " << step.child_uct_winrate
