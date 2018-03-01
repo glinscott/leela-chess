@@ -168,11 +168,14 @@ static std::string parse_commandline(int argc, char *argv[]) {
     if (vm.count("seed")) {
         cfg_rng_seed = vm["seed"].as<std::uint64_t>();
         if (cfg_rng_seed == 0) {
-          throw std::runtime_error("RNG seed cannot be 0");
+          myprintf("Nonsensical options: RNG seed cannot be 0.\n");
+          exit(EXIT_FAILURE);
         }
 
         if (vm.count("threads") && cfg_num_threads > 1) {
-          throw std::runtime_error("Multithreading removes deterministic property");
+          myprintf("Nonsensical options: lczero loses deterministic property "
+                   "of the random seed when using multiple threads.\n");
+          exit(EXIT_FAILURE);
         }
 
         if (cfg_num_threads > 1) {
