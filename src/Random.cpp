@@ -37,7 +37,7 @@ Random::Random(std::uint64_t seed) {
     std::size_t thread_id =
         std::hash<std::thread::id>()(std::this_thread::get_id());
     seed = seed1 ^ seed2 ^ (std::uint64_t)thread_id;
-    printf("RNG seed: 0x%lx (thread: %lu)\n", seed, thread_id);
+    Utils::myprintf("RNG seed: 0x%lx (thread: %lu)\n", seed, thread_id);
   }
   rand_engine_.seed(seed);
 }
