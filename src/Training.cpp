@@ -159,8 +159,8 @@ void Training::dump_training(int game_score, const std::string& out_filename) {
 }
 
 void Training::dump_training(int game_score, OutputChunker& outchunk) {
+    std::stringstream out;
     for (const auto& step : m_data) {
-        std::stringstream out;
         int kFeatureBase = Network::T_HISTORY * 14;
         for (int p = 0; p < kFeatureBase; p++) {
             const auto& plane = step.planes.bit[p];
@@ -190,8 +190,8 @@ void Training::dump_training(int game_score, OutputChunker& outchunk) {
         out << std::endl;
         // And the game result for the side to move
         out << (step.to_move == BLACK ? -game_score : game_score) << std::endl;
-        outchunk.append(out.str());
     }
+    outchunk.append(out.str());
 }
 
 void Training::dump_stats(const std::string& filename) {
@@ -200,17 +200,14 @@ void Training::dump_stats(const std::string& filename) {
 }
 
 void Training::dump_stats(OutputChunker& outchunk) {
-    {
-        std::stringstream out;
-        out << "1" << std::endl; // File format version 1
-        outchunk.append(out.str());
-    }
+    std::stringstream out;
+    out << "1" << std::endl; // File format version 1
     for (const auto& step : m_data) {
         std::stringstream out;
         out << step.net_winrate
             << " " << step.root_uct_winrate
             << " " << step.child_uct_winrate
             << " " << step.bestmove_visits << std::endl;
-        outchunk.append(out.str());
     }
+    outchunk.append(out.str());
 }
