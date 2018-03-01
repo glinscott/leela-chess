@@ -876,16 +876,16 @@ void compare_net_outputs(std::vector<float>& data,
     constexpr int64 min_correct_expansions = SELFCHECK_MIN_EXPANSIONS / SELFCHECK_PROBABILITY / 2;
     static_assert(min_correct_expansions > 0, "Increase minimal nof expansions");
     static std::atomic<int64> num_expansions{min_correct_expansions};
-    num_expansions = std::min(num_expansions + 1, 3*min_correct_expansions + 1);
+    num_expansions = std::min(num_expansions + 1, 3 * min_correct_expansions);
 
     // We accept an error up to 5%, but output values
     // smaller than 1/1000th are "rounded up" for the comparison.
     constexpr float relative_error = 5e-2f;
     for (auto idx = size_t{0}; idx < data.size(); ++idx) {
         auto err = relative_difference(data[idx], ref[idx]);
-        myprintf("Error in OpenCL calculation: expected %f got %f "
-                   "(error=%f%%)\n", ref[idx], data[idx], err * 100.0);
         if (err > relative_error) {
+            printf("Error in OpenCL calculation: expected %f got %f (%lli"
+                       "(error=%f%%)\n", ref[idx], data[idx], num_expansions.load(), err * 100.0);
             if (num_expansions < min_correct_expansions) {
                 printf("Update your GPU drivers or reduce the amount of games "
                            "played simultaneously.\n");
