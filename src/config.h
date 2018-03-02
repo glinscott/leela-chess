@@ -33,7 +33,8 @@
 //#define USE_MKL
 #define USE_OPENCL
 #define USE_OPENCL_SELFCHECK
-#define SELFCHECK_PROBABILITY 2000
+static constexpr int SELFCHECK_PROBABILITY = 2000;
+static constexpr int SELFCHECK_MIN_EXPANSIONS = 2'000'000;
 //#define USE_TUNER
 
 #define PROGRAM_NAME "Leela Zero"
