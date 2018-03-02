@@ -125,7 +125,9 @@ else()
       ENV AMDAPPSDKROOT
       ENV CUDA_PATH
       /usr/local/cuda
-      /usr
+      /usr/local/lib
+      /usr/lib/x86_64-linux-gnu
+      /usr/lib
     PATH_SUFFIXES
       lib/x86_64
       lib/x64
