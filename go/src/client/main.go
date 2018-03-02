@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"io/ioutil"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -69,6 +70,14 @@ func train(networkPath string) (string, string) {
 	dir, _ := os.Getwd()
 	train_dir := path.Join(dir, fmt.Sprintf("data-%v", pid))
 	if _, err := os.Stat(train_dir); err == nil {
+		files, err := ioutil.ReadDir(train_dir)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Cleanup training files:\n");
+		for _, f := range files {
+			fmt.Printf("%s/%s\n", train_dir, f.Name());
+		}
 		err = os.RemoveAll(train_dir)
 		if err != nil {
 			log.Fatal(err)
