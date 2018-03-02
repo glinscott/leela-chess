@@ -136,20 +136,6 @@ void UCTNode::link_nodelist(std::atomic<int>& nodecount, std::vector<Network::sc
     m_has_children = true;
 }
 
-float UCTNode::eval_state(const BoardHistory& state) {
-    auto raw_netlist = Network::get_scored_moves(state);
-
-    // DCNN returns winrate as side to move
-    auto net_eval = raw_netlist.second;
-
-    // But we score from white's point of view
-    if (state.cur().side_to_move() == BLACK) {
-        net_eval = 1.0f - net_eval;
-    }
-
-    return net_eval;
-}
-
 void UCTNode::dirichlet_noise(float epsilon, float alpha) {
     auto child_cnt = m_children.size();
     auto dirichlet_vector = std::vector<float>{};
