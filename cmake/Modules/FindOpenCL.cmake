@@ -76,10 +76,13 @@ find_path(OpenCL_INCLUDE_DIR
     ENV NVSDKCOMPUTE_ROOT
     ENV CUDA_PATH
     ENV ATISTREAMSDKROOT
+    /usr/local/cuda
+    /usr
   PATH_SUFFIXES
     include
     OpenCL/common/inc
-    "AMD APP/include")
+    "AMD APP/include"
+  NO_DEFAULT_PATH)
 
 _FIND_OPENCL_VERSION()
 
@@ -121,11 +124,16 @@ else()
     PATHS
       ENV AMDAPPSDKROOT
       ENV CUDA_PATH
+      /usr/local/cuda
+      /usr/local/lib
+      /usr/lib/x86_64-linux-gnu
+      /usr/lib
     PATH_SUFFIXES
       lib/x86_64
       lib/x64
       lib
-      lib64)
+      lib64
+    NO_DEFAULT_PATH)
 endif()
 
 set(OpenCL_LIBRARIES ${OpenCL_LIBRARY})
