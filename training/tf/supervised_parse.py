@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 #
-#    This file is part of Leela Zero.
-#    Copyright (C) 2017 Gian-Carlo Pascutto
+#    This file is part of Leela Chess.
+#    Copyright (C) 2018 Folkert Huizinga
 #
-#    Leela Zero is free software: you can redistribute it and/or modify
+#    Leela Chess is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    Leela Zero is distributed in the hope that it will be useful,
+#    Leela Chess is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
 #
 #    You should have received a copy of the GNU General Public License
-#    along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
+#    along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
 
 import yaml
 import sys
@@ -55,7 +55,7 @@ def dataset_iterator(filename, batch_size):
     parser = BinaryParser(filename, batch_size)
     ds = tf.data.Dataset.from_generator(
         parser.parse_chunk, output_types=(tf.string))
-    ds = ds.shuffle(1<<16)
+    ds = ds.shuffle(1 << 18)
     ds = ds.map(parse._parse_function)
     ds = ds.batch(batch_size)
     ds = ds.prefetch(8)
