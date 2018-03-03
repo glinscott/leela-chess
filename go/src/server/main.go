@@ -250,6 +250,7 @@ FROM training_games
 WHERE created_at >= now() - INTERVAL '1 day'
 GROUP BY user_id) as c
 ON c.user_id = training_games.user_id
+WHERE c.count > 0
 ORDER BY c.count DESC`).Rows()
 	if err != nil {
 		return nil, err
