@@ -73,9 +73,6 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
             if (success) {
                 result = SearchResult::from_eval(eval);
             }
-        } else {
-            auto eval = node->eval_state(bh);
-            result = SearchResult::from_eval(eval);
         }
     }
 
@@ -208,7 +205,7 @@ void UCTSearch::dump_analysis(int elapsed, bool force_output) {
 }
 
 bool UCTSearch::is_running() const {
-    return m_run;
+    return m_run && m_nodes < MAX_TREE_SIZE;
 }
 
 bool UCTSearch::playout_limit_reached() const {
