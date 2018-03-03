@@ -33,7 +33,7 @@ def generate_dataset(chunks, num_samples, filename, skip, start):
     with open(filename, 'ba') as f:
         for _ in range(num_samples):
             f.write(next(gen))
-        print("Written dataset to {} pass {}/{}".format(filename, start//2, (skip-2)//2))
+        print("Written dataset to {} pass {}/{}".format(filename, start//2, skip//2))
 
 
 def main(args):
