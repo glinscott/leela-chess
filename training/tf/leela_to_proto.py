@@ -25,15 +25,16 @@ import parse
 import argparse
 import random
 
+PASSES = 4
 
 def generate_dataset(chunks, num_samples, filename, skip, start):
-    parser = parse.ChunkParser(chunks, skip, start)
+    parser = parse.ChunkParser(chunks, skip)
     gen = parser.parse_chunk()
 
     with open(filename, 'ba') as f:
         for _ in range(num_samples):
             f.write(next(gen))
-        print("Written dataset to {} pass {}/{}".format(filename, start//2 + 1, skip//2))
+        print("Written dataset to {} pass {}/{}".format(filename, start//PASSES + 1, skip//PASSES))
 
 
 def main(args):
@@ -60,12 +61,12 @@ def main(args):
     num_train = int(len(chunks)*cfg['dataset']['train_ratio'])
     num_train_samples = int(num_samples*cfg['dataset']['train_ratio'])
     num_test_samples = num_samples - num_train_samples
-    print("Generating {} training-, {} testing-samples".format(num_train_samples*skip//2, num_test_samples*skip//2))
+    print("Generating {} training-, {} testing-samples".format(num_train_samples*skip//PASSES, num_test_samples*skip//PASSES))
 
     if not os.path.exists(cfg['dataset']['path']):
         os.makedirs(cfg['dataset']['path'])
 
-    for start in range(0, skip, 2):
+    for start in range(0, skip, PASSES):
         filename = os.path.join(cfg['dataset']['path'], 'train.bin')
         generate_dataset(chunks[:num_train], num_train_samples, filename, skip, start)
         filename = os.path.join(cfg['dataset']['path'], 'test.bin')
