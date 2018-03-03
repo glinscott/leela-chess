@@ -34,9 +34,10 @@ from tfprocess import TFProcess
 DATA_ITEM_LINES = 121
 
 class ChunkParser:
-    def __init__(self, chunks, skip = 1):
+    def __init__(self, chunks, skip = 1, start = 0):
         self.flat_planes = []
         self.skip = skip
+        self.start = start
         for r in range(0, 255):
             self.flat_planes.append(bytes([r]*64))
 
@@ -109,8 +110,7 @@ class ChunkParser:
                 with gzip.open(chunk, 'r') as chunk_file:
                     file_content = chunk_file.readlines()
                     item_count = len(file_content) // DATA_ITEM_LINES
-                    start = 0 if self.skip == 1 else random.randint(0, self.skip)
-                    for item_idx in range(start, item_count, self.skip):
+                    for item_idx in range(self.start, item_count, self.skip):
                         # make sure we randomly select both colors within a game
                         ridx = item_idx if self.skip == 1 else min(item_idx + random.randint(0, 1), item_count-1)
                         pick_offset = ridx * DATA_ITEM_LINES
