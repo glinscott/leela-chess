@@ -4,6 +4,7 @@
   <table class="table table-striped table-sm">
     <thead>
       <tr>
+        <th>Id</th>
         <th>Network</th>
         <th>Games</th>
         <th>Blocks</th>
@@ -13,6 +14,7 @@
     <tbody>
       {{range .networks}}
       <tr>
+        <td>{{.id}}</td>
         <td>{{.short_sha}}</td>
         <td>{{.games}}</td>
         <td>{{.blocks}}</td>
