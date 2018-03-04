@@ -1,0 +1,28 @@
+{{define "content"}}
+<h2>Networks</h2>
+<div class="table-responsive">
+  <table class="table table-striped table-sm">
+    <thead>
+      <tr>
+        <th>Network</th>
+        <th>Games</th>
+        <th>Blocks</th>
+        <th>Filters</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .networks}}
+      <tr>
+        <td>{{.short_sha}}</td>
+        <td>{{.games}}</td>
+        <td>{{.blocks}}</td>
+        <td>{{.filters}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+{{define "scripts"}}
+{{end}}

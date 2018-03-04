@@ -348,11 +348,54 @@ func game(c *gin.Context) {
 	})
 }
 
+func viewNetworks(c *gin.Context) {
+	// TODO(gary): Whole things needs to take training_run into account...
+	var networks []db.Network
+	err := db.GetDB().Find(&networks).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	rows, err := db.GetDB().Raw(`SELECT network_id, count(*) FROM training_games GROUP BY network_id`).Rows()
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+	defer rows.Close()
+
+	counts := make(map[int]uint64)
+	for rows.Next() {
+		var network_id int
+		var count uint64
+		rows.Scan(&network_id, &count)
+		counts[network_id] = count
+	}
+
+	json := []gin.H{}
+	for _, network := range networks {
+		json = append(json, gin.H{
+			"id":        network.ID,
+			"games":     counts[int(network.ID)],
+			"short_sha": network.Sha[0:8],
+			"blocks":    network.Layers,
+			"filters":   network.Filters,
+		})
+	}
+
+	c.HTML(http.StatusOK, "networks", gin.H{
+		"networks": json,
+	})
+}
+
 func createTemplates() multitemplate.Render {
 	r := multitemplate.New()
 	r.AddFromFiles("index", "templates/base.tmpl", "templates/index.tmpl")
 	r.AddFromFiles("user", "templates/base.tmpl", "templates/user.tmpl")
 	r.AddFromFiles("game", "templates/base.tmpl", "templates/game.tmpl")
+	r.AddFromFiles("networks", "templates/base.tmpl", "templates/networks.tmpl")
 	return r
 }
 
@@ -367,6 +410,7 @@ func setupRouter() *gin.Engine {
 	router.GET("/get_network", getNetwork)
 	router.GET("/user/:name", user)
 	router.GET("/game/:id", game)
+	router.GET("/networks", viewNetworks)
 	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
 	router.POST("/upload_network", uploadNetwork)
