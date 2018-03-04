@@ -358,7 +358,7 @@ func viewNetworks(c *gin.Context) {
 		return
 	}
 
-	rows, err := db.GetDB().Raw(`SELECT network_id, count(*) FROM training_games GROUP BY network_id`).Rows()
+	rows, err := db.GetDB().Raw(`SELECT network_id, count(*) FROM training_games GROUP BY network_id ORDER BY network_id`).Rows()
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
