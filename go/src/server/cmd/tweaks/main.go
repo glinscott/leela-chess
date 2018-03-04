@@ -29,11 +29,26 @@ func makeRunActive() {
 		log.Fatal(err)
 	}
 }
+
+func newMatch() {
+	match := db.Match{
+		TrainingRunID: 1,
+		CandidateID:   4,
+		CurrentBestID: 3,
+		Wins:          89,
+		Losses:        4,
+		Draws:         7,
+		Done:          true,
+	}
+	err := db.Create(&match).Error
+}
+
 func main() {
 	db.Init(true)
 
 	// newRun()
-	makeRunActive()
+	// makeRunActive()
+	newMatch()
 
 	defer db.Close()
 }
