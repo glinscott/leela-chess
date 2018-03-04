@@ -40,11 +40,15 @@ func newMatch() {
 		Draws:         7,
 		Done:          true,
 	}
-	err := db.Create(&match).Error
+	err := db.GetDB().Create(&match).Error
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
 	db.Init(true)
+	db.SetupDB()
 
 	// newRun()
 	// makeRunActive()
