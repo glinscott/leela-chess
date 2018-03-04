@@ -351,7 +351,7 @@ func game(c *gin.Context) {
 func viewNetworks(c *gin.Context) {
 	// TODO(gary): Whole things needs to take training_run into account...
 	var networks []db.Network
-	err := db.GetDB().Find(&networks).Order("id").Error
+	err := db.GetDB().Order("id desc").Find(&networks).Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
