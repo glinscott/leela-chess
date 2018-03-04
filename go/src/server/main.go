@@ -351,14 +351,14 @@ func game(c *gin.Context) {
 func viewNetworks(c *gin.Context) {
 	// TODO(gary): Whole things needs to take training_run into account...
 	var networks []db.Network
-	err := db.GetDB().Find(&networks).Error
+	err := db.GetDB().Find(&networks).Order("id").Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
 		return
 	}
 
-	rows, err := db.GetDB().Raw(`SELECT network_id, count(*) FROM training_games GROUP BY network_id ORDER BY network_id`).Rows()
+	rows, err := db.GetDB().Raw(`SELECT network_id, count(*) FROM training_games GROUP BY network_id`).Rows()
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
