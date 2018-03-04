@@ -113,3 +113,6 @@ See https://github.com/glinscott/leela-chess/tree/master/go/src/client/README.md
 * [Zeta36/chess-alpha-zero](https://github.com/Zeta36/chess-alpha-zero)
 * [benediamond/chess-alpha-zero](https://github.com/benediamond/chess-alpha-zero/)
 
+# License
+
+The code is released under the GPLv3 or later, except for ThreadPool.h, cl2.hpp and the clblast_level3 subdir, which have specific licenses (compatible with GPLv3) mentioned in those files.
