@@ -63,7 +63,7 @@ def plot_stats(stats, name, cfg):
     plt.xlim(0, max_plies)
     plt.xlabel('plies')
     plt.ylabel('games')
-    games = np.sum(stats['plycount'])
+    games = int(np.sum(stats['plycount']))
     cutoff = (stats['plycount'][max_plies-1][0] / float(games)) * 100
     plt.title('{} games, (w {}%, b {}%, d {}%) - {:.2f}% cutoff [{}]'.format(games, w, b, d, cutoff, name))
     
