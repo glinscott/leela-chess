@@ -32,6 +32,15 @@ $ sudo -u postgres createdb gorm
 $ sudo -u postgres psql
 ALTER ROLE gorm WITH PASSWORD 'gorm';
 \q
+
+$ sudo -u postgres psql -d gorm
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO web;
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO web;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO web;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+   GRANT SELECT ON TABLES TO web;
+\q
 ```
 
 ### Server prereqs
@@ -67,4 +76,25 @@ curl -F 'file=@weights.txt.gz' -F 'training_id=1' -F 'layers=6' -F 'filters=64' 
 Connecting through psql:
 ```
 sudo -u postgres psql -d gorm
+```
+
+### Setting up backup
+
+```
+sudo pip install awscli
+
+# Set up IAM user with permissions to upload to s3
+aws configure
+```
+
+Executing a backup:
+```
+pg_dump gorm | gzip > backup.gz
+```
+
+Restoring from a backup:
+```
+$ dropdb -U gorm gorm
+$ createdb -U gorm gorm
+$ gunzip -c backup.gz | psql gorm
 ```

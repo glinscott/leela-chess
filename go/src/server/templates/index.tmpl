@@ -13,7 +13,7 @@
   </div>
 </div>
 
-<canvas class="my-4" id="myChart" width="900" height="380"></canvas>
+<div id="eloChart"></div>
 
 <h2>Active Users</h2>
 <div class="table-responsive">
@@ -43,37 +43,102 @@
 {{end}}
 
 {{define "scripts"}}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vega/3.0.8/vega.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vega-lite/2.0.3/vega-lite.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vega-embed/3.0.0-rc7/vega-embed.min.js"></script>
+<!-- Vega Tooltip -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vega-tooltip/0.4.4/vega-tooltip.min.js"></script>
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/vega-tooltip/0.4.4/vega-tooltip.min.css">
+
 <!-- Graphs -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.1/Chart.min.js"></script>
 <script>
-  /*
-  var ctx = document.getElementById("myChart");
-  var myChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-      datasets: [{
-        data: [15339, 21345, 18483, 24003, 23489, 24092, 12034],
-        lineTension: 0,
-        backgroundColor: 'transparent',
-        borderColor: '#007bff',
-        borderWidth: 4,
-        pointBackgroundColor: '#007bff'
-      }]
-    },
-    options: {
-      scales: {
-        yAxes: [{
-          ticks: {
-            beginAtZero: false
-          }
-        }]
-      },
-      legend: {
-        display: false,
-      }
-    }
-  });
-  */
+var vlSpec = {
+	"$schema": "https://vega.github.io/schema/vega-lite/v2.0.json",
+	"description": "Leela Chess Elo rating",
+	"config": {
+		"point": { "size": 80 }
+	},
+	"data": {"values": {{.progress}}},
+	"layer": [
+		{
+			"transform": [
+				{ "filter": { "field": "best", "equal": "true" } }
+			],
+			"mark": {
+				"type": "line",
+				"interpolate": "monotone"
+			},
+			"encoding": {
+				"x": {
+					"field": "net",
+					"type": "quantitative",
+					"axis": {
+						"title": "Number of accumulated games",
+					}
+				},
+				"y": {
+					"field": "rating",
+					"type": "quantitative",
+					"axis": {
+						"title": "Elo rating (0 = random play)"
+					}
+				},
+				"color": {
+					"value": "blue"
+				}
+			}
+		},
+		{
+			"transform": [
+				{ "filter": "datum.rating > -1" }
+			],
+			"mark": {"type": "point", "filled": true},
+			"encoding": {
+				"x": {
+					"field": "net",
+					"type": "quantitative",
+					"axis": {
+						"title": "Number of accumulated games",
+					}
+				},
+				"y": {
+					"field": "rating",
+					"type": "quantitative",
+					"axis": {
+						"title": "Elo rating (0 = random play)"
+					}
+				},
+				"color": {
+					"field": "sprt", "type": "nominal",
+					"scale": {"range": ["#59E817", "#C11B17", "blue"]}
+				},
+				"shape": {
+					"field": "sprt", "type": "nominal",
+					"scale": {"range": ["circle", "triangle-down", "circle"]}
+				}
+			}
+		}
+	]
+}
+var opt = {
+	mode: "vega-lite",
+	actions: false,
+	width: 600,
+	height: 400
+};
+var tooltipOpt = {
+	showAllFields: false,
+	fields: [
+		{field: "net", title: "Number of trained games", format: ",d"},
+		{field: "rating", title: "Elo rating (0 = random play)"},
+		{field: "sprt", title: "SPRT"},
+		{field: "hash", title: "Hash"}
+	]
+};
+vegaEmbed("#eloChart", vlSpec, opt)
+.then(function (result){
+	vegaTooltip.vegaLite(result.view, vlSpec, tooltipOpt)
+}).catch(console.error);
 </script>
 {{end}}

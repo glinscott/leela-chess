@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -280,6 +281,56 @@ ORDER BY c.count DESC`).Rows()
 	return result, nil
 }
 
+func calcElo(wins int, losses int, draws int) float64 {
+	score := float64(wins) + float64(draws)*0.5
+	total := float64(wins + losses + draws)
+	return -400 * math.Log10(1.0/(score/total)-1.0)
+}
+
+func getProgress() ([]gin.H, error) {
+	var matches []db.Match
+	err := db.GetDB().Order("id").Find(&matches).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var networks []db.Network
+	err = db.GetDB().Order("id").Find(&networks).Error
+	if err != nil {
+		return nil, err
+	}
+
+	counts, err := getNetworkCounts()
+	if err != nil {
+		return nil, err
+	}
+
+	result := []gin.H{}
+	result = append(result, gin.H{
+		"net":    0,
+		"rating": 0.0,
+		"best":   true,
+	})
+
+	var count uint64 = 0
+	var elo float64 = 0.0
+	var matchIdx int = 0
+	for _, network := range networks {
+		count += counts[network.ID]
+		for matchIdx < len(matches) && matches[matchIdx].CurrentBestID == network.ID {
+			elo += calcElo(matches[matchIdx].Wins, matches[matchIdx].Losses, matches[matchIdx].Draws)
+			matchIdx += 1
+		}
+		result = append(result, gin.H{
+			"net":    count,
+			"rating": elo,
+			"best":   true,
+		})
+	}
+
+	return result, nil
+}
+
 func frontPage(c *gin.Context) {
 	users, err := getActiveUsers()
 	if err != nil {
@@ -288,8 +339,16 @@ func frontPage(c *gin.Context) {
 		return
 	}
 
+	progress, err := getProgress()
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
 	c.HTML(http.StatusOK, "index", gin.H{
-		"Users": users,
+		"Users":    users,
+		"progress": progress,
 	})
 }
 
@@ -351,6 +410,24 @@ func game(c *gin.Context) {
 	})
 }
 
+func getNetworkCounts() (map[uint]uint64, error) {
+	rows, err := db.GetDB().Raw(`SELECT network_id, count(*) FROM training_games GROUP BY network_id`).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := make(map[uint]uint64)
+	for rows.Next() {
+		var network_id uint
+		var count uint64
+		rows.Scan(&network_id, &count)
+		counts[network_id] = count
+	}
+
+	return counts, nil
+}
+
 func viewNetworks(c *gin.Context) {
 	// TODO(gary): Whole things needs to take training_run into account...
 	var networks []db.Network
@@ -361,27 +438,18 @@ func viewNetworks(c *gin.Context) {
 		return
 	}
 
-	rows, err := db.GetDB().Raw(`SELECT network_id, count(*) FROM training_games GROUP BY network_id`).Rows()
+	counts, err := getNetworkCounts()
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
 		return
-	}
-	defer rows.Close()
-
-	counts := make(map[int]uint64)
-	for rows.Next() {
-		var network_id int
-		var count uint64
-		rows.Scan(&network_id, &count)
-		counts[network_id] = count
 	}
 
 	json := []gin.H{}
 	for _, network := range networks {
 		json = append(json, gin.H{
 			"id":        network.ID,
-			"games":     counts[int(network.ID)],
+			"games":     counts[network.ID],
 			"short_sha": network.Sha[0:8],
 			"blocks":    network.Layers,
 			"filters":   network.Filters,
