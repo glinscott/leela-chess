@@ -198,9 +198,9 @@ void UCTSearch::dump_analysis(int elapsed, bool force_output) {
     int   cp = -650 * log(1 / feval - 1);
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
     int   depth = log(float(m_nodes)) / log(1.8);
-    printf("info depth %d nodes %d nps %d playouts %d pps %d score cp %d winrate %5.2f%% time %d pv %s\n",
-             depth, static_cast<int>(m_nodes), 100 * static_cast<int>(m_nodes) / (elapsed + 1),
-                 static_cast<int>(m_playouts), 100 * static_cast<int>(m_playouts) / (elapsed + 1),
+    auto visits = m_root.get_visits();
+    printf("info depth %d nodes %d nps %d score cp %d winrate %5.2f%% time %d pv %s\n",
+             depth, visits, 100 * visits / (elapsed + 1),
              cp, winrate, 10 * elapsed, pvstring.c_str());
 }
 
