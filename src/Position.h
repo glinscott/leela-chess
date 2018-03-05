@@ -172,6 +172,7 @@ private:
   void move_piece(Piece pc, Square from, Square to);
   template<bool Do>
   void do_castling(Color us, Square from, Square& to, Square& rfrom, Square& rto);
+  bool is_draw_by_insufficient_material() const;
 
   // Data members
   Piece board[SQUARE_NB];
