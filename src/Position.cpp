@@ -905,6 +905,9 @@ Key Position::key_after(Move m) const {
 
 bool Position::is_draw() const {  //--didn't understand this _ply_ parameter; deleting it.
 
+  if (is_draw_by_insufficient_material())
+    return true;
+
   if (st->rule50 > 99 && (!checkers() || MoveList<LEGAL>(*this).size()))
       return true;
 
@@ -925,6 +928,23 @@ bool Position::is_draw() const {  //--didn't understand this _ply_ parameter; de
 
   return false;
 }
+
+bool Position::is_draw_by_insufficient_material() const {
+  switch (count<ALL_PIECES>()) {
+  case 2:
+    // K v K
+    return true;
+  case 3:
+    // K+B v K or K+N v K
+    return pieces(BISHOP, KNIGHT) != 0;
+  default:
+    // Kings + any number of bishops on the same square color
+    return pieces() == pieces(KING, BISHOP) &&
+           ((pieces(BISHOP) & DarkSquares) == 0 ||
+            (pieces(BISHOP) & ~DarkSquares) == 0);
+  }
+}
+
 int Position::repetitions_count() const {
   int end = std::min(st->rule50, st->pliesFromNull);
   
