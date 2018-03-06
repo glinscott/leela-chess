@@ -485,6 +485,10 @@ func viewTrainingRuns(c *gin.Context) {
 	})
 }
 
+func viewStats(c *gin.Context) {
+	c.HTML(http.StatusOK, "stats", gin.H{})
+}
+
 func createTemplates() multitemplate.Render {
 	r := multitemplate.New()
 	r.AddFromFiles("index", "templates/base.tmpl", "templates/index.tmpl")
@@ -492,6 +496,7 @@ func createTemplates() multitemplate.Render {
 	r.AddFromFiles("game", "templates/base.tmpl", "templates/game.tmpl")
 	r.AddFromFiles("networks", "templates/base.tmpl", "templates/networks.tmpl")
 	r.AddFromFiles("training_runs", "templates/base.tmpl", "templates/training_runs.tmpl")
+	r.AddFromFiles("stats", "templates/base.tmpl", "templates/stats.tmpl")
 	return r
 }
 
@@ -501,12 +506,14 @@ func setupRouter() *gin.Engine {
 	router.MaxMultipartMemory = 32 << 20 // 32 MiB
 	router.Static("/css", "./public/css")
 	router.Static("/js", "./public/js")
+	router.Static("/stats", "~/netstats")
 
 	router.GET("/", frontPage)
 	router.GET("/get_network", getNetwork)
 	router.GET("/user/:name", user)
 	router.GET("/game/:id", game)
 	router.GET("/networks", viewNetworks)
+	router.GET("/stats", viewStats)
 	router.GET("/training_runs", viewTrainingRuns)
 	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
