@@ -506,7 +506,7 @@ func setupRouter() *gin.Engine {
 	router.MaxMultipartMemory = 32 << 20 // 32 MiB
 	router.Static("/css", "./public/css")
 	router.Static("/js", "./public/js")
-	router.Static("/stats", "~/netstats")
+	router.Static("/stats", "/home/web/netstats")
 
 	router.GET("/", frontPage)
 	router.GET("/get_network", getNetwork)
