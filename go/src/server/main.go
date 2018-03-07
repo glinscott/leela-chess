@@ -450,6 +450,7 @@ func viewNetworks(c *gin.Context) {
 		json = append(json, gin.H{
 			"id":        network.ID,
 			"games":     counts[network.ID],
+			"sha":       network.Sha,
 			"short_sha": network.Sha[0:8],
 			"blocks":    network.Layers,
 			"filters":   network.Filters,

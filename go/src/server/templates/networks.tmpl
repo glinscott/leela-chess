@@ -15,7 +15,7 @@
       {{range .networks}}
       <tr>
         <td>{{.id}}</td>
-        <td>{{.short_sha}}</td>
+        <td><a href="/get_network?sha={{.sha}}">{{.short_sha}}</a></td>
         <td>{{.games}}</td>
         <td>{{.blocks}}</td>
         <td>{{.filters}}</td>
