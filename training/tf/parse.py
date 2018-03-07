@@ -32,11 +32,12 @@ import tensorflow as tf
 from tfprocess import TFProcess
 
 DATA_ITEM_LINES = 121
+SKIP = 16
+CHUNK_PASSES = 2
 
 class ChunkParser:
-    def __init__(self, chunks, skip = 1):
+    def __init__(self, chunks):
         self.flat_planes = []
-        self.skip = skip
         for r in range(0, 255):
             self.flat_planes.append(bytes([r]*64))
 
@@ -106,19 +107,23 @@ class ChunkParser:
         while True:
             random.shuffle(chunks)
             for chunk in chunks:
-                with gzip.open(chunk, 'r') as chunk_file:
-                    file_content = chunk_file.readlines()
-                    item_count = len(file_content) // DATA_ITEM_LINES
-                    picked_items = random.sample(range(item_count), (item_count + self.skip-1) // self.skip)
-                    for item_idx in picked_items:
-                        # make sure we randomly select both colors within a game
-                        pick_offset = item_idx * DATA_ITEM_LINES
-                        item = file_content[pick_offset:pick_offset + DATA_ITEM_LINES]
-                        str_items = [str(line, 'ascii').strip() for line in item]
-                        success, data = self.convert_train_data(str_items)
-                        if success:
-                            # Send it down the pipe.
-                            writer.send_bytes(data)
+                try:
+                    with gzip.open(chunk, 'r') as chunk_file:
+                        file_content = chunk_file.readlines()
+                        item_count = len(file_content) // DATA_ITEM_LINES
+                        for passes in range(CHUNK_PASSES):
+                            picked_items = random.sample(range(item_count), (item_count + SKIP-1) // SKIP)
+                            for item_idx in picked_items:
+                                pick_offset = item_idx * DATA_ITEM_LINES
+                                item = file_content[pick_offset:pick_offset + DATA_ITEM_LINES]
+                                str_items = [str(line, 'ascii').strip() for line in item]
+                                success, data = self.convert_train_data(str_items)
+                                if success:
+                                    # Send it down the pipe.
+                                    writer.send_bytes(data)
+                except:
+                    print("chunk {} failed".format(chunk))
+                    continue
 
     def parse_chunk(self):
         while True:
