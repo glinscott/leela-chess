@@ -33,7 +33,6 @@
 #include <thread>
 #include <boost/utility.hpp>
 #include <boost/format.hpp>
-#include <boost/spirit/home/x3.hpp>
 
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
@@ -59,7 +58,6 @@
 #include "ThreadPool.h"
 #include "Im2Col.h"
 
-namespace x3 = boost::spirit::x3;
 using namespace Utils;
 
 constexpr int Network::FORMAT_VERSION;
@@ -222,10 +220,18 @@ std::pair<int, int>  Network::load_v1_network(std::ifstream& wtfile) {
     linecount = 0;
     while (std::getline(wtfile, line)) {
         std::vector<float> weights;
-        auto it_line = line.begin();
-        auto ok = phrase_parse(it_line, line.end(),
-                               *x3::float_, x3::space, weights);
-        if (!ok || it_line != line.end()) {
+        float weight;
+        std::istringstream iss(line);
+        bool ok = true;
+        for (; iss;) {
+            if (iss >> weight) {
+                weights.emplace_back(weight);
+            } else if (!iss.eof()) {
+                ok = false;
+                break;
+            }
+        }
+        if (!ok) {
             myprintf("\nFailed to parse weight file. Error on line %d.\n",
                     linecount + 2); //+1 from version line, +1 from 0-indexing
             return {0,0};
