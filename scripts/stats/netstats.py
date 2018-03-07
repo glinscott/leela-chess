@@ -80,7 +80,7 @@ def plot_stats(stats, name, cfg):
 def main(cfg):
     conn = psycopg2.connect(dbname=cfg.database, user=cfg.username, password=cfg.password)
     cur = conn.cursor()
-    cur.execute("SELECT * FROM networks ORDER BY id DESC LIMIT 2;")
+    cur.execute("SELECT * FROM networks ORDER BY id DESC LIMIT {};".format(cfg.limit))
     cur2 = conn.cursor()
 
     for i in range(cur.rowcount):
