@@ -34,7 +34,14 @@ This should launch lczero in training mode.  It will begin self-play games, usin
 
 Once you have enough games, you can simply kill the process.
 
-To run the training process, you need to have CUDA and Tensorflow installed.  See the instructions on the Tensorflow page (I used the pip installation method into a virtual environment).  NOTE: You need a GPU accelerated version of Tensorflow to train, the CPU version doesn't support the input data format that is used.
+To run the training process, you need to have CUDA and Tensorflow installed.
+See the instructions on the Tensorflow page (I used the pip installation method
+into a virtual environment).  NOTE: You need a GPU accelerated version of
+Tensorflow to train, the CPU version doesn't support the input data format that
+is used.
+
+Then, make sure to set up your config, important fields to edit are the path the
+network is stored in, and the path to the input data.
 ```
 cd training/tf
 ./parse.py configs/your-config.yaml
@@ -65,6 +72,23 @@ cd ../scripts
 ```
 
 This runs an evaluation match using [cutechess-cli](https://github.com/cutechess/cutechess).
+
+## Supervised training
+
+If you have expert games you wish to train from in PGN, you can generate
+training data from those for the network to learn from.  Run:
+```
+./lczero --supervise games.pgn
+```
+That will create a folder `supervise-games`, with the training data.  You can
+then train a network against that as usual.
+
+## Stopping/starting training
+
+It is safe to kill the training process and restart it at any time.  It will
+automatically resume using the tensorflow checkpoint.
+
+You can use this to adjust learning rates, etc.
 
 # Compiling
 
