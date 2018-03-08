@@ -4,9 +4,8 @@ name: 'kb1-64x6'                       # ideally no spaces
 gpu: 0                                 # gpu id to process on
 
 dataset: 
-  num_samples: 100000                  # nof samples to obtain
+  num_chunks: 100000                   # nof chunks to parse (new to old)
   train_ratio: 0.75                    # trainingset ratio
-  skip: 16                             # skip every n +/- 1 pos
   input: '/path/to/chunks/*/draw/'     # supports glob
   path: '/path/to/dataset'             # output dir
 

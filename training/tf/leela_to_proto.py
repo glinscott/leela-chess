@@ -25,16 +25,16 @@ import parse
 import argparse
 import random
 
-PASSES = 4
+PASSES = 2
 
-def generate_dataset(chunks, num_samples, filename, skip, start):
-    parser = parse.ChunkParser(chunks, skip)
+def generate_dataset(chunks, num_samples, filename, i):
+    parser = parse.ChunkParser(chunks)
     gen = parser.parse_chunk()
 
     with open(filename, 'ba') as f:
         for _ in range(num_samples):
             f.write(next(gen))
-        print("Written dataset to {} pass {}/{}".format(filename, start//PASSES + 1, skip//PASSES))
+        print("Written dataset to {} pass {}/{}".format(filename, i+1, PASSES))
 
 
 def main(args):
@@ -49,28 +49,34 @@ def main(args):
     for d in glob.glob(cfg['dataset']['input']):
         chunks += parse.get_chunks(d)
 
-    print("Found {0} chunks".format(len(chunks)))
-
-    if len(chunks) < 10:
+    num_chunks = cfg['dataset']['num_chunks']
+    if len(chunks) < num_chunks:
         print("Not enough chunks")
         return 1
 
+    print("sorting {} chunks...".format(len(chunks)), end='')
+    chunks.sort(key=os.path.getmtime, reverse=True)
+    print("[done]")
+
+    chunks = chunks[:num_chunks]
     random.shuffle(chunks)
-    skip = cfg['dataset']['skip']
-    num_samples = 200*len(chunks) // skip # a chunk contains 200 samples
-    num_train = int(len(chunks)*cfg['dataset']['train_ratio'])
+    assert(len(chunks) == num_chunks)
+
+    # a chunk contains 200 samples and we're making 2 passes through a chunk when reading it in parse.py
+    num_samples = parse.CHUNK_PASSES*200*num_chunks // parse.SKIP 
+    num_train = int(num_chunks*cfg['dataset']['train_ratio'])
     num_train_samples = int(num_samples*cfg['dataset']['train_ratio'])
     num_test_samples = num_samples - num_train_samples
-    print("Generating {} training-, {} testing-samples".format(num_train_samples*skip//PASSES, num_test_samples*skip//PASSES))
+    print("Generating {} training-, {} testing-samples".format(num_train_samples*PASSES, num_test_samples*PASSES))
 
     if not os.path.exists(cfg['dataset']['path']):
         os.makedirs(cfg['dataset']['path'])
 
-    for start in range(0, skip, PASSES):
+    for i in range(0, PASSES):
         filename = os.path.join(cfg['dataset']['path'], 'train.bin')
-        generate_dataset(chunks[:num_train], num_train_samples, filename, skip, start)
+        generate_dataset(chunks[:num_train], num_train_samples, filename, i)
         filename = os.path.join(cfg['dataset']['path'], 'test.bin')
-        generate_dataset(chunks[num_train:], num_test_samples, filename, skip, start)
+        generate_dataset(chunks[num_train:], num_test_samples, filename, i)
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
