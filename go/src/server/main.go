@@ -197,7 +197,7 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 
-	err = db.GetDB().Debug().Exec("UPDATE networks SET games_played = games_played + 1 WHERE id = ?", network_id).Error
+	err = db.GetDB().Exec("UPDATE networks SET games_played = games_played + 1 WHERE id = ?", network_id).Error
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, "Internal error")
