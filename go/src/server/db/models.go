@@ -70,11 +70,11 @@ type MatchGame struct {
 }
 
 type TrainingGame struct {
-	ID        uint64 `gorm:"primary_key"`
-	CreatedAt time.Time
+	ID        uint64    `gorm:"primary_key"`
+	CreatedAt time.Time `gorm:"index"`
 
 	User          User
-	UserID        uint
+	UserID        uint `gorm:"index"`
 	TrainingRun   TrainingRun
 	TrainingRunID uint
 	Network       Network
