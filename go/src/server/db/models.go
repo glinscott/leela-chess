@@ -36,6 +36,9 @@ type Network struct {
 
 	Layers  int
 	Filters int
+
+	// Cached here, as expensive to do COUNT(*) on Postgresql
+	GamesPlayed int
 }
 
 type Match struct {

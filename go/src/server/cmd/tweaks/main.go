@@ -5,6 +5,24 @@ import (
 	"server/db"
 )
 
+func updateNetworkCounts() {
+	rows, err := db.GetDB().Raw(`SELECT network_id, count(*) FROM training_games GROUP BY network_id`).Rows()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var network_id uint
+		var count uint64
+		rows.Scan(&network_id, &count)
+		err := db.GetDB().Exec("UPDATE networks SET games_played=? WHERE id=?", count, network_id).Error
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
 func newRun() {
 	training_run := db.CreateTrainingRun("v0.2 6x64 Random start")
 	training_run.Active = true
@@ -52,7 +70,8 @@ func main() {
 
 	// newRun()
 	// makeRunActive()
-	newMatch()
+	// newMatch()
+	// updateNetworkCounts()
 
 	defer db.Close()
 }

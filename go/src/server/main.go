@@ -190,6 +190,13 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 
+	err = db.GetDB().Exec("UPDATE networks SET games_played = games_played + 1 WHERE id = ?", c.PostForm("network_id")).Error
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Internal error")
+		return
+	}
+
 	// Source
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -300,10 +307,7 @@ func getProgress() ([]gin.H, error) {
 		return nil, err
 	}
 
-	counts, err := getNetworkCounts()
-	if err != nil {
-		return nil, err
-	}
+	counts := getNetworkCounts(networks)
 
 	result := []gin.H{}
 	result = append(result, gin.H{
@@ -410,22 +414,12 @@ func game(c *gin.Context) {
 	})
 }
 
-func getNetworkCounts() (map[uint]uint64, error) {
-	rows, err := db.GetDB().Raw(`SELECT network_id, count(*) FROM training_games GROUP BY network_id`).Rows()
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
+func getNetworkCounts(networks []db.Network) map[uint]uint64 {
 	counts := make(map[uint]uint64)
-	for rows.Next() {
-		var network_id uint
-		var count uint64
-		rows.Scan(&network_id, &count)
-		counts[network_id] = count
+	for _, network := range networks {
+		counts[network.ID] = uint64(network.GamesPlayed)
 	}
-
-	return counts, nil
+	return counts
 }
 
 func viewNetworks(c *gin.Context) {
@@ -438,13 +432,7 @@ func viewNetworks(c *gin.Context) {
 		return
 	}
 
-	counts, err := getNetworkCounts()
-	if err != nil {
-		log.Println(err)
-		c.String(500, "Internal error")
-		return
-	}
-
+	counts := getNetworkCounts(networks)
 	json := []gin.H{}
 	for _, network := range networks {
 		json = append(json, gin.H{

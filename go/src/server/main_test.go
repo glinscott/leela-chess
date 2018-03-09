@@ -53,7 +53,7 @@ func (s *StoreSuite) SetupTest() {
 		log.Fatal(err)
 	}
 
-	training_run := db.TrainingRun{Name: "Testing", BestNetwork: network}
+	training_run := db.TrainingRun{Description: "Testing", BestNetwork: network, Active: true}
 	if err := db.GetDB().Create(&training_run).Error; err != nil {
 		log.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func (s *StoreSuite) TestNextGame() {
 	s.router.ServeHTTP(s.w, req)
 
 	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
-	assert.JSONEqf(s.T(), `{"type":"train","trainingId":1,"networkId":1,"sha":"abcd"}`, s.w.Body.String(), "Body incorrect")
+	assert.JSONEqf(s.T(), `{"params":"","type":"train","trainingId":1,"networkId":1,"sha":"abcd"}`, s.w.Body.String(), "Body incorrect")
 }
 
 func (s *StoreSuite) TestUploadGameNewUser() {
@@ -145,7 +145,7 @@ func uploadTestNetwork(s *StoreSuite, contentString string, networkId int) {
 	req, _ = http.NewRequest("POST", "/next_game", nil)
 	s.router.ServeHTTP(s.w, req)
 	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
-	assert.JSONEqf(s.T(), fmt.Sprintf(`{"type":"train","trainingId":1,"networkId":%d,"sha":"%x"}`, networkId, sha), s.w.Body.String(), "Body incorrect")
+	assert.JSONEqf(s.T(), fmt.Sprintf(`{"params":"", "type":"train","trainingId":1,"networkId":%d,"sha":"%x"}`, networkId, sha), s.w.Body.String(), "Body incorrect")
 
 	// And let's download it now.
 	s.w = httptest.NewRecorder()
