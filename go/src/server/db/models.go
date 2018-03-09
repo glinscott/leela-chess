@@ -78,7 +78,7 @@ type TrainingGame struct {
 	TrainingRun   TrainingRun
 	TrainingRunID uint
 	Network       Network
-	NetworkID     uint
+	NetworkID     uint `gorm:"index"`
 
 	Version   uint
 	Path      string
