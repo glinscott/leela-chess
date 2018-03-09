@@ -97,11 +97,20 @@ func (s *StoreSuite) TestUploadGameNewUser() {
 
 	assert.Equal(s.T(), 200, s.w.Code, s.w.Body.String())
 
+	// Check we create the new user
 	user := db.User{}
 	err = db.GetDB().Where("username = ?", "foo").First(&user).Error
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Check we update the game count properly
+	network := db.Network{}
+	err = db.GetDB().Where("id = ?", 1).First(&network).Error
+	if err != nil {
+		log.Fatal(err)
+	}
+	assert.Equal(s.T(), 1, network.GamesPlayed)
 }
 
 func uploadTestNetwork(s *StoreSuite, contentString string, networkId int) {

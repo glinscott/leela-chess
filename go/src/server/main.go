@@ -182,15 +182,22 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 
+	network_id, err := strconv.ParseUint(c.PostForm("network_id"), 10, 32)
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Invalid network_id")
+		return
+	}
+
 	var network db.Network
-	err = db.GetDB().Where("id = ?", c.PostForm("network_id")).First(&network).Error
+	err = db.GetDB().Where("id = ?", network_id).First(&network).Error
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid network")
 		return
 	}
 
-	err = db.GetDB().Exec("UPDATE networks SET games_played = games_played + 1 WHERE id = ?", c.PostForm("network_id")).Error
+	err = db.GetDB().Debug().Exec("UPDATE networks SET games_played = games_played + 1 WHERE id = ?", network_id).Error
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, "Internal error")
@@ -213,11 +220,11 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 	game := db.TrainingGame{
-		User:        user,
-		TrainingRun: *training_run,
-		Network:     network,
-		Version:     uint(version),
-		Pgn:         c.PostForm("pgn"),
+		UserID:        user.ID,
+		TrainingRunID: training_run.ID,
+		NetworkID:     network.ID,
+		Version:       uint(version),
+		Pgn:           c.PostForm("pgn"),
 	}
 	db.GetDB().Create(&game)
 	db.GetDB().Model(&game).Update("path", filepath.Join("games", fmt.Sprintf("run%d/training.%d.gz", training_run.ID, game.ID)))
