@@ -487,7 +487,24 @@ func viewTrainingRuns(c *gin.Context) {
 }
 
 func viewStats(c *gin.Context) {
-	c.HTML(http.StatusOK, "stats", gin.H{})
+	var networks []db.Network
+	err := db.GetDB().Order("id desc").Limit(3).Find(&networks).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	json := []gin.H{}
+	for _, network := range networks {
+		json = append(json, gin.H{
+			"short_sha": network.Sha[0:8],
+		})
+	}
+
+	c.HTML(http.StatusOK, "stats", gin.H{
+		"networks": json,
+	})
 }
 
 func createTemplates() multitemplate.Render {
