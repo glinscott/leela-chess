@@ -320,7 +320,8 @@ func getProgress() ([]gin.H, error) {
 	result = append(result, gin.H{
 		"net":    0,
 		"rating": 0.0,
-		"best":   true,
+		"best":   false,
+		"sprt":   "FAIL",
 	})
 
 	var count uint64 = 0
@@ -328,14 +329,17 @@ func getProgress() ([]gin.H, error) {
 	var matchIdx int = 0
 	for _, network := range networks {
 		count += counts[network.ID]
+		var sprt string = "???"
 		for matchIdx < len(matches) && matches[matchIdx].CurrentBestID == network.ID {
 			elo += calcElo(matches[matchIdx].Wins, matches[matchIdx].Losses, matches[matchIdx].Draws)
 			matchIdx += 1
+			sprt = "PASS"
 		}
 		result = append(result, gin.H{
 			"net":    count,
 			"rating": elo,
 			"best":   true,
+			"sprt":   sprt,
 		})
 	}
 
