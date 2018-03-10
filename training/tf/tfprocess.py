@@ -20,6 +20,8 @@ import os
 import numpy as np
 import time
 import tensorflow as tf
+import shutil
+import gzip
 
 NUM_STEP_TRAIN = 200
 NUM_STEP_TEST = 4000
@@ -46,7 +48,7 @@ def conv2d(x, W):
                         strides=[1, 1, 1, 1], padding='SAME')
 
 class TFProcess:
-    def __init__(self, cfg, next_train_batch, next_test_batch=None, num_eval = 10):
+    def __init__(self, cfg, next_train_batch, next_test_batch, num_eval = 10):
         self.cfg = cfg
         self.root_dir = os.path.join(self.cfg['training']['path'], self.cfg['name'])
         #from tensorflow.python.client import device_lib
@@ -58,7 +60,7 @@ class TFProcess:
 
         # TF variables
         self.next_train_batch = next_train_batch
-        self.next_test_batch = next_test_batch if next_test_batch else next_train_batch
+        self.next_test_batch = next_test_batch
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         self.x = next_train_batch[0]  # tf.placeholder(tf.float32, [None, 120, 8 * 8])
         self.y_ = next_train_batch[1] # tf.placeholder(tf.float32, [None, 1924])
@@ -88,13 +90,11 @@ class TFProcess:
         val_loss_w = self.cfg['training']['value_loss_weight']
         loss = pol_loss_w * self.policy_loss + val_loss_w * self.mse_loss + self.reg_term
 
-        # Following AlphaGo Zero paper for supervised learningparameters
-        starter_learning_rate = self.cfg['training']['learning_rate']
-        decay_step = self.cfg['training']['decay_step']
-        decay_rate = self.cfg['training']['decay_rate']
-        learning_rate = tf.train.exponential_decay(starter_learning_rate, self.global_step, decay_step, decay_rate, staircase=True)
+        # Set adaptive learning rate during training
+        self.learning_rate = tf.placeholder(tf.float32)
+        self.lr = self.cfg['training']['lr_values'][0]
         opt_op = tf.train.MomentumOptimizer(
-            learning_rate, momentum=0.9, use_nesterov=True)
+            self.learning_rate, momentum=0.9, use_nesterov=True)
 
         self.update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.update_ops):
@@ -172,8 +172,17 @@ class TFProcess:
         policy_loss, mse_loss, reg_term, _, _ = self.session.run(
             [self.policy_loss, self.mse_loss, self.reg_term, self.train_op,
                 self.next_train_batch],
-            feed_dict={self.training: True})
+            feed_dict={self.training: True, self.learning_rate: self.lr})
         steps = tf.train.global_step(self.session, self.global_step)
+
+        # Determine learning rate for next run
+        if steps % self.cfg['training']['total_steps'] == 0:
+            self.lr = self.cfg['training']['lr_values'][0]
+        elif steps > self.cfg['training']['lr_boundaries'][0]:
+            self.lr = self.cfg['training']['lr_values'][1]
+        elif steps > self.cfg['training']['lr_boundaries'][1]:
+            self.lr = self.cfg['training']['lr_values'][2]
+
         # Keep running averages
         # XXX: use built-in support like tf.moving_average_variables?
         mse_loss /= 4.0
@@ -200,6 +209,7 @@ class TFProcess:
                 pol_loss_w * avg_policy_loss + val_loss_w * avg_mse_loss + avg_reg_term,
                 speed))
             train_summaries = tf.Summary(value=[
+                tf.Summary.Value(tag="Learning Rate", simple_value=self.lr),
                 tf.Summary.Value(tag="Policy Loss", simple_value=avg_policy_loss),
                 tf.Summary.Value(tag="MSE Loss", simple_value=avg_mse_loss)])
             self.train_writer.add_summary(train_summaries, steps)
@@ -227,9 +237,16 @@ class TFProcess:
             path = os.path.join(self.root_dir, self.cfg['name'])
             save_path = self.saver.save(self.session, path, global_step=steps)
             print("Model saved in file: {}".format(save_path))
+
+        if steps % self.cfg['training']['total_steps'] == 0:
+            # upload the network to the server
+            path = os.path.join(self.root_dir, self.cfg['name'])
             leela_path = path + "-" + str(steps) + ".txt"
             self.save_leelaz_weights(leela_path)
-            print("Leela weights saved to {}".format(leela_path))
+            filename = '{}.gz'.format(leela_path)
+            with open(leela_path, 'rb') as f_in, gzip.open(filename, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+            print("Upload {}".format(os.path.basename(filename)))
 
     def save_leelaz_weights(self, filename):
         with open(filename, "w") as file:

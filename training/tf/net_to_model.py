@@ -2,9 +2,13 @@
 import tensorflow as tf
 import os
 import sys
+import yaml
 from tfprocess import TFProcess
 
-with open(sys.argv[1], 'r') as f:
+cfg = yaml.safe_load(open(sys.argv[1], 'r').read())
+print(yaml.dump(cfg, default_flow_style=False))
+
+with open(sys.argv[2], 'r') as f:
     weights = []
     for e, line in enumerate(f):
         if e == 0:
@@ -29,7 +33,7 @@ x = [
     tf.placeholder(tf.float32, [None, 1])
     ]
 
-tfprocess = TFProcess(x)
+tfprocess = TFProcess(cfg, x, None)
 tfprocess.replace_weights(weights)
 #import json
 #with open(sys.argv[2], 'r') as f:

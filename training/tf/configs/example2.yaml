@@ -1,0 +1,28 @@
+%YAML 1.2
+---
+name: 'online-64x6'                       # ideally no spaces
+gpu: 0                                    # gpu id for processing
+
+dataset:
+    num_chunks: 100000                    # nof chunks to parse (new to old)
+    train_ratio: 0.90                     # trainingset ratio
+    input: '/path/to/chunks/'             # supports glob
+
+training:
+    batch_size: 2048
+    total_steps: 30000
+    lr_values:
+        - 0.01
+        - 0.002
+        - 0.0005
+    lr_boundaries:
+        - 15000
+        - 25000
+    policy_loss_weight: 1.0
+    value_loss_weight: 1.0
+    path: '/mnt/storage/home/fhuizing/chess/networks'
+
+model:
+    filters: 64
+    residual_blocks: 6
+...

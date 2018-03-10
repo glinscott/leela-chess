@@ -41,8 +41,8 @@ class ChunkParser:
         for r in range(0, 255):
             self.flat_planes.append(bytes([r]*64))
 
-        # Start worker processes, leave 1 for TensorFlow
-        workers = max(1, mp.cpu_count() - 1)
+        # Start worker processes, leave 2 for TensorFlow
+        workers = max(1, mp.cpu_count() - 2)
         print("Using {} worker processes.".format(workers))
         self.readers = []
 
@@ -154,6 +154,7 @@ def generate_fake_pos():
     winner = [ float(np.random.randint(3)) - 1 ]
     return (planes, probs, winner)
 
+
 def run_test(parser):
     """
         Test game position decoding.
@@ -213,6 +214,7 @@ def _parse_function(example_proto):
     # the other features are already in the correct shape as return as-is.
     return planes, parsed_features["probs"], parsed_features["winner"]
 
+
 def benchmark(parser):
     gen = parser.parse_chunk()
     while True:
@@ -222,11 +224,43 @@ def benchmark(parser):
         end = time.time()
         print("{} pos/sec {} secs".format( 10000. / (end - start), (end - start)))
 
+
 def get_checkpoint(root_dir):
     checkpoint = os.path.join(root_dir, 'checkpoint')
     with open(checkpoint, 'r') as f:
         cp = f.readline().split()[1][1:-1]
     return cp
+
+
+def dataset_iterator(chunks, batch_size, shuffle_size):
+    parser = ChunkParser(chunks)
+    dataset = tf.data.Dataset.from_generator(
+        parser.parse_chunk, output_types=(tf.string))
+    dataset = dataset.shuffle(shuffle_size)
+    dataset = dataset.map(_parse_function)
+    dataset = dataset.batch(batch_size)
+    dataset = dataset.prefetch(4)
+    iterator = dataset.make_one_shot_iterator()
+    return iterator.get_next(), parser
+
+
+def get_latest_chunks(path, num_chunks):
+    chunks = []
+    for d in glob.glob(path):
+        chunks += get_chunks(d)
+
+    if len(chunks) < num_chunks:
+        print("Not enough chunks")
+        sys.exit(1)
+
+    print("sorting {} chunks...".format(len(chunks)), end='')
+    chunks.sort(key=os.path.getmtime, reverse=True)
+    print("[done]")
+    chunks = chunks[:num_chunks]
+    print("{} - {}".format(os.path.basename(chunks[-1]), os.path.basename(chunks[0])))
+    random.shuffle(chunks)
+    return chunks
+
 
 def main():
     if len(sys.argv) != 2:
@@ -236,34 +270,36 @@ def main():
     cfg = yaml.safe_load(open(sys.argv[1], 'r').read())
     print(yaml.dump(cfg, default_flow_style=False))
 
-    chunks = get_chunks(cfg['dataset']['input'])
-    print("Found {0} chunks".format(len(chunks)))
+    num_chunks = cfg['dataset']['num_chunks']
+    chunks = get_latest_chunks(cfg['dataset']['input'], num_chunks)
 
-    if not chunks:
-        return
+    # a chunk contains 200 samples and we're making 2 passes through a chunk when reading it in parse.py
+    num_samples = CHUNK_PASSES*200*num_chunks // SKIP 
+    num_train = int(num_chunks*cfg['dataset']['train_ratio'])
+    num_train_samples = int(num_samples*cfg['dataset']['train_ratio'])
+    num_test_samples = num_samples - num_train_samples
 
-    parser = ChunkParser(chunks)
-
-    run_test(parser)
-    #benchmark(parser)
-
-    dataset = tf.data.Dataset.from_generator(
-        parser.parse_chunk, output_types=(tf.string))
-    dataset = dataset.shuffle(65536)
-    dataset = dataset.map(_parse_function)
-    dataset = dataset.batch(cfg['training']['batch_size'])
-    dataset = dataset.prefetch(16)
-    iterator = dataset.make_one_shot_iterator()
-    next_batch = iterator.get_next()
-
-    tfprocess = TFProcess(cfg, next_batch)
     root_dir = os.path.join(cfg['training']['path'], cfg['name'])
-    if os.path.exists(os.path.join(root_dir, 'checkpoint')):
-        checkpoint = get_checkpoint(root_dir)
-        tfprocess.restore(checkpoint)
+    if not os.path.exists(root_dir):
+        os.makedirs(root_dir)
 
+    batch_size = cfg['training']['batch_size']
+
+    # main online loop
     while True:
-        tfprocess.process(cfg['training']['batch_size'])
+        train_batch, train_parser = dataset_iterator(chunks[:num_train], batch_size, 1<<18)
+        test_batch, test_parser = dataset_iterator(chunks[num_train:], batch_size, 1<<13)
+
+        tfprocess = TFProcess(cfg, train_batch, test_batch, batch_size)
+        if os.path.exists(os.path.join(root_dir, 'checkpoint')):
+            cp = get_checkpoint(root_dir)
+            tfprocess.restore(cp)
+
+        for _ in range(cfg['training']['total_steps']):
+            tfprocess.process(batch_size)
+
+        chunks = get_latest_chunks(cfg['dataset']['input'], num_chunks)
+
 
 if __name__ == "__main__":
     main()
