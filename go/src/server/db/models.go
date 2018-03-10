@@ -36,6 +36,9 @@ type Network struct {
 
 	Layers  int
 	Filters int
+
+	// Cached here, as expensive to do COUNT(*) on Postgresql
+	GamesPlayed int
 }
 
 type Match struct {
@@ -70,15 +73,15 @@ type MatchGame struct {
 }
 
 type TrainingGame struct {
-	ID        uint64 `gorm:"primary_key"`
-	CreatedAt time.Time
+	ID        uint64    `gorm:"primary_key"`
+	CreatedAt time.Time `gorm:"index"`
 
 	User          User
-	UserID        uint
+	UserID        uint `gorm:"index"`
 	TrainingRun   TrainingRun
 	TrainingRunID uint
 	Network       Network
-	NetworkID     uint
+	NetworkID     uint `gorm:"index"`
 
 	Version   uint
 	Path      string

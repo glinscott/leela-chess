@@ -1,19 +1,13 @@
 {{define "content"}}
 <h1>Statistics - updated every 4 hours</h1>
-<div>
-<h3>9b568ab2</h3>
-<img src="/stats/9b568ab2.png"/>
-</div>
 
+{{range .networks}}
 <div>
-<h3>de1ddecb</h3>
-<img src="/stats/de1ddecb.png"/>
+<h3>{{.short_sha}}</h3>
+<img src="/stats/{{.short_sha}}.png"/>
 </div>
+{{end}}
 
-<div>
-<h3>a490ebcf</h3>
-<img src="/stats/a490ebcf.png"/>
-</div>
 {{end}}
 
 {{define "scripts"}}
