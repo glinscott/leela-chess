@@ -26,6 +26,7 @@
     <ClInclude Include="..\..\src\Im2Col.h" />
     <ClInclude Include="..\..\src\Movegen.h" />
     <ClInclude Include="..\..\src\Network.h" />
+    <ClInclude Include="..\..\src\NNCache.h" />
     <ClInclude Include="..\..\src\OpenCL.h" />
     <ClInclude Include="..\..\src\OpenCLScheduler.h" />
     <ClInclude Include="..\..\src\Parameters.h" />
@@ -48,6 +49,7 @@
     <ClCompile Include="..\..\src\main.cpp" />
     <ClCompile Include="..\..\src\Movegen.cpp" />
     <ClCompile Include="..\..\src\Network.cpp" />
+    <ClInclude Include="..\..\src\NNCache.cpp" />
     <ClCompile Include="..\..\src\OpenCL.cpp" />
     <ClCompile Include="..\..\src\OpenCLScheduler.cpp" />
     <ClCompile Include="..\..\src\Parameters.cpp" />

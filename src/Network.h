@@ -75,7 +75,8 @@ public:
     };
 
     static Netresult get_scored_moves(const BoardHistory& state,
-                                      DebugRawData* debug_data=nullptr);
+                                      DebugRawData* debug_data=nullptr,
+                                      bool skip_cache = false);
 
     // Winograd filter transformation changes 3x3 filters to 4x4
     static constexpr auto WINOGRAD_ALPHA = 4;
