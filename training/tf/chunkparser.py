@@ -222,7 +222,7 @@ class ChunkParser:
                     if random.randint(0, self.sample-1) != 0:
                         continue  # Skip this record.
                 item = file_chunkdata[i:i+DATA_ITEM_LINES]
-                str_items = [str(line) for line in item]
+                str_items = [str(line, 'ascii') for line in item]
                 success, data = self.convert_v1_to_v2(str_items)
                 if success:
                     yield data
@@ -351,17 +351,17 @@ class ChunkParserTest(unittest.TestCase):
         items = []
         for p in range(112):
             h = str(np.packbits([int(x) for x in planes[p]]).tobytes().hex())
-            items.append(h)
+            items.append(h + "\n")
         # then integer info
         for i in integer:
-            items.append(str(i))
+            items.append(str(i) + "\n")
         # then probabilities
-        items.append(' '.join([str(x) for x in probs]))
+        items.append(' '.join([str(x) for x in probs]) + "\n")
         # and finally if the side to move is a winner
-        items.append(str(int(winner[0])))
+        items.append(str(int(winner[0])) + "\n")
 
         # Convert to a chunkdata byte string.
-        chunkdata = '\n'.join(items)
+        chunkdata = ''.join(items).encode('ascii')
 
         # feed batch_size copies into parser
         chunkdatasrc = ChunkDataSrc([chunkdata for _ in range(batch_size*2)])
