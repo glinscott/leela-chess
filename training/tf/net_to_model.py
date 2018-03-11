@@ -24,19 +24,17 @@ with open(sys.argv[2], 'r') as f:
     blocks = e - (4 + 14)
     if blocks % 8 != 0:
         raise ValueError("Inconsistent number of weights in the file")
-    blocks /= 8
+    blocks //= 8
     print("Blocks", blocks)
 
-x = [
-    tf.placeholder(tf.float32, [None, 120, 8*8]),
-    tf.placeholder(tf.float32, [None, 1924]),
-    tf.placeholder(tf.float32, [None, 1])
-    ]
-
-tfprocess = TFProcess(cfg, x, None)
+tfprocess = TFProcess(cfg)
+tfprocess.init(1)
+if tfprocess.RESIDUAL_BLOCKS != blocks:
+    raise ValueError("Number of blocks in tensorflow model doesn't match "\
+            "number of blocks in input network")
+if tfprocess.RESIDUAL_FILTERS != channels:
+    raise ValueError("Number of filters in tensorflow model doesn't match "\
+            "number of filters in input network")
 tfprocess.replace_weights(weights)
-#import json
-#with open(sys.argv[2], 'r') as f:
-#    tfprocess.inference(json.load(f)['input'])
-path = os.path.join(os.getcwd(), "leelaz-model")
+path = os.path.join(os.getcwd(), cfg['name'])
 save_path = tfprocess.saver.save(tfprocess.session, path, global_step=0)

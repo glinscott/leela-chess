@@ -62,14 +62,13 @@ class ChunkParser:
             chunkdata: type Bytes. Either mutiple records of v1 format, or multiple records
             of v2 format.
 
-            v1: The original text format describing a move. 19 lines long. VERY slow
-            to decode. Typically around 2500 bytes long. Used only for backward
-            compatability.
+            v1: The original text format describing a move. 121 lines long. VERY slow
+            to decode.
 
             v2: Packed binary representation of v1. Fixed length, no record seperator.
             The most compact format. Data in the shuffle buffer is held in this
             format as it allows the largest possible shuffle buffer. Very fast to
-            decode. Preferred format to use on disk. 2176 bytes long.
+            decode. Preferred format to use on disk.
 
             raw: A byte string holding raw tensors contenated together. This is used
             to pass data from the workers to the parent. Exists because TensorFlow doesn't
@@ -315,8 +314,6 @@ class ChunkParserTest(unittest.TestCase):
             Generate a random game position.
             Result is ([[64] * 112], [1]*5, [1924], [1])
         """
-        np.random.seed(1337)
-
         # 0. 112 binary planes of length 64
         planes = [np.random.randint(2, size=64).tolist() for plane in range(112)]
 

@@ -30,200 +30,10 @@ import os
 import time
 import tensorflow as tf
 from tfprocess import TFProcess
+from chunkparser import ChunkParser
 
-DATA_ITEM_LINES = 121
-SKIP = 16
-CHUNK_PASSES = 2
-
-class ChunkParser:
-    def __init__(self, chunks):
-        self.flat_planes = []
-        for r in range(0, 255):
-            self.flat_planes.append(bytes([r]*64))
-
-        # Start worker processes, leave 2 for TensorFlow
-        workers = max(1, mp.cpu_count() - 2)
-        print("Using {} worker processes.".format(workers))
-        self.readers = []
-
-        for _ in range(workers):
-            read, write = mp.Pipe(False)
-            mp.Process(target=self.task,
-                       args=(chunks, write)).start()
-            self.readers.append(read)
-
-    def convert_train_data(self, text_item):
-        """
-            Convert textual training data to a tf.train.Example
-
-            Converts a set of 121 lines of text into a pythonic dataformat.
-            [[plane_1],[plane_2],...],...
-            [probabilities],...
-            winner,...
-        """
-        # We start by building a list of 112 planes, each being a 8*8=64 element array
-        # of type np.uint8
-        planes = []
-        for plane in range(0, 112):
-            hex_string = text_item[plane]
-            array = np.unpackbits(np.frombuffer(bytearray.fromhex(hex_string), dtype=np.uint8))
-            planes.append(array)
-
-        # We flatten to a single array of len 112*8*8, type=np.uint8
-        planes = np.concatenate(planes)
-        # Convert the array to a byte string
-        planes = [ planes.tobytes() ]
-
-        # Now we add the final planes
-        for plane in range(112, 119):
-            stm = min(int(text_item[plane]), 254)
-            planes.append(self.flat_planes[stm])
-        planes.append(self.flat_planes[0])
-
-        # Flatten all planes to a single byte string
-        planes = b''.join(planes)
-        assert len(planes) == (120 * 8 * 8)
-
-        # Load the probabilities.
-        probabilities = np.array(text_item[119].split()).astype(float)
-        if np.any(np.isnan(probabilities)):
-            # Work around a bug in leela-zero v0.3, skipping any
-            # positions that have a NaN in the probabilities list.
-            return False, None
-        assert len(probabilities) == 1924
-
-        # Load the game winner color.
-        winner = float(text_item[120])
-        assert winner == 1.0 or winner == -1.0 or winner == 0.0
-
-        # Construct the Example protobuf
-        example = tf.train.Example(features=tf.train.Features(feature={
-            'planes' : tf.train.Feature(bytes_list=tf.train.BytesList(value=[planes])),
-            'probs' : tf.train.Feature(float_list=tf.train.FloatList(value=probabilities)),
-            'winner' : tf.train.Feature(float_list=tf.train.FloatList(value=[winner]))}))
-        return True, example.SerializeToString()
-
-    def task(self, chunks, writer):
-        while True:
-            random.shuffle(chunks)
-            for chunk in chunks:
-                try:
-                    with gzip.open(chunk, 'r') as chunk_file:
-                        file_content = chunk_file.readlines()
-                        item_count = len(file_content) // DATA_ITEM_LINES
-                        for passes in range(CHUNK_PASSES):
-                            picked_items = random.sample(range(item_count), (item_count + SKIP-1) // SKIP)
-                            for item_idx in picked_items:
-                                pick_offset = item_idx * DATA_ITEM_LINES
-                                item = file_content[pick_offset:pick_offset + DATA_ITEM_LINES]
-                                str_items = [str(line, 'ascii').strip() for line in item]
-                                success, data = self.convert_train_data(str_items)
-                                if success:
-                                    # Send it down the pipe.
-                                    writer.send_bytes(data)
-                except:
-                    print("chunk {} failed".format(chunk))
-                    continue
-
-    def parse_chunk(self):
-        while True:
-            for r in self.readers:
-                yield r.recv_bytes()
-
-def get_chunks(data_prefix):
-    return glob.glob(data_prefix + "*.gz")
-
-
-#
-# Tests to check that records can round-trip successfully
-def generate_fake_pos():
-    """
-        Generate a random game position.
-        Result is ([[64] * 112], [1]*5, [1924], [1])
-    """
-    # 1. 112 binary planes of length 64
-    planes = [[float(f) for f in np.random.randint(2, size=64).tolist()] for plane in range(112)]
-    for i in range(5):
-        planes.append([np.random.randint(2)] * 64)
-    planes.append([np.random.randint(50)] * 64)
-    planes.append([np.random.randint(200)] * 64)
-    planes.append([0.0] * 64)
-    # 2. 1924 probs
-    probs = np.random.random(size=1924).tolist()
-    # 3. And a winner: 1, 0, -1
-    winner = [ float(np.random.randint(3)) - 1 ]
-    return (planes, probs, winner)
-
-
-def run_test(parser):
-    """
-        Test game position decoding.
-    """
-
-    # First, build a random game position.
-    planes, probs, winner = generate_fake_pos()
-
-    # Convert that to a text record in the same format
-    # generated by dump_supervised
-    items = []
-    for p in range(112):
-        h = np.packbits([int(x) for x in planes[p]]).tobytes()
-        h = binascii.hexlify(h).decode('ascii')
-        items.append(h)
-    for p in range(112, 119):
-        items.append(str(int(planes[p][0])))
-    # then probs
-    items.append(' '.join([str(x) for x in probs]))
-    # and finally a winner
-    items.append(str(int(winner[0])))
-
-    # Have an input string. Running it through parsing to see
-    # if it gives the same result we started with.
-    # We need a tf.Session() as we're going to use the tensorflow
-    # decoding framework for part of the parsing.
-    with tf.Session() as sess:
-        result = parser.convert_train_data(items)
-        assert result[0] == True
-        # We got back a serialized tf.train.Example, which we need to decode.
-        graph = _parse_function(result[1])
-        data = sess.run(graph)
-        data = (data[0].tolist(), data[1].tolist(), data[2].tolist())
-
-        # Check that what we got out matches what we put in.
-        assert data[0] == planes
-        assert len(data[1]) == len(probs)
-        for i in range(len(probs)):
-            if abs(data[1][i] - probs[i]) > 1e-6:
-                assert False
-        assert data[2] == winner
-    print("Test parse passes")
-
-
-# Convert a tf.train.Example protobuf into a tuple of tensors
-# NB: This conversion is done in the tensorflow graph, NOT in python.
-def _parse_function(example_proto):
-    features = {"planes": tf.FixedLenFeature((1), tf.string),
-                "probs": tf.FixedLenFeature((1924), tf.float32),
-                "winner": tf.FixedLenFeature((1), tf.float32)}
-    parsed_features = tf.parse_single_example(example_proto, features)
-    # We receives the planes as a byte array, but we really want
-    # floats of shape (120, 8*8), so decode, cast, and reshape.
-    planes = tf.decode_raw(parsed_features["planes"], tf.uint8)
-    planes = tf.to_float(planes)
-    planes = tf.reshape(planes, (120, 8*8))
-    # the other features are already in the correct shape as return as-is.
-    return planes, parsed_features["probs"], parsed_features["winner"]
-
-
-def benchmark(parser):
-    gen = parser.parse_chunk()
-    while True:
-        start = time.time()
-        for _ in range(10000):
-            next(gen)
-        end = time.time()
-        print("{} pos/sec {} secs".format( 10000. / (end - start), (end - start)))
-
+SKIP = 8
+RAM_BATCH_SIZE = 2048
 
 def get_checkpoint(root_dir):
     checkpoint = os.path.join(root_dir, 'checkpoint')
@@ -231,18 +41,8 @@ def get_checkpoint(root_dir):
         cp = f.readline().split()[1][1:-1]
     return cp
 
-
-def dataset_iterator(chunks, batch_size, shuffle_size):
-    parser = ChunkParser(chunks)
-    dataset = tf.data.Dataset.from_generator(
-        parser.parse_chunk, output_types=(tf.string))
-    dataset = dataset.shuffle(shuffle_size)
-    dataset = dataset.map(_parse_function)
-    dataset = dataset.batch(batch_size)
-    dataset = dataset.prefetch(4)
-    iterator = dataset.make_one_shot_iterator()
-    return iterator.get_next(), parser
-
+def get_chunks(data_prefix):
+    return glob.glob(data_prefix + "*.gz")
 
 def get_latest_chunks(path, num_chunks):
     chunks = []
@@ -262,6 +62,59 @@ def get_latest_chunks(path, num_chunks):
     return chunks
 
 
+class FileDataSrc:
+    """
+        data source yielding chunkdata from chunk files.
+    """
+    def __init__(self, chunks):
+        self.chunks = chunks
+        random.shuffle(self.chunks)
+        self.done = []
+    def next(self):
+        if not self.chunks:
+            self.chunks = self.done
+            random.shuffle(self.chunks)
+        if not self.chunks:
+            return None
+        while (True):
+            filename = self.chunks.pop()
+            try:
+                with gzip.open(filename, 'rb') as chunk_file:
+                    self.done.append(filename)
+                    return chunk_file.read()
+            except:
+                print("failed to parse {}".format(filename))
+
+
+def benchmark(parser):
+    """
+        Benchmark for parser
+    """
+    gen = parser.parse()
+    batch=100
+    while True:
+        start = time.time()
+        for _ in range(batch):
+            next(gen)
+        end = time.time()
+        print("{} pos/sec {} secs".format( RAM_BATCH_SIZE * batch / (end - start), (end - start)))
+
+
+def benchmark1(t):
+    """
+        Benchmark for full input pipeline, including tensorflow conversion
+    """
+    batch=100
+    while True:
+        start = time.time()
+        for _ in range(batch):
+            t.session.run([t.next_batch],
+                    feed_dict={t.training: True, t.learning_rate: 0.01, t.handle: t.train_handle})
+
+        end = time.time()
+        print("{} pos/sec {} secs".format( RAM_BATCH_SIZE * batch / (end - start), (end - start)))
+
+
 def main():
     if len(sys.argv) != 2:
         print("Usage: {} config.yaml".format(sys.argv[0]))
@@ -273,34 +126,35 @@ def main():
     num_chunks = cfg['dataset']['num_chunks']
     chunks = get_latest_chunks(cfg['dataset']['input'], num_chunks)
 
-    # a chunk contains 200 samples and we're making 2 passes through a chunk when reading it in parse.py
-    num_samples = CHUNK_PASSES*200*num_chunks // SKIP 
+    num_samples = 200*num_chunks // SKIP 
     num_train = int(num_chunks*cfg['dataset']['train_ratio'])
     num_train_samples = int(num_samples*cfg['dataset']['train_ratio'])
     num_test_samples = num_samples - num_train_samples
+    batch_size = cfg['training']['batch_size']
 
     root_dir = os.path.join(cfg['training']['path'], cfg['name'])
     if not os.path.exists(root_dir):
         os.makedirs(root_dir)
 
-    batch_size = cfg['training']['batch_size']
+    #bench_parser = ChunkParser(FileDataSrc(chunks[:1000]), shuffle_size=1<<14, sample=SKIP, batch_size=batch_size)
+    #benchmark(bench_parser)
 
-    # main online loop
-    while True:
-        train_batch, train_parser = dataset_iterator(chunks[:num_train], batch_size, 1<<18)
-        test_batch, test_parser = dataset_iterator(chunks[num_train:], batch_size, 1<<13)
+    train_parser = ChunkParser(FileDataSrc(chunks[:num_train]), shuffle_size=1<<20, sample=SKIP, batch_size=batch_size).parse()
+    test_parser = ChunkParser(FileDataSrc(chunks[num_train:]), shuffle_size=1<<16, sample=SKIP, batch_size=batch_size).parse()
 
-        tfprocess = TFProcess(cfg, train_batch, test_batch, batch_size)
-        if os.path.exists(os.path.join(root_dir, 'checkpoint')):
-            cp = get_checkpoint(root_dir)
-            tfprocess.restore(cp)
 
-        for _ in range(cfg['training']['total_steps']):
-            tfprocess.process(batch_size)
+    tfprocess = TFProcess(cfg)
+    tfprocess.init(RAM_BATCH_SIZE, macrobatch=batch_size//RAM_BATCH_SIZE)
+    if os.path.exists(os.path.join(root_dir, 'checkpoint')):
+        cp = get_checkpoint(root_dir)
+        tfprocess.restore(cp)
 
-        chunks = get_latest_chunks(cfg['dataset']['input'], num_chunks)
+    # while True:
+    for _ in range(cfg['training']['total_steps']):
+        tfprocess.process(train_parser, test_parser)
 
 
 if __name__ == "__main__":
+    mp.set_start_method('spawn')
     main()
     mp.freeze_support()
