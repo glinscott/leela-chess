@@ -932,7 +932,7 @@ Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawDa
 
     // See if we already have this in the cache.
     if (!skip_cache) {
-        if (NNCache::get_NNCache().lookup(pos.cur().key(), result)) {
+        if (NNCache::get_NNCache().lookup(pos.cur().key_rule50(), result)) {
             return result;
         }
     }
@@ -942,7 +942,7 @@ Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawDa
     result = get_scored_moves_internal(pos, planes, debug_data);
 
     // Insert result into cache.
-    NNCache::get_NNCache().insert(pos.cur().key(), result);
+    NNCache::get_NNCache().insert(pos.cur().key_rule50(), result);
 
     return result;
 }

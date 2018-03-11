@@ -34,13 +34,15 @@
 using std::string;
 
 const char* Position::StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+static constexpr auto RULE50_SCALE = 10;
 
 namespace Zobrist {
 
   Key psq[PIECE_NB][SQUARE_NB];
   Key enpassant[FILE_NB];
   Key castling[CASTLING_RIGHT_NB];
-  Key side, noPawns;
+  Key side;
+  Key rule50[100/RULE50_SCALE];
 }
 
 namespace {
@@ -116,7 +118,14 @@ void Position::init() {
   }
 
   Zobrist::side = rng.RandInt<Key>();
-  Zobrist::noPawns = rng.RandInt<Key>();
+  for (int i = 0; i < 100/RULE50_SCALE; ++i) {
+      Zobrist::rule50[i] = rng.RandInt<Key>();
+  }
+}
+
+Key Position::key_rule50() const {
+  auto rule50 = st->rule50 / 10;
+  return st->key ^ Zobrist::rule50[rule50];
 }
 
 /// Position::set() initializes the position object with the given FEN string.
