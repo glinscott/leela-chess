@@ -32,8 +32,8 @@ import tensorflow as tf
 from tfprocess import TFProcess
 from chunkparser import ChunkParser
 
-SKIP = 8
-RAM_BATCH_SIZE = 2048
+SKIP = 16
+RAM_BATCH_SIZE = 512
 
 def get_checkpoint(root_dir):
     checkpoint = os.path.join(root_dir, 'checkpoint')
@@ -67,16 +67,15 @@ class FileDataSrc:
         data source yielding chunkdata from chunk files.
     """
     def __init__(self, chunks):
-        self.chunks = chunks
-        random.shuffle(self.chunks)
-        self.done = []
+        self.chunks = []
+        self.done = chunks
     def next(self):
         if not self.chunks:
             self.chunks = self.done
             random.shuffle(self.chunks)
         if not self.chunks:
             return None
-        while (True):
+        while len(self.chunks):
             filename = self.chunks.pop()
             try:
                 with gzip.open(filename, 'rb') as chunk_file:
@@ -139,8 +138,8 @@ def main():
     #bench_parser = ChunkParser(FileDataSrc(chunks[:1000]), shuffle_size=1<<14, sample=SKIP, batch_size=batch_size)
     #benchmark(bench_parser)
 
-    train_parser = ChunkParser(FileDataSrc(chunks[:num_train]), shuffle_size=1<<20, sample=SKIP, batch_size=batch_size).parse()
-    test_parser = ChunkParser(FileDataSrc(chunks[num_train:]), shuffle_size=1<<16, sample=SKIP, batch_size=batch_size).parse()
+    train_parser = ChunkParser(FileDataSrc(chunks[:num_train]), shuffle_size=1<<20, sample=SKIP, batch_size=RAM_BATCH_SIZE).parse()
+    test_parser = ChunkParser(FileDataSrc(chunks[num_train:]), shuffle_size=1<<16, sample=SKIP, batch_size=RAM_BATCH_SIZE).parse()
 
 
     tfprocess = TFProcess(cfg)

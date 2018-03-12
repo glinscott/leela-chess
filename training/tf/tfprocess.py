@@ -21,6 +21,7 @@ import os
 import random
 import tensorflow as tf
 import time
+import bisect
 
 def weight_variable(shape):
     """Xavier initialization"""
@@ -102,7 +103,7 @@ class TFProcess:
 
         self.training = tf.placeholder(tf.bool)
         self.learning_rate = tf.placeholder(tf.float32)
-        self.global_step = tf.Variable(0, name='global_step', trainable=False)
+        self.global_step = tf.Variable(1, name='global_step', trainable=False)
         self.lr = 0.01
 
     def init(self, batch_size, macrobatch=1, logbase='leelalogs'):
@@ -269,16 +270,14 @@ class TFProcess:
     def process(self, train_data, test_data):
         batch = next(train_data)
 
-        # fetch the current global step.
+        # Fetch the current global step.
         steps = tf.train.global_step(self.session, self.global_step)
 
-        # Determine learning rates
-        if steps % self.cfg['training']['total_steps'] == 0:
-            self.lr = self.cfg['training']['lr_values'][0]
-        elif steps > self.cfg['training']['lr_boundaries'][0]:
-            self.lr = self.cfg['training']['lr_values'][1]
-        elif steps > self.cfg['training']['lr_boundaries'][1]:
-            self.lr = self.cfg['training']['lr_values'][2]
+        # Determine learning rate
+        lr_values = self.cfg['training']['lr_values']
+        lr_boundaries = self.cfg['training']['lr_boundaries']
+        steps_total = steps % self.cfg['training']['total_steps']
+        self.lr = lr_values[bisect.bisect_right(lr_boundaries, steps_total)]
 
         # Measure losses and compute gradients for this batch.
         losses = self.measure_loss(batch, training=True)
