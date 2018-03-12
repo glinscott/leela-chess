@@ -182,11 +182,25 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 
+	network_id, err := strconv.ParseUint(c.PostForm("network_id"), 10, 32)
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Invalid network_id")
+		return
+	}
+
 	var network db.Network
-	err = db.GetDB().Where("id = ?", c.PostForm("network_id")).First(&network).Error
+	err = db.GetDB().Where("id = ?", network_id).First(&network).Error
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid network")
+		return
+	}
+
+	err = db.GetDB().Exec("UPDATE networks SET games_played = games_played + 1 WHERE id = ?", network_id).Error
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Internal error")
 		return
 	}
 
@@ -206,11 +220,11 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 	game := db.TrainingGame{
-		User:        user,
-		TrainingRun: *training_run,
-		Network:     network,
-		Version:     uint(version),
-		Pgn:         c.PostForm("pgn"),
+		UserID:        user.ID,
+		TrainingRunID: training_run.ID,
+		NetworkID:     network.ID,
+		Version:       uint(version),
+		Pgn:           c.PostForm("pgn"),
 	}
 	db.GetDB().Create(&game)
 	db.GetDB().Model(&game).Update("path", filepath.Join("games", fmt.Sprintf("run%d/training.%d.gz", training_run.ID, game.ID)))
@@ -300,16 +314,14 @@ func getProgress() ([]gin.H, error) {
 		return nil, err
 	}
 
-	counts, err := getNetworkCounts()
-	if err != nil {
-		return nil, err
-	}
+	counts := getNetworkCounts(networks)
 
 	result := []gin.H{}
 	result = append(result, gin.H{
 		"net":    0,
 		"rating": 0.0,
-		"best":   true,
+		"best":   false,
+		"sprt":   "FAIL",
 	})
 
 	var count uint64 = 0
@@ -317,14 +329,17 @@ func getProgress() ([]gin.H, error) {
 	var matchIdx int = 0
 	for _, network := range networks {
 		count += counts[network.ID]
+		var sprt string = "???"
 		for matchIdx < len(matches) && matches[matchIdx].CurrentBestID == network.ID {
 			elo += calcElo(matches[matchIdx].Wins, matches[matchIdx].Losses, matches[matchIdx].Draws)
 			matchIdx += 1
+			sprt = "PASS"
 		}
 		result = append(result, gin.H{
 			"net":    count,
 			"rating": elo,
 			"best":   true,
+			"sprt":   sprt,
 		})
 	}
 
@@ -410,22 +425,12 @@ func game(c *gin.Context) {
 	})
 }
 
-func getNetworkCounts() (map[uint]uint64, error) {
-	rows, err := db.GetDB().Raw(`SELECT network_id, count(*) FROM training_games GROUP BY network_id`).Rows()
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
+func getNetworkCounts(networks []db.Network) map[uint]uint64 {
 	counts := make(map[uint]uint64)
-	for rows.Next() {
-		var network_id uint
-		var count uint64
-		rows.Scan(&network_id, &count)
-		counts[network_id] = count
+	for _, network := range networks {
+		counts[network.ID] = uint64(network.GamesPlayed)
 	}
-
-	return counts, nil
+	return counts
 }
 
 func viewNetworks(c *gin.Context) {
@@ -438,13 +443,7 @@ func viewNetworks(c *gin.Context) {
 		return
 	}
 
-	counts, err := getNetworkCounts()
-	if err != nil {
-		log.Println(err)
-		c.String(500, "Internal error")
-		return
-	}
-
+	counts := getNetworkCounts(networks)
 	json := []gin.H{}
 	for _, network := range networks {
 		json = append(json, gin.H{
@@ -487,7 +486,24 @@ func viewTrainingRuns(c *gin.Context) {
 }
 
 func viewStats(c *gin.Context) {
-	c.HTML(http.StatusOK, "stats", gin.H{})
+	var networks []db.Network
+	err := db.GetDB().Order("id desc").Limit(3).Find(&networks).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	json := []gin.H{}
+	for _, network := range networks {
+		json = append(json, gin.H{
+			"short_sha": network.Sha[0:8],
+		})
+	}
+
+	c.HTML(http.StatusOK, "stats", gin.H{
+		"networks": json,
+	})
 }
 
 func createTemplates() multitemplate.Render {
