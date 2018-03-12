@@ -192,8 +192,9 @@ class ChunkParser:
         planes = np.unpackbits(np.frombuffer(planes, dtype=np.uint8))
         planes = planes.tobytes() + self.flat_planes[us_ooo] + self.flat_planes[us_oo] + self.flat_planes[them_ooo] + self.flat_planes[them_oo] + self.flat_planes[stm] + self.flat_planes[rule50_count] + self.flat_planes[move_count] + self.flat_planes[0]
         assert len(planes) == (120 * 8 * 8), len(planes)
-
-        winner = struct.pack('f', float(winner))
+        winner = float(winner)
+        assert winner == 1.0 or winner == -1.0 or winner == 0.0, winner
+        winner = struct.pack('f', winner)
 
         return (planes, probs, winner)
 

@@ -33,7 +33,7 @@ from tfprocess import TFProcess
 from chunkparser import ChunkParser
 
 SKIP = 16
-RAM_BATCH_SIZE = 512
+BATCH_SIZE = 2048
 
 def get_checkpoint(root_dir):
     checkpoint = os.path.join(root_dir, 'checkpoint')
@@ -85,6 +85,7 @@ class FileDataSrc:
                 print("failed to parse {}".format(filename))
 
 
+
 def benchmark(parser):
     """
         Benchmark for parser
@@ -96,7 +97,7 @@ def benchmark(parser):
         for _ in range(batch):
             next(gen)
         end = time.time()
-        print("{} pos/sec {} secs".format( RAM_BATCH_SIZE * batch / (end - start), (end - start)))
+        print("{} pos/sec {} secs".format( BATCH_SIZE * batch / (end - start), (end - start)))
 
 
 def benchmark1(t):
@@ -111,8 +112,20 @@ def benchmark1(t):
                     feed_dict={t.training: True, t.learning_rate: 0.01, t.handle: t.train_handle})
 
         end = time.time()
-        print("{} pos/sec {} secs".format( RAM_BATCH_SIZE * batch / (end - start), (end - start)))
+        print("{} pos/sec {} secs".format( BATCH_SIZE * batch / (end - start), (end - start)))
 
+def _parse_function(planes, probs, winner):
+    planes = tf.decode_raw(planes, tf.uint8)
+    probs = tf.decode_raw(probs, tf.float32)
+    winner = tf.decode_raw(winner, tf.float32)
+
+    planes = tf.to_float(planes)
+
+    planes = tf.reshape(planes, (BATCH_SIZE, 120, 8*8))
+    probs = tf.reshape(probs, (BATCH_SIZE, 1924))
+    winner = tf.reshape(winner, (BATCH_SIZE, 1))
+
+    return (planes, probs, winner)
 
 def main():
     if len(sys.argv) != 2:
@@ -129,28 +142,42 @@ def main():
     num_train = int(num_chunks*cfg['dataset']['train_ratio'])
     num_train_samples = int(num_samples*cfg['dataset']['train_ratio'])
     num_test_samples = num_samples - num_train_samples
-    batch_size = cfg['training']['batch_size']
+    shuffle_size = cfg['training']['shuffle_size']
+    BATCH_SIZE = cfg['training']['batch_size']
 
     root_dir = os.path.join(cfg['training']['path'], cfg['name'])
     if not os.path.exists(root_dir):
         os.makedirs(root_dir)
 
-    #bench_parser = ChunkParser(FileDataSrc(chunks[:1000]), shuffle_size=1<<14, sample=SKIP, batch_size=batch_size)
+    #bench_parser = ChunkParser(FileDataSrc(chunks[:1000]), shuffle_size=1<<14, sample=SKIP, batch_size=BATCH_SIZE)
     #benchmark(bench_parser)
 
-    train_parser = ChunkParser(FileDataSrc(chunks[:num_train]), shuffle_size=1<<20, sample=SKIP, batch_size=RAM_BATCH_SIZE).parse()
-    test_parser = ChunkParser(FileDataSrc(chunks[num_train:]), shuffle_size=1<<16, sample=SKIP, batch_size=RAM_BATCH_SIZE).parse()
+    train_parser = ChunkParser(FileDataSrc(chunks[:num_train]),
+            shuffle_size=shuffle_size, sample=SKIP, batch_size=BATCH_SIZE)
+    #benchmark(train_parser)
+    dataset = tf.data.Dataset.from_generator(
+        train_parser.parse, output_types=(tf.string, tf.string, tf.string))
+    dataset = dataset.map(_parse_function)
+    dataset = dataset.prefetch(4)
+    train_iterator = dataset.make_one_shot_iterator()
 
+    test_parser = ChunkParser(FileDataSrc(chunks[num_train:]), batch_size=BATCH_SIZE)
+    dataset = tf.data.Dataset.from_generator(
+        test_parser.parse, output_types=(tf.string, tf.string, tf.string))
+    dataset = dataset.map(_parse_function)
+    dataset = dataset.prefetch(4)
+    test_iterator = dataset.make_one_shot_iterator()
 
     tfprocess = TFProcess(cfg)
-    tfprocess.init(RAM_BATCH_SIZE, macrobatch=batch_size//RAM_BATCH_SIZE)
+    tfprocess.init(dataset, train_iterator, test_iterator)
+
     if os.path.exists(os.path.join(root_dir, 'checkpoint')):
         cp = get_checkpoint(root_dir)
         tfprocess.restore(cp)
 
     # while True:
     for _ in range(cfg['training']['total_steps']):
-        tfprocess.process(train_parser, test_parser)
+        tfprocess.process(BATCH_SIZE)
 
 
 if __name__ == "__main__":

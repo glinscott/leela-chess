@@ -5,12 +5,13 @@ gpu: 0                                 # gpu id to process on
 
 dataset: 
   num_chunks: 100000                   # nof chunks to parse (new to old)
-  train_ratio: 0.75                    # trainingset ratio
+  train_ratio: 0.90                    # trainingset ratio
   input: '/path/to/chunks/*/draw/'     # supports glob
 
 training:
     batch_size: 2048
-    total_steps: 150000
+    total_steps: 140000
+    shuffle_size: 524288
     lr_values:
         - 0.02
         - 0.002
