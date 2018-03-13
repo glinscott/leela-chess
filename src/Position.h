@@ -145,7 +145,7 @@ public:
 
   // Accessing hash keys
   Key key() const;
-  Key key_rule50() const;
+  Key full_key() const;
   Key key_after(Move m) const;
   Key material_key() const;
   Key pawn_key() const;
@@ -154,7 +154,7 @@ public:
   Color side_to_move() const;
   int game_ply() const;
   bool is_draw() const;
-	int repetitions_count() const;
+  int repetitions_count() const;
   int rule50_count() const;
 
   // Position consistency check, for debugging
