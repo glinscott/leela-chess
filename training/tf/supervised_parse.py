@@ -51,14 +51,14 @@ class BinaryParser:
                 yield data[i*self.example_len:i*self.example_len+self.example_len]
 
 
-def dataset_iterator(filename, batch_size):
+def dataset_iterator(filename, batch_size, shuffle_size):
     parser = BinaryParser(filename, batch_size)
     ds = tf.data.Dataset.from_generator(
         parser.parse_chunk, output_types=(tf.string))
-    ds = ds.shuffle(1 << 18)
+    ds = ds.shuffle(shuffle_size)
     ds = ds.map(parse._parse_function)
     ds = ds.batch(batch_size)
-    ds = ds.prefetch(8)
+    ds = ds.prefetch(4)
     iterator = ds.make_one_shot_iterator()
     return iterator.get_next(), parser
 
@@ -74,13 +74,13 @@ def main():
     batch_size = cfg['training']['batch_size']
 
     filename = os.path.join(cfg['dataset']['path'], 'train.bin')
-    train_next_batch, parser = dataset_iterator(filename, batch_size)
+    train_next_batch, parser = dataset_iterator(filename, batch_size, 1<<19)
     print("Creating trainingset from {}".format(filename))
     num_eval = parser.num_samples() // batch_size
     print("Train epoch in {} steps".format(num_eval))
 
     filename = os.path.join(cfg['dataset']['path'], 'test.bin')
-    test_next_batch, parser = dataset_iterator(filename, batch_size)
+    test_next_batch, parser = dataset_iterator(filename, batch_size, 1<<12)
     print("Creating testset from {}".format(filename))
     num_eval = parser.num_samples() // batch_size
     print("Test epoch in {} steps".format(num_eval))
@@ -90,6 +90,7 @@ def main():
     root_dir = os.path.join(cfg['training']['path'], cfg['name'])
     if os.path.exists(os.path.join(root_dir, 'checkpoint')):
         checkpoint = parse.get_checkpoint(root_dir)
+        print("Restoring from {}".format(checkpoing))
         tfprocess.restore(checkpoint)
 
     if not os.path.exists(root_dir):
