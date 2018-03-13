@@ -90,7 +90,7 @@ def main():
     root_dir = os.path.join(cfg['training']['path'], cfg['name'])
     if os.path.exists(os.path.join(root_dir, 'checkpoint')):
         checkpoint = parse.get_checkpoint(root_dir)
-        print("Restoring from {}".format(checkpoing))
+        print("Restoring from {}".format(checkpoint))
         tfprocess.restore(checkpoint)
 
     if not os.path.exists(root_dir):
