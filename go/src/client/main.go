@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -14,15 +16,18 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"client/http"
+	"github.com/notnil/chess"
 )
 
 var HOSTNAME = flag.String("hostname", "http://162.217.248.187", "Address of the server")
 var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
-var GPU = flag.Int("gpu", 0, "ID of the OpenCL device to use")
+var GPU = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
+var DEBUG = flag.Bool("debug", false, "Enable debug mode to see verbose output")
 
 type Settings struct {
 	User string
@@ -66,15 +71,19 @@ func readSettings(path string) (string, string) {
 	return settings.User, settings.Pass
 }
 
-func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse) error {
-	extraParams := map[string]string{
-		"user":        *USER,
-		"password":    *PASSWORD,
-		"version":     "1",
-		"training_id": strconv.Itoa(int(nextGame.TrainingId)),
-		"network_id":  strconv.Itoa(int(nextGame.NetworkId)),
-		"pgn":         pgn,
+func getExtraParams() map[string]string {
+	return map[string]string{
+		"user":     *USER,
+		"password": *PASSWORD,
+		"version":  "2",
 	}
+}
+
+func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse) error {
+	extraParams := getExtraParams()
+	extraParams["training_id"] = strconv.Itoa(int(nextGame.TrainingId))
+	extraParams["network_id"] = strconv.Itoa(int(nextGame.NetworkId))
+	extraParams["pgn"] = pgn
 	request, err := client.BuildUploadRequest(*HOSTNAME+"/upload_game", extraParams, "file", path)
 	if err != nil {
 		return err
@@ -96,17 +105,147 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 	return nil
 }
 
-/*
-func playMatch() {
-	p1 := exec.Command("lczero")
-  p1_in, _ := p1.StdinPipe()
-  p1_out, _ := p1.StdoutPipe()
-  p1.Start()
-  p1.Write("...")
+type CmdWrapper struct {
+	Cmd      *exec.Cmd
+	Pgn      string
+	Input    io.WriteCloser
+	BestMove chan string
 }
-*/
 
-func train(networkPath string) (string, string) {
+func (c *CmdWrapper) openInput() {
+	var err error
+	c.Input, err = c.Cmd.StdinPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
+	c.BestMove = make(chan string)
+	weights := fmt.Sprintf("--weights=%s", networkPath)
+	dir, _ := os.Getwd()
+	c.Cmd = exec.Command(path.Join(dir, "lczero"), weights, "-t1")
+	c.Cmd.Args = append(c.Cmd.Args, args...)
+	if *GPU != -1 {
+		c.Cmd.Args = append(c.Cmd.Args, fmt.Sprintf("--gpu=%v", *GPU))
+	}
+	if !*DEBUG {
+		c.Cmd.Args = append(c.Cmd.Args, "--quiet")
+	}
+	fmt.Printf("Args: %v\n", c.Cmd.Args)
+
+	stdout, err := c.Cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	stderr, err := c.Cmd.StderrPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	go func() {
+		stdoutScanner := bufio.NewScanner(stdout)
+		reading_pgn := false
+		for stdoutScanner.Scan() {
+			line := stdoutScanner.Text()
+			fmt.Printf("%s\n", line)
+			if line == "PGN" {
+				reading_pgn = true
+			} else if line == "END" {
+				reading_pgn = false
+			} else if reading_pgn {
+				c.Pgn += line + "\n"
+			} else if strings.HasPrefix(line, "bestmove ") {
+				c.BestMove <- strings.Split(line, " ")[1]
+			}
+		}
+	}()
+
+	go func() {
+		stderrScanner := bufio.NewScanner(stderr)
+		for stderrScanner.Scan() {
+			fmt.Printf("%s\n", stderrScanner.Text())
+		}
+	}()
+
+	if input {
+		c.openInput()
+	}
+
+	err = c.Cmd.Start()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func playMatch(baselinePath string, candidatePath string, params []string, flip bool) (int, string) {
+	baseline := CmdWrapper{}
+	baseline.launch(baselinePath, params, true)
+	defer baseline.Input.Close()
+
+	candidate := CmdWrapper{}
+	candidate.launch(candidatePath, params, true)
+	defer candidate.Input.Close()
+
+	p1 := &candidate
+	p2 := &baseline
+
+	if flip {
+		p2, p1 = p1, p2
+	}
+
+	io.WriteString(baseline.Input, "uci\n")
+	io.WriteString(candidate.Input, "uci\n")
+
+	// Play a game using UCI
+	var result int
+	game := chess.NewGame(chess.UseNotation(chess.LongAlgebraicNotation{}))
+	move_history := ""
+	for {
+		moves := game.ValidMoves()
+		if len(moves) == 0 {
+			if game.Outcome() == chess.WhiteWon {
+				result = 1
+			} else if game.Outcome() == chess.BlackWon {
+				result = -1
+			} else {
+				result = 0
+			}
+
+			// Always report the result relative to the candidate engine (which defaults to white, unless flip = true)
+			if flip {
+				result = -result
+			}
+			break
+		}
+
+		var p *CmdWrapper
+		if game.Position().Turn() == chess.White {
+			p = p1
+		} else {
+			p = p2
+		}
+		io.WriteString(p.Input, "position startpos"+move_history+"\n")
+		io.WriteString(p.Input, "go\n")
+
+		best_move := <-p.BestMove
+		err := game.MoveStr(best_move)
+		if err != nil {
+			log.Println("Error decoding: " + best_move + " for game:\n" + game.String())
+			log.Fatal(err)
+		}
+		if len(move_history) == 0 {
+			move_history = " moves"
+		}
+		move_history += " " + best_move
+	}
+
+	chess.UseNotation(chess.AlgebraicNotation{})(game)
+	return result, game.String()
+}
+
+func train(networkPath string, params []string) (string, string) {
 	// pid is intended for use in multi-threaded training
 	pid := os.Getpid()
 
@@ -128,66 +267,33 @@ func train(networkPath string) (string, string) {
 	}
 
 	num_games := 1
-	gpu_id := fmt.Sprintf("--gpu=%v", *GPU)
 	train_cmd := fmt.Sprintf("--start=train %v %v", pid, num_games)
-	weights := fmt.Sprintf("--weights=%s", networkPath)
-	// cmd := exec.Command(path.Join(dir, "lczero"), weights, "--randomize", "-n", "-t1", "-p20", "--noponder", "--quiet", train_cmd)
-	cmd := exec.Command(path.Join(dir, "lczero"), weights, gpu_id, "--randomize", "-n", "-t1", "--quiet", train_cmd)
+	params = append(params, train_cmd)
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Fatal(err)
-	}
-	stdoutScanner := bufio.NewScanner(stdout)
-	pgn := ""
-	go func() {
-		reading_pgn := false
-		for stdoutScanner.Scan() {
-			line := stdoutScanner.Text()
-			fmt.Printf("%s\n", line)
-			if line == "PGN" {
-				reading_pgn = true
-			} else if line == "END" {
-				reading_pgn = false
-			} else if reading_pgn {
-				pgn += line + "\n"
-			}
-		}
-	}()
+	c := CmdWrapper{}
+	c.launch(networkPath, params, false)
 
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		log.Fatal(err)
-	}
-	stderrScanner := bufio.NewScanner(stderr)
-	go func() {
-		for stderrScanner.Scan() {
-			fmt.Printf("%s\n", stderrScanner.Text())
-		}
-	}()
-
-	err = cmd.Start()
+	err := c.Cmd.Wait()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = cmd.Wait()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return path.Join(train_dir, "training.0.gz"), pgn
+	return path.Join(train_dir, "training.0.gz"), c.Pgn
 }
 
-func getNetwork(httpClient *http.Client, sha string) (string, error) {
+func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, error) {
 	// Sha already exists?
 	path := filepath.Join("networks", sha)
-	if _, err := os.Stat(path); err == nil {
-		return path, nil
+	if stat, err := os.Stat(path); err == nil {
+		if stat.Size() != 0 {
+			return path, nil
+		}
 	}
 
-	// Clean out any old networks
-	os.RemoveAll("networks")
+	if clearOld {
+		// Clean out any old networks
+		os.RemoveAll("networks")
+	}
 	os.MkdirAll("networks", os.ModePerm)
 
 	fmt.Printf("Downloading network...\n")
@@ -199,18 +305,40 @@ func getNetwork(httpClient *http.Client, sha string) (string, error) {
 	return path, nil
 }
 
-func nextGame(httpClient *http.Client, hostname string) error {
-	nextGame, err := client.NextGame(httpClient, *HOSTNAME)
+func nextGame(httpClient *http.Client) error {
+	nextGame, err := client.NextGame(httpClient, *HOSTNAME, getExtraParams())
 	if err != nil {
 		return err
 	}
-	networkPath, err := getNetwork(httpClient, nextGame.Sha)
+	var params []string
+	err = json.Unmarshal([]byte(nextGame.Params), &params)
 	if err != nil {
 		return err
 	}
-	trainFile, pgn := train(networkPath)
-	uploadGame(httpClient, trainFile, pgn, nextGame)
-	return nil
+
+	if nextGame.Type == "match" {
+		networkPath, err := getNetwork(httpClient, nextGame.Sha, false)
+		if err != nil {
+			return err
+		}
+		candidatePath, err := getNetwork(httpClient, nextGame.CandidateSha, false)
+		if err != nil {
+			return err
+		}
+		result, pgn := playMatch(networkPath, candidatePath, params, nextGame.Flip)
+		client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
+		return nil
+	} else if nextGame.Type == "train" {
+		networkPath, err := getNetwork(httpClient, nextGame.Sha, true)
+		if err != nil {
+			return err
+		}
+		trainFile, pgn := train(networkPath, params)
+		uploadGame(httpClient, trainFile, pgn, nextGame)
+		return nil
+	}
+
+	return errors.New("Unknown game type: " + nextGame.Type)
 }
 
 func main() {
@@ -229,7 +357,7 @@ func main() {
 
 	httpClient := &http.Client{}
 	for {
-		err := nextGame(httpClient, *HOSTNAME)
+		err := nextGame(httpClient)
 		if err != nil {
 			log.Print(err)
 			log.Print("Sleeping for 30 seconds...")
