@@ -30,6 +30,7 @@ import struct
 import sys
 import threading
 import time
+import tensorflow as tf
 import unittest
 
 # 14*8 planes, 4 castling, 1 color, 1 50rule, 1 movecount, 1 unused
@@ -45,6 +46,8 @@ class ChunkDataSrc:
         return self.items.pop()
 
 class ChunkParser:
+    # static batch size
+    BATCH_SIZE = 8
     def __init__(self, chunkdatasrc, shuffle_size=1, sample=1, buffer_size=1, batch_size=256, workers=None):
         """
             Read data and yield batches of raw tensors.
@@ -118,6 +121,23 @@ class ChunkParser:
         # uint8 move_count (1 byte)
         # int8 result (1 byte)
         self.v2_struct = struct.Struct('4s7696s896sBBBBBBBb')
+
+    @staticmethod
+    def parse_function(planes, probs, winner):
+        """
+        Convert v2 to tensors
+        """
+        planes = tf.decode_raw(planes, tf.uint8)
+        probs = tf.decode_raw(probs, tf.float32)
+        winner = tf.decode_raw(winner, tf.float32)
+
+        planes = tf.to_float(planes)
+
+        planes = tf.reshape(planes, (ChunkParser.BATCH_SIZE, 120, 8*8))
+        probs = tf.reshape(probs, (ChunkParser.BATCH_SIZE, 1924))
+        winner = tf.reshape(winner, (ChunkParser.BATCH_SIZE, 1))
+
+        return (planes, probs, winner)
 
     def convert_v1_to_v2(self, text_item):
         """
@@ -322,11 +342,11 @@ class ChunkParserTest(unittest.TestCase):
         integer = []
         for i in range(5):
             integer.append(np.random.randint(2))
-        integer.append(np.random.randint(50))
+        integer.append(np.random.randint(100))
         integer.append(np.random.randint(255))
 
         # 2. 1924 probs
-        probs = np.random.randint(3, size=1924).tolist()
+        probs = np.random.randint(9, size=1924).tolist()
 
         # 3. And a winner: 1, 0, -1
         winner = [ float(np.random.randint(3) - 1) ]
@@ -343,23 +363,7 @@ class ChunkParserTest(unittest.TestCase):
         """
         batch_size=256
         # First, build a random game position.
-        planes, integer, probs, winner = self.generate_fake_pos()
-
-        # Convert that to a v1 text record.
-        items = []
-        for p in range(112):
-            h = str(np.packbits([int(x) for x in planes[p]]).tobytes().hex())
-            items.append(h + "\n")
-        # then integer info
-        for i in integer:
-            items.append(str(i) + "\n")
-        # then probabilities
-        items.append(' '.join([str(x) for x in probs]) + "\n")
-        # and finally if the side to move is a winner
-        items.append(str(int(winner[0])) + "\n")
-
-        # Convert to a chunkdata byte string.
-        chunkdata = ''.join(items).encode('ascii')
+        planes, integer, probs, winner, chunkdata = self.v1_gen()
 
         # feed batch_size copies into parser
         chunkdatasrc = ChunkDataSrc([chunkdata for _ in range(batch_size*2)])
@@ -386,6 +390,75 @@ class ChunkParserTest(unittest.TestCase):
         # drain parser
         for _ in batchgen:
             pass
+
+
+    def v1_gen(self):
+        """
+            Generate a batch of random v1 fake positions
+        """
+        # First, build a random game position.
+        planes, integer, probs, winner = self.generate_fake_pos()
+
+        # Convert that to a v1 text record.
+        items = []
+        for p in range(112):
+            h = str(np.packbits([int(x) for x in planes[p]]).tobytes().hex())
+            items.append(h + "\n")
+        # then integer info
+        for i in integer:
+            items.append(str(i) + "\n")
+        # then probabilities
+        items.append(' '.join([str(x) for x in probs]) + "\n")
+        # and finally if the side to move is a winner
+        items.append(str(int(winner[0])) + "\n")
+
+        # Convert to a chunkdata byte string and return original data
+        return planes, integer, probs, winner, ''.join(items).encode('ascii')
+
+
+    def test_tensorflow_parsing(self):
+        """
+            Test game position decoding pipeline including tensorflow.
+        """
+        batch_size = ChunkParser.BATCH_SIZE
+        chunks = []
+        original = []
+        for i in range(batch_size):
+            planes, integer, probs, winner, chunk = self.v1_gen()
+            chunks.append(chunk)
+            original.append((planes, integer, probs, winner))
+
+        # feed batch_size copies into parser
+        chunkdatasrc = ChunkDataSrc(chunks)
+        parser = ChunkParser(chunkdatasrc,
+                shuffle_size=1, workers=1,batch_size=batch_size)
+
+        # Get one batch from the parser
+        batchgen = parser.parse()
+        data = next(batchgen)
+        probs = np.frombuffer(data[1], dtype=np.float32, count=1924*batch_size)
+        probs = probs.reshape(batch_size, 1924)
+        planes = np.frombuffer(data[0], dtype=np.uint8, count=120*8*8*batch_size)
+        planes = planes.reshape(batch_size, 120, 8*8)
+        planes = planes.astype(np.float32)
+        winner = np.frombuffer(data[2], dtype=np.float32, count=1*batch_size)
+
+        # Pass it through tensorflow
+        with tf.Session() as sess:
+            graph = ChunkParser.parse_function(data[0], data[1], data[2])
+            tf_planes, tf_probs, tf_winner = sess.run(graph)
+
+            for i in range(batch_size):
+                assert (probs[i] == tf_probs[i]).all()
+                assert (planes[i] == tf_planes[i]).all()
+                assert (winner[i] == tf_winner[i]).all()
+
+        print("Test parse passes")
+
+        # drain parser
+        for _ in batchgen:
+            pass
+
 
 
 if __name__ == '__main__':
