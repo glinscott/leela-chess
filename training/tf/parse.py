@@ -138,10 +138,7 @@ def main():
     num_chunks = cfg['dataset']['num_chunks']
     chunks = get_latest_chunks(cfg['dataset']['input'], num_chunks)
 
-    num_samples = 200*num_chunks // SKIP 
     num_train = int(num_chunks*cfg['dataset']['train_ratio'])
-    num_train_samples = int(num_samples*cfg['dataset']['train_ratio'])
-    num_test_samples = num_samples - num_train_samples
     shuffle_size = cfg['training']['shuffle_size']
     BATCH_SIZE = cfg['training']['batch_size']
 
