@@ -30,12 +30,12 @@ NNCache& NNCache::get_NNCache(void) {
 }
 
 bool NNCache::lookup(Key hash, Network::Netresult & result) {
+    std::lock_guard<std::mutex> lock(m_mutex);
 #ifndef NDEBUG
     if (m_lookups % 10000 == 0) {
         dump_stats();
     }
 #endif
-    std::lock_guard<std::mutex> lock(m_mutex);
     ++m_lookups;
 
     auto iter = m_cache.find(hash);
