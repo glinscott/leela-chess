@@ -23,6 +23,9 @@ import tensorflow as tf
 import time
 import bisect
 
+NUM_STEP_TRAIN = 200
+NUM_STEP_TEST = 4000
+
 def weight_variable(shape):
     """Xavier initialization"""
     stddev = np.sqrt(2.0 / (sum(shape)))
@@ -181,9 +184,15 @@ class TFProcess:
         print("Restoring from {0}".format(file))
         self.saver.restore(self.session, file)
 
-    def process(self, batch_size):
+    def process(self, batch_size, test_batches):
         if not self.time_start:
             self.time_start = time.time()
+
+        # Run training for this batch
+        policy_loss, mse_loss, reg_term, _, _ = self.session.run(
+            [self.policy_loss, self.mse_loss, self.reg_term, self.train_op,
+                self.next_batch],
+            feed_dict={self.training: True, self.learning_rate: self.lr, self.handle: self.train_handle})
 
         steps = tf.train.global_step(self.session, self.global_step)
 
@@ -193,24 +202,21 @@ class TFProcess:
         steps_total = steps % self.cfg['training']['total_steps']
         self.lr = lr_values[bisect.bisect_right(lr_boundaries, steps_total)]
 
-        # Run training for this batch
-        policy_loss, mse_loss, reg_term, _, _ = self.session.run(
-            [self.policy_loss, self.mse_loss, self.reg_term, self.train_op,
-                self.next_batch],
-            feed_dict={self.training: True, self.learning_rate: self.lr, self.handle: self.train_handle})
         # Keep running averages
         # Google's paper scales MSE by 1/4 to a [0, 1] range, so do the same to
         # get comparable values.
-        mse_loss = mse_loss / 4.0
+        mse_loss /= 4.0
         self.avg_policy_loss.append(policy_loss)
         self.avg_mse_loss.append(mse_loss)
         self.avg_reg_term.append(reg_term)
-        if steps % 100 == 0:
+        if steps % NUM_STEP_TRAIN == 0:
+            pol_loss_w = self.cfg['training']['policy_loss_weight']
+            val_loss_w = self.cfg['training']['value_loss_weight']
             time_end = time.time()
             speed = 0
             if self.time_start:
                 elapsed = time_end - self.time_start
-                speed = batch_size * (100.0 / elapsed)
+                speed = batch_size * (NUM_STEP_TRAIN / elapsed)
             avg_policy_loss = np.mean(self.avg_policy_loss or [0])
             avg_mse_loss = np.mean(self.avg_mse_loss or [0])
             avg_reg_term = np.mean(self.avg_reg_term or [0])
@@ -220,7 +226,7 @@ class TFProcess:
                 # value being optimized.
                 # If you changed the factor in the loss formula above, you need
                 # to change it here as well for correct outputs.
-                avg_policy_loss + 1.0 * 4.0 * avg_mse_loss + avg_reg_term,
+                pol_loss_w * avg_policy_loss + val_loss_w * avg_mse_loss + avg_reg_term,
                 speed))
             train_summaries = tf.Summary(value=[
                 tf.Summary.Value(tag="Policy Loss", simple_value=avg_policy_loss),
@@ -228,11 +234,11 @@ class TFProcess:
             self.train_writer.add_summary(train_summaries, steps)
             self.time_start = time_end
             self.avg_policy_loss, self.avg_mse_loss, self.avg_reg_term = [], [], []
-        if steps % 1000 == 0:
+
+        if steps % NUM_STEP_TEST == 0:
             sum_accuracy = 0
             sum_mse = 0
             sum_policy = 0
-            test_batches = 20
             for _ in range(0, test_batches):
                 test_policy, test_accuracy, test_mse, _ = self.session.run(
                     [self.policy_loss, self.accuracy, self.mse_loss,
@@ -243,6 +249,7 @@ class TFProcess:
                 sum_mse += test_mse
                 sum_policy += test_policy
             sum_accuracy /= test_batches
+            sum_accuracy *= 100
             sum_policy /= test_batches
             # Additionally rescale to [0, 1] so divide by 4
             sum_mse /= (4.0 * test_batches)
@@ -251,9 +258,9 @@ class TFProcess:
                 tf.Summary.Value(tag="Policy Loss", simple_value=sum_policy),
                 tf.Summary.Value(tag="MSE Loss", simple_value=sum_mse)])
             self.test_writer.add_summary(test_summaries, steps)
-            print("step {}, policy={:g} training accuracy={:g}%, mse={:g}".\
-                format(steps, sum_policy, sum_accuracy*100.0, sum_mse))
-            path = os.path.join(os.getcwd(), "leelaz-model")
+            print("step {}, lr={} policy={:g} training accuracy={:g}%, mse={:g}".\
+                format(steps, self.lr, sum_policy, sum_accuracy, sum_mse))
+            path = os.path.join(self.root_dir, self.cfg['name'])
             save_path = self.saver.save(self.session, path, global_step=steps)
             print("Model saved in file: {}".format(save_path))
             leela_path = path + "-" + str(steps) + ".txt"

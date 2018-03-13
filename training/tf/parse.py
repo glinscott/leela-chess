@@ -72,7 +72,7 @@ class FileDataSrc:
         self.done = chunks
     def next(self):
         if not self.chunks:
-            self.chunks = self.done
+            self.chunks, self.done = self.done, self.chunks
             random.shuffle(self.chunks)
         if not self.chunks:
             return None
@@ -160,9 +160,12 @@ def main():
         cp = get_checkpoint(root_dir)
         tfprocess.restore(cp)
 
+    num_evals = ((num_chunks-num_train) * (200 // SKIP)) // ChunkParser.BATCH_SIZE
+    print("Using {} evaluation batches".format(num_evals))
+
     # while True:
     for _ in range(cfg['training']['total_steps']):
-        tfprocess.process(ChunkParser.BATCH_SIZE)
+        tfprocess.process(ChunkParser.BATCH_SIZE, num_evals)
 
 
 if __name__ == "__main__":
