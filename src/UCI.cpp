@@ -374,7 +374,7 @@ string UCI::move(Move m) {
 /// UCI::to_move() converts a string representing a move in coordinate notation
 /// (g1f3, a7a8q) to the corresponding legal Move, if any.
 
-Move UCI::to_move(const Position& pos, string& str) { 
+Move UCI::to_move(const Position& pos, string const& str) {
     for (const auto& m : MoveList<LEGAL>(pos))
         if (str == UCI::move(m))
             return m;

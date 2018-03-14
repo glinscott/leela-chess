@@ -51,6 +51,7 @@
 #include "Utils.h"
 #include "Random.h"
 #include "Network.h"
+#include "NNCache.h"
 #include "Utils.h"
 #include "Parameters.h"
 #include "Timing.h"
@@ -926,10 +927,25 @@ void Network::softmax(const std::vector<float>& input,
     }
 }
 
-Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawData* debug_data) {
+Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawData* debug_data, bool skip_cache) {
+    Netresult result;
+    auto full_key = pos.cur().full_key();
+
+    // See if we already have this in the cache.
+    if (!skip_cache) {
+        if (NNCache::get_NNCache().lookup(full_key, result)) {
+            return result;
+        }
+    }
+
     NNPlanes planes;
     gather_features(pos, planes);
-    return get_scored_moves_internal(pos, planes, debug_data);
+    result = get_scored_moves_internal(pos, planes, debug_data);
+
+    // Insert result into cache.
+    NNCache::get_NNCache().insert(full_key, result);
+
+    return result;
 }
 
 Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, NNPlanes& planes, DebugRawData* debug_data) {

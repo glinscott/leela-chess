@@ -50,7 +50,8 @@ CPPFLAGS += -MD -MP
 
 sources = Network.cpp Training.cpp UCTSearch.cpp Utils.cpp Random.cpp Parameters.cpp \
 		UCTNode.cpp OpenCL.cpp Timing.cpp main.cpp Tuner.cpp \
-		Bitboard.cpp Movegen.cpp Position.cpp UCI.cpp pgn.cpp SMP.cpp OpenCLScheduler.cpp
+		Bitboard.cpp Movegen.cpp Position.cpp UCI.cpp pgn.cpp SMP.cpp OpenCLScheduler.cpp \
+		NNCache.cpp
 
 objects = $(sources:.cpp=.o)
 deps = $(sources:%.cpp=%.d)

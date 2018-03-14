@@ -69,7 +69,7 @@ void init(OptionsMap&);
 void loop(const std::string& start);
 std::string square(Square s);
 std::string move(Move m);
-Move to_move(const Position& pos, std::string& str);
+Move to_move(const Position& pos, std::string const& str);
 
 template<bool Root>
 uint64_t perft(BoardHistory& bh, Depth depth);
