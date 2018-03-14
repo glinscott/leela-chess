@@ -5,18 +5,23 @@ gpu: 0                                 # gpu id to process on
 
 dataset: 
   num_chunks: 100000                   # nof chunks to parse (new to old)
-  train_ratio: 0.75                    # trainingset ratio
+  train_ratio: 0.90                    # trainingset ratio
   input: '/path/to/chunks/*/draw/'     # supports glob
-  path: '/path/to/dataset'             # output dir
 
 training:
-  batch_size: 1024
-  learning_rate: 0.1
-  decay_rate: 0.1
-  decay_step: 100000
-  policy_loss_weight: 1.0
-  value_loss_weight: 0.01
-  path: '/tmp/testnet'
+    batch_size: 2048
+    total_steps: 140000
+    shuffle_size: 524288
+    lr_values:
+        - 0.02
+        - 0.002
+        - 0.0005
+    lr_boundaries:
+        - 100000
+        - 130000
+    policy_loss_weight: 1.0
+    value_loss_weight: 1.0
+    path: '/path/to/store/networks'
 
 model:
   filters: 64

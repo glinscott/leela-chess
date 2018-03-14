@@ -1,6 +1,7 @@
 *.d
 *.o
 *.out
+*.pgn
 cutechess-cli
 leelaz_opencl_tuning
 env/
