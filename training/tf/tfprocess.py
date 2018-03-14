@@ -258,8 +258,8 @@ class TFProcess:
                 tf.Summary.Value(tag="Policy Loss", simple_value=sum_policy),
                 tf.Summary.Value(tag="MSE Loss", simple_value=sum_mse)])
             self.test_writer.add_summary(test_summaries, steps)
-            print("step {}, lr={} policy={:g} training accuracy={:g}%, mse={:g}".\
-                format(steps, self.lr, sum_policy, sum_accuracy, sum_mse))
+            print("step {}, policy={:g} training accuracy={:g}%, mse={:g}".\
+                format(steps, sum_policy, sum_accuracy, sum_mse))
             path = os.path.join(self.root_dir, self.cfg['name'])
             save_path = self.saver.save(self.session, path, global_step=steps)
             print("Model saved in file: {}".format(save_path))
