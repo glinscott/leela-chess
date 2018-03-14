@@ -24,7 +24,7 @@ import time
 import bisect
 
 NUM_STEP_TRAIN = 200
-NUM_STEP_TEST = 4000
+NUM_STEP_TEST = 2000
 
 def weight_variable(shape):
     """Xavier initialization"""
@@ -220,8 +220,8 @@ class TFProcess:
             avg_policy_loss = np.mean(self.avg_policy_loss or [0])
             avg_mse_loss = np.mean(self.avg_mse_loss or [0])
             avg_reg_term = np.mean(self.avg_reg_term or [0])
-            print("step {}, policy={:g} mse={:g} reg={:g} total={:g} ({:g} pos/s)".format(
-                steps, avg_policy_loss, avg_mse_loss, avg_reg_term,
+            print("step {}, lr={:g} policy={:g} mse={:g} reg={:g} total={:g} ({:g} pos/s)".format(
+                steps, self.lr, avg_policy_loss, avg_mse_loss, avg_reg_term,
                 # Scale mse_loss back to the original to reflect the actual
                 # value being optimized.
                 # If you changed the factor in the loss formula above, you need

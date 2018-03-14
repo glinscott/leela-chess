@@ -160,7 +160,8 @@ def main():
         cp = get_checkpoint(root_dir)
         tfprocess.restore(cp)
 
-    num_evals = ((num_chunks-num_train) * (200 // SKIP)) // ChunkParser.BATCH_SIZE
+    # Sweeps through all test chunks statistically
+    num_evals = int(round(((num_chunks-num_train) * (200 / SKIP)) / ChunkParser.BATCH_SIZE))
     print("Using {} evaluation batches".format(num_evals))
 
     # while True:
