@@ -159,6 +159,23 @@ void Training::dump_training(int game_score, const std::string& out_filename) {
 }
 
 void Training::dump_training_v2(int game_score, OutputChunker& outchunk) {
+    /**
+     * From chunkparser.py
+     *
+     * V2 Format (8604 bytes total)
+     * int32 version (4 bytes)
+     * 1924 float32 probabilities (7696 bytes)
+     * 112 packed bit planes (896 bytes)
+     * uint8 castling us_ooo (1 byte)
+     * uint8 castling us_oo (1 byte)
+     * uint8 castling them_ooo (1 byte)
+     * uint8 castling them_oo (1 byte)
+     * uint8 side_to_move (1 byte)
+     * uint8 rule50_count (1 byte)
+     * uint8 move_count (1 byte)
+     * int8 result (1 byte)
+     * self.v2_struct = struct.Struct('4s7696s896sBBBBBBBb')
+     */
     static int VERSION = 1;
 
     std::stringstream out;
@@ -167,12 +184,14 @@ void Training::dump_training_v2(int game_score, OutputChunker& outchunk) {
         out.write(reinterpret_cast<char*>(&VERSION), sizeof(VERSION));
 
         // Then the move probabilities (7696 bytes)
+        assert(step.probabilities.size()*sizeof(step.probabilities[0]) == 7696);
         for (auto p : step.probabilities) {
             out.write(reinterpret_cast<char*>(&p), sizeof(p));
         }
 
         // 112 bitplanes (896 bytes)
         int kFeatureBase = Network::T_HISTORY * 14;
+        assert(kFeatureBase*sizeof(step.planes.bit[0].to_ullong()) == 896);
         for (int p = 0; p < kFeatureBase; p++) {
             const auto& plane = step.planes.bit[p];
             auto val = plane.to_ullong();
@@ -198,6 +217,7 @@ void Training::dump_training_v2(int game_score, OutputChunker& outchunk) {
         auto result = static_cast<std::int8_t>(step.to_move == BLACK ? -game_score : game_score);
         out.write(reinterpret_cast<char*>(&result), 1);
     }
+    assert(out.str().size() == m_data.size() * 8604);
     outchunk.append(out.str());
 }
 
