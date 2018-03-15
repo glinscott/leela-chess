@@ -19,8 +19,8 @@ import (
 )
 
 var HOSTNAME = flag.String("hostname", "http://162.217.248.187", "Address of the server")
-var USER = flag.String("user", "", "Username")
-var PASSWORD = flag.String("password", "", "Password")
+var USER = flag.String("user", "anonymous", "Username")
+var PASSWORD = flag.String("password", "anonymous", "Password")
 var GPU = flag.Int("gpu", 0, "ID of the OpenCL device to use")
 
 func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse) error {
@@ -171,12 +171,6 @@ func nextGame(httpClient *http.Client, hostname string) error {
 
 func main() {
 	flag.Parse()
-	if len(*USER) == 0 {
-		log.Fatal("You must specify a username")
-	}
-	if len(*PASSWORD) == 0 {
-		log.Fatal("You must specify a non-empty password")
-	}
 
 	httpClient := &http.Client{}
 	for {
