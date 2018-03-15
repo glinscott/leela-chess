@@ -81,8 +81,7 @@ find_path(OpenCL_INCLUDE_DIR
   PATH_SUFFIXES
     include
     OpenCL/common/inc
-    "AMD APP/include"
-  NO_DEFAULT_PATH)
+    "AMD APP/include")
 
 _FIND_OPENCL_VERSION()
 
@@ -132,8 +131,7 @@ else()
       lib/x86_64
       lib/x64
       lib
-      lib64
-    NO_DEFAULT_PATH)
+      lib64)
 endif()
 
 set(OpenCL_LIBRARIES ${OpenCL_LIBRARY})
