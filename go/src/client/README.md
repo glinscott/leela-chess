@@ -14,7 +14,12 @@ Then you just need to `go build`, and it should produce a `client` executable.
 
 First copy the `lczero` executable into the same folder as the `client` executable.
 
-Then, run!  Username and password are required parameters.
+Then, run! Default user will be "anonymous".
+```
+./client
+```
+
+But you can create an account by specifying a username and a password.
 ```
 ./client --user=myusername --password=mypassword
 ```
