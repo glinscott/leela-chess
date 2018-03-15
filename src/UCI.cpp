@@ -206,7 +206,7 @@ void generate_training_games(istringstream& is) {
   }
   auto chunker = OutputChunker{dir.string() + "/training", true};
   for (int64_t i = 0; i < num_games; i++) {
-    Training::dump_training(play_one_game(), chunker);
+    Training::dump_training_v2(play_one_game(), chunker);
   }
 }
 

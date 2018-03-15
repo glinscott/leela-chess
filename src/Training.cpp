@@ -44,8 +44,8 @@ std::string OutputChunker::gen_chunk_name(void) const {
 
 OutputChunker::OutputChunker(const std::string& basename,
                              bool compress,
-                             size_t chunk_size)
-    : m_basename(basename), m_compress(compress), chunk_size_(chunk_size) {
+                             size_t num_games)
+    : m_basename(basename), m_compress(compress), m_games_per_chunk(num_games) {
     namespace fs = boost::filesystem;
     m_chunk_count = std::count_if(
         fs::directory_iterator(fs::path(basename).parent_path()),
@@ -55,18 +55,18 @@ OutputChunker::OutputChunker(const std::string& basename,
 }
 
 OutputChunker::~OutputChunker() {
-    flush_chunks();
+    flush_chunk();
 }
 
 void OutputChunker::append(const std::string& str) {
     m_buffer.append(str);
-    m_step_count++;
-    if (m_step_count >= chunk_size_) {
-        flush_chunks();
+    m_game_count++;
+    if (m_game_count >= m_games_per_chunk) {
+        flush_chunk();
     }
 }
 
-void OutputChunker::flush_chunks() {
+void OutputChunker::flush_chunk() {
     if (m_buffer.empty()) {
         return;
     }
@@ -95,7 +95,7 @@ void OutputChunker::flush_chunks() {
 
     m_buffer.clear();
     m_chunk_count++;
-    m_step_count = 0;
+    m_game_count = 0;
 }
 
 void Training::clear_training() {
@@ -156,6 +156,49 @@ void Training::record(const BoardHistory& state, UCTNode& root) {
 void Training::dump_training(int game_score, const std::string& out_filename) {
     auto chunker = OutputChunker{out_filename, true};
     dump_training(game_score, chunker);
+}
+
+void Training::dump_training_v2(int game_score, OutputChunker& outchunk) {
+    static int VERSION = 1;
+
+    std::stringstream out;
+    for (const auto& step : m_data) {
+        // Store the binary version number (4 bytes)
+        out.write(reinterpret_cast<char*>(&VERSION), sizeof(VERSION));
+
+        // Then the move probabilities (7696 bytes)
+        for (auto p : step.probabilities) {
+            out.write(reinterpret_cast<char*>(&p), sizeof(p));
+        }
+
+        // 112 bitplanes (896 bytes)
+        int kFeatureBase = Network::T_HISTORY * 14;
+        for (int p = 0; p < kFeatureBase; p++) {
+            const auto& plane = step.planes.bit[p];
+            auto val = plane.to_ullong();
+            assert(plane.size() % 4 == 0);
+            out.write(reinterpret_cast<char*>(&val), sizeof(val));
+        }
+
+        // castling and side to move (5 bytes)
+        for (int i = 0; i < 5; ++i) {
+            auto bit = static_cast<std::uint8_t>(step.planes.bit[kFeatureBase+i][0]);
+            out.write(reinterpret_cast<char*>(&bit), 1);
+        }
+
+        // rule 50 (1 byte)
+        auto rule50 = static_cast<std::uint8_t>(std::min(255, step.planes.rule50_count));
+        out.write(reinterpret_cast<char*>(&rule50), 1);
+
+        // move count (1 byte)
+        auto move_count = static_cast<std::uint8_t>(std::min(255, step.planes.move_count));
+        out.write(reinterpret_cast<char*>(&move_count), 1);
+
+        // And the game result (1 byte)
+        auto result = static_cast<std::int8_t>(step.to_move == BLACK ? -game_score : game_score);
+        out.write(reinterpret_cast<char*>(&result), 1);
+    }
+    outchunk.append(out.str());
 }
 
 void Training::dump_training(int game_score, OutputChunker& outchunk) {
