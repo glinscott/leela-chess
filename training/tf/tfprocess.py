@@ -111,6 +111,8 @@ class TFProcess:
         loss = pol_loss_w * self.policy_loss + val_loss_w * self.mse_loss + self.reg_term
 
         # Set adaptive learning rate during training
+        self.cfg['training']['lr_boundaries'].sort()
+        self.cfg['training']['lr_values'].sort(reverse=True)
         self.lr = self.cfg['training']['lr_values'][0]
 
         # You need to change the learning rate here if you are training
@@ -136,9 +138,9 @@ class TFProcess:
 
         # Summary part
         self.test_writer = tf.summary.FileWriter(
-            os.path.join(os.getcwd(), "leelalogs/test"), self.session.graph)
+            os.path.join(os.getcwd(), "leelalogs/{}-test".format(self.cfg['name'])), self.session.graph)
         self.train_writer = tf.summary.FileWriter(
-            os.path.join(os.getcwd(), "leelalogs/train"), self.session.graph)
+            os.path.join(os.getcwd(), "leelalogs/{}-train".format(self.cfg['name'])), self.session.graph)
 
         self.init = tf.global_variables_initializer()
         self.saver = tf.train.Saver()
