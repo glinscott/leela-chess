@@ -76,9 +76,9 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("noponder", "Disable thinking on opponent's time.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
         ("supervise", po::value<std::string>(), "Dump supervised learning data from the pgn.")
-#ifdef USE_OPENCL
         ("gpu",  po::value<std::vector<int> >(),
                 "ID of the OpenCL device(s) to use (disables autodetection).")
+#ifdef USE_OPENCL
         ("full-tuner", "Try harder to find an optimal OpenCL tuning.")
         ("tune-only", "Tune OpenCL only and then exit.")
 #endif
