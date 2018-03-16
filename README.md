@@ -13,7 +13,7 @@ Please visit the LCZero forum to discuss: https://groups.google.com/forum/#!foru
 
 # Contributing
 
-The server is live at http://162.217.248.187/.  Please download the client and give it a try.
+The server is live at http://lczero.org/.  Please download the client and give it a try.
 
 Of course, we also appreciate code reviews, pull requests and Windows testers!
 
