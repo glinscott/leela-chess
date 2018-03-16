@@ -27,13 +27,16 @@
 #include "Movegen.h"
 #include "pgn.h"
 #include "Position.h"
+#include "Misc.h"
 #include "Training.h"
 #include "UCI.h"
 #include "UCTSearch.h"
+#include "Utils.h"
 
 using namespace std;
 
 enum SyncCout { IO_LOCK, IO_UNLOCK };
+
 std::ostream& operator<<(std::ostream&, SyncCout);
 
 #define sync_cout std::cout << IO_LOCK
@@ -114,8 +117,9 @@ namespace {
 
   void go(BoardHistory& bh, istringstream& is) {
 
+    Utils::LimitsType limits;
     string token;
-    /*
+
     bool ponderMode = false;
 
     limits.startTime = now(); // As early as possible!
@@ -129,12 +133,11 @@ namespace {
         else if (token == "depth")     is >> limits.depth;
         else if (token == "nodes")     is >> limits.nodes;
         else if (token == "movetime")  is >> limits.movetime;
-        else if (token == "infinite")  limits.infinite = 1;
-        else if (token == "ponder")    ponderMode = true;
-    */
+
 
     // TODO(gary): This just does the search on the UI thread...
     auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
+    search->set_time(limits);
     Move move = search->think();
     bh.do_move(move);
     printf("bestmove %s\n", UCI::move(move).c_str());
@@ -167,7 +170,10 @@ int play_one_game(BoardHistory& bh) {
         return 0;
       }
     }
+    Utils::LimitsType limits;
+    limits.startTime = now();
     auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
+    search->set_time(limits);
     Move move = search->think();
 
     bh.do_move(move);

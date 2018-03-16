@@ -26,6 +26,8 @@
 
 #include "Position.h"
 #include "UCTNode.h"
+#include "TimeMan.h"
+#include "Utils.h"
 
 // SearchResult is in [0,1]
 // 0.0 represents Black win
@@ -69,6 +71,7 @@ public:
     void set_playout_limit(int playouts);
     void set_analyzing(bool flag);
     void set_quiet(bool flag);
+    void set_time(Utils::LimitsType limit);
     void ponder();
     bool is_running() const;
     bool playout_limit_reached() const;
@@ -77,6 +80,7 @@ public:
     
 private:
     void dump_stats(BoardHistory& pos, UCTNode& parent);
+    bool halt_search();
     std::string get_pv(BoardHistory& pos, UCTNode& parent);
     void dump_analysis(int elapsed, bool force_output);
     Move get_best_move();
@@ -86,6 +90,7 @@ private:
     std::atomic<int> m_nodes{0};
     std::atomic<int> m_playouts{0};
     std::atomic<bool> m_run{false};
+    Utils::LimitsType m_limit{Utils::LimitsType()};
     int m_maxplayouts;
 
     bool quiet_ = true;

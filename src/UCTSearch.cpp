@@ -35,10 +35,10 @@
 #include "Parameters.h"
 #include "Utils.h"
 #include "Network.h"
-#include "Timing.h"
 #include "Parameters.h"
 #include "Training.h"
 #include "Types.h"
+#include "TimeMan.h"
 #ifdef USE_OPENCL
 #include "OpenCL.h"
 #endif
@@ -200,8 +200,8 @@ void UCTSearch::dump_analysis(int elapsed, bool force_output) {
     int   depth = log(float(m_nodes)) / log(1.8);
     auto visits = m_root.get_visits();
     printf("info depth %d nodes %d nps %d score cp %d winrate %5.2f%% time %d pv %s\n",
-             depth, visits, 100 * visits / (elapsed + 1),
-             cp, winrate, 10 * elapsed, pvstring.c_str());
+             depth, visits, 1000 * visits / (elapsed + 1),
+             cp, winrate, elapsed, pvstring.c_str());
 }
 
 bool UCTSearch::is_running() const {
@@ -230,11 +230,11 @@ Move UCTSearch::think() {
     assert(m_playouts == 0);
     assert(m_nodes == 0);
 
-    // Start counting time for us
-//    m_rootstate.start_clock();
-
     // set up timing info
-    Time start;
+    Color us = bh_.cur().side_to_move();
+    int game_ply = bh_.cur().game_ply();
+
+    Time.init(m_limit, us, game_ply);
 
     // create a sorted list of legal moves (make sure we play something legal and decent even in time trouble)
     float root_eval;
@@ -263,15 +263,12 @@ Move UCTSearch::think() {
         int depth = log(float(m_nodes)) / log(1.8);
         if (depth != last_update) {
             last_update = depth;
-            Time elapsed;
-            int centiseconds_elapsed = Time::timediff_centis(start, elapsed);
-            dump_analysis(centiseconds_elapsed, false);
+            dump_analysis(Time.elapsed(), false);
         }
 
         // check if we should still search
         keeprunning = is_running();
-//        keeprunning &= (centiseconds_elapsed < time_for_move);
-        keeprunning &= !playout_limit_reached();
+        keeprunning &= !halt_search();
 
     } while(keeprunning);
 
@@ -286,8 +283,7 @@ Move UCTSearch::think() {
     dump_stats(bh_, m_root);
     Training::record(bh_, m_root);
 
-    Time elapsed;
-    int centiseconds_elapsed = Time::timediff_centis(start, elapsed);
+    int centiseconds_elapsed = Time.elapsed();
     if (centiseconds_elapsed > 0) {
         dump_analysis(centiseconds_elapsed, true);
     }
@@ -323,6 +319,22 @@ void UCTSearch::ponder() {
     myprintf("\n%d visits, %d nodes\n\n", m_root.get_visits(), (int)m_nodes);
 }
 
+bool UCTSearch::halt_search() {
+    int elapsed = Time.elapsed();
+
+    if (m_limit.use_time_management() && !m_limit.dynamic_controls_set()){
+        return playout_limit_reached();
+    }
+
+    if((m_limit.use_time_management() && elapsed > Time.maximum() - 10)
+        || (m_limit.movetime && elapsed >= m_limit.movetime)) {
+        return true;
+    } else if (m_limit.use_time_management()){
+        return (Time.elapsed() > Time.optimum() - 10);
+    }
+    return false;
+}
+
 void UCTSearch::set_playout_limit(int playouts) {
     static_assert(std::is_convertible<decltype(playouts), decltype(m_maxplayouts)>::value, "Inconsistent types for playout amount.");
     if (playouts == 0) {
@@ -331,3 +343,10 @@ void UCTSearch::set_playout_limit(int playouts) {
         m_maxplayouts = playouts;
     }
 }
+
+void UCTSearch::set_time(Utils::LimitsType limit) {
+    m_limit = limit;
+}
+
+
+

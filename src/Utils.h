@@ -26,6 +26,8 @@
 #include <string>
 
 #include "ThreadPool.h"
+#include "Misc.h"
+#include "Types.h"
 
 extern Utils::ThreadPool thread_pool;
 
@@ -53,6 +55,35 @@ namespace Utils {
 
     size_t lcm(size_t a, size_t b);
     size_t ceilMultiple(size_t a, size_t b);
+
+
+    /// LimitsType struct stores information sent by GUI about available time to
+    /// search the current move, maximum depth/time, or if we are in analysis mode.
+
+    struct LimitsType {
+
+        LimitsType() { // Init explicitly due to broken value-initialization of non POD in MSVC
+            nodes = time[WHITE] = time[BLACK] = inc[WHITE] = inc[BLACK] =
+            npmsec = movestogo = depth = movetime = mate = perft = infinite = 0;
+        }
+
+        bool dynamic_controls_set() const {
+            return (time[WHITE] | time[BLACK] | inc[WHITE] | inc[BLACK] | npmsec | movestogo) != 0;
+        }
+
+        bool use_time_management() const {
+            return !(mate | movetime | depth | nodes | perft | infinite);
+        }
+
+        std::vector<Move> searchmoves;
+        int time[COLOR_NB], inc[COLOR_NB], npmsec, movestogo, depth,
+                movetime, mate, perft, infinite;
+        int64_t nodes;
+        TimePoint startTime;
+    };
+
+    extern LimitsType Limits;
+
 }
 
 #endif
