@@ -44,7 +44,7 @@ namespace Zobrist {
   Key enpassant[FILE_NB];
   Key castling[CASTLING_RIGHT_NB];
   Key side;
-  Key rule50[100/RULE50_SCALE];
+  Key rule50[102/RULE50_SCALE];
   Key repetitions[3];
 }
 
@@ -121,7 +121,7 @@ void Position::init() {
   }
 
   Zobrist::side = rng.RandInt<Key>();
-  for (int i = 0; i < 100/RULE50_SCALE; ++i) {
+  for (int i = 0; i < 102/RULE50_SCALE; ++i) {
       Zobrist::rule50[i] = rng.RandInt<Key>();
   }
   for (int i = 0; i <= 2; ++i) {
@@ -130,7 +130,7 @@ void Position::init() {
 }
 
 Key Position::full_key() const {
-  auto rule50 = st->rule50 / RULE50_SCALE;
+  auto rule50 = std::min(101 / RULE50_SCALE, st->rule50 / RULE50_SCALE);
   auto reps = std::min(2, repetitions_count());
   // NOTE: Network will call this and then repetitions_count
   // on cache misses. Could be optimized.
