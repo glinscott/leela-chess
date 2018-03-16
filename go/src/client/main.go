@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -22,6 +23,48 @@ var HOSTNAME = flag.String("hostname", "http://162.217.248.187", "Address of the
 var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
 var GPU = flag.Int("gpu", 0, "ID of the OpenCL device to use")
+
+type Settings struct {
+	User string
+	Pass string
+}
+
+/*
+	Reads the user and password from a config file and returns empty strings if anything went wrong.
+	If the config file does not exists, it prompts the user for a username and password and creates the config file.
+*/
+func readSettings(path string) (string, string) {
+	settings := Settings{}
+	file, err := os.Open(path)
+	if err != nil {
+		// File was not found
+		fmt.Printf("Please enter your username and password, an account will be automatically created.\n")
+		fmt.Printf("Enter username : ")
+		fmt.Scanf("%s\n", &settings.User)
+		fmt.Printf("Enter password : ")
+		fmt.Scanf("%s\n", &settings.Pass)
+		jsonSettings, err := json.Marshal(settings)
+		if err != nil {
+			log.Fatal("Cannot encode settings to JSON ", err)
+			return "", ""
+		}
+		settingsFile, err := os.Create(path)
+		if err != nil {
+			log.Fatal("Could not create output file ", err)
+			return "", ""
+		}
+		fmt.Fprintf(settingsFile, "%s", jsonSettings)
+		return settings.User, settings.Pass
+	}
+	defer file.Close()
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&settings)
+	if err != nil {
+		log.Fatal("Error decoding JSON ", err)
+		return "", ""
+	}
+	return settings.User, settings.Pass
+}
 
 func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse) error {
 	extraParams := map[string]string{
@@ -147,6 +190,7 @@ func getNetwork(httpClient *http.Client, sha string) (string, error) {
 	os.RemoveAll("networks")
 	os.MkdirAll("networks", os.ModePerm)
 
+	fmt.Printf("Downloading network...\n")
 	// Otherwise, let's download it
 	err := client.DownloadNetwork(httpClient, *HOSTNAME, path, sha)
 	if err != nil {
@@ -171,6 +215,11 @@ func nextGame(httpClient *http.Client, hostname string) error {
 
 func main() {
 	flag.Parse()
+	
+	if len(*USER) == 0 || len(*PASSWORD) == 0 {
+		*USER, *PASSWORD = readSettings("settings.json")
+	}
+	
 	if len(*USER) == 0 {
 		log.Fatal("You must specify a username")
 	}
