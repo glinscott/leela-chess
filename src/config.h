@@ -59,11 +59,13 @@ typedef unsigned char uint8;
 /* Data type definitions */
 
 #ifdef _WIN32
-typedef __int64 int64 ;
+typedef __int64 int64;
 typedef unsigned __int64 uint64;
+uin64 htole64(uint64 v) { return v; }
 #else
-typedef long long int int64 ;
+typedef long long int int64;
 typedef  unsigned long long int uint64;
+#include <endian.h>
 #endif
 
 using net_t = float;
