@@ -326,7 +326,11 @@ int UCTSearch::get_search_time() {
         return -1;
     }
 
-    return Limits.movetime ? Limits.movetime : Time.optimum();
+    if (Limits.movetime) {
+        return Limits.movetime;
+    } else {
+        return Time.optimum();
+    }
 }
 
 bool UCTSearch::halt_search() {
