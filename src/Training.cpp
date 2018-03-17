@@ -18,7 +18,6 @@
 
 #include "config.h"
 #include <cassert>
-#include <endian.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -160,13 +159,15 @@ void Training::dump_training(int game_score, const std::string& out_filename) {
 }
 
 Network::BoardPlane fix_v2(Network::BoardPlane plane) {
-    for (auto bit = size_t{0}; bit < plane.size()/2; bit++) {
-      int tmp = plane[bit];
-      plane[bit] = plane[63-bit];
-      plane[63-bit] = tmp;
+    for (int i = 0, n = plane.size(); i < n; i+=8) {
+        for (auto j = 0; j < 4; j++) {
+            bool t = plane[i+j];
+            plane[i+j] = plane[i+8-j-1];
+            plane[i+8-j-1] = t;
+        }
     }
 
-    return Network::BoardPlane(htobe64(plane.to_ullong()));
+    return plane;
 }
 
 
