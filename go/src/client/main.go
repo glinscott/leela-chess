@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
-	"io/ioutil"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -117,9 +117,9 @@ func train(networkPath string) (string, string) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("Cleanup training files:\n");
+		fmt.Printf("Cleanup training files:\n")
 		for _, f := range files {
-			fmt.Printf("%s/%s\n", train_dir, f.Name());
+			fmt.Printf("%s/%s\n", train_dir, f.Name())
 		}
 		err = os.RemoveAll(train_dir)
 		if err != nil {
@@ -215,11 +215,11 @@ func nextGame(httpClient *http.Client, hostname string) error {
 
 func main() {
 	flag.Parse()
-	
+
 	if len(*USER) == 0 || len(*PASSWORD) == 0 {
 		*USER, *PASSWORD = readSettings("settings.json")
 	}
-	
+
 	if len(*USER) == 0 {
 		log.Fatal("You must specify a username")
 	}
