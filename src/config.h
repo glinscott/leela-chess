@@ -61,6 +61,8 @@ typedef unsigned char uint8;
 #ifdef _WIN32
 typedef __int64 int64;
 typedef unsigned __int64 uint64;
+#define htole64(x) (x)
+#define htole32(x) (x)
 #else
 typedef long long int int64;
 typedef  unsigned long long int uint64;
