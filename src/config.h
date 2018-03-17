@@ -61,7 +61,7 @@ typedef unsigned char uint8;
 #ifdef _WIN32
 typedef __int64 int64;
 typedef unsigned __int64 uint64;
-uin64 htole64(uint64 v) { return v; }
+uint64 htole64(uint64 v) { return v; }
 #else
 typedef long long int int64;
 typedef  unsigned long long int uint64;
