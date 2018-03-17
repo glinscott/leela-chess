@@ -34,7 +34,7 @@ public:
     int elapsed() const { return int(now() - startTime); }
 
 private:
-    std::atomic<TimePoint> startTime;
+    TimePoint startTime;
     int optimumTime;
     int maximumTime;
 };

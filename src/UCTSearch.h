@@ -81,15 +81,15 @@ public:
 private:
     void dump_stats(BoardHistory& pos, UCTNode& parent);
     std::string get_pv(BoardHistory& pos, UCTNode& parent);
-    void dump_analysis(int elapsed, bool force_output);
+    void dump_analysis(int64_t elapsed, bool force_output);
     Move get_best_move();
 
     BoardHistory bh_;
     UCTNode m_root{MOVE_NONE, 0.0f, 0.5f};
     std::atomic<int> m_nodes{0};
     std::atomic<int> m_playouts{0};
-    std::atomic<int> m_target_time{0};
-    std::atomic<int> m_start_time{0};
+    std::atomic<int64_t> m_target_time{0};
+    std::atomic<int64_t> m_start_time{0};
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
 
@@ -119,6 +119,8 @@ struct LimitsType {
         npmsec = movestogo = depth = movetime = mate = perft = infinite = 0;
         startTime = now();
     }
+
+    int64_t timeStarted() const { return startTime; }
 
     bool dynamic_controls_set() const {
         return (time[WHITE] | time[BLACK] | inc[WHITE] | inc[BLACK] | npmsec | movestogo) != 0;
