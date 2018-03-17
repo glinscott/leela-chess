@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include <cassert>
+#include <endian.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -158,6 +159,17 @@ void Training::dump_training(int game_score, const std::string& out_filename) {
     dump_training(game_score, chunker);
 }
 
+Network::BoardPlane fix_v2(Network::BoardPlane plane) {
+    for (auto bit = size_t{0}; bit < plane.size()/2; bit++) {
+      int tmp = plane[bit];
+      plane[bit] = plane[63-bit];
+      plane[63-bit] = tmp;
+    }
+
+    return Network::BoardPlane(htobe64(plane.to_ullong()));
+}
+
+
 void Training::dump_training_v2(int game_score, OutputChunker& outchunk) {
     /**
      * From chunkparser.py
@@ -176,7 +188,7 @@ void Training::dump_training_v2(int game_score, OutputChunker& outchunk) {
      * int8 result (1 byte)
      * self.v2_struct = struct.Struct('4s7696s896sBBBBBBBb')
      */
-    static int VERSION = 1;
+    static int VERSION = 2;
 
     std::stringstream out;
     for (const auto& step : m_data) {
@@ -193,7 +205,7 @@ void Training::dump_training_v2(int game_score, OutputChunker& outchunk) {
         int kFeatureBase = Network::T_HISTORY * 14;
         assert(kFeatureBase*sizeof(step.planes.bit[0].to_ullong()) == 896);
         for (int p = 0; p < kFeatureBase; p++) {
-            const auto& plane = step.planes.bit[p];
+            const auto& plane = fix_v2(step.planes.bit[p]);
             auto val = plane.to_ullong();
             assert(plane.size() % 4 == 0);
             out.write(reinterpret_cast<char*>(&val), sizeof(val));
