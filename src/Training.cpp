@@ -210,7 +210,7 @@ void Training::dump_training_v2(int game_score, OutputChunker& outchunk) {
         for (int p = 0; p < kFeatureBase; p++) {
             const auto& plane = fix_v2(step.planes.bit[p]);
             auto val = htole64(plane.to_ullong());
-            assert(plane.size() % 4 == 0);
+            assert(plane.size() == 64);
             out.write(reinterpret_cast<char*>(&val), sizeof(val));
         }
 
