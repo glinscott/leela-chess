@@ -117,27 +117,24 @@ namespace {
 
   void go(BoardHistory& bh, istringstream& is) {
 
-    Utils::LimitsType limits;
+    Limits = LimitsType();
     string token;
 
     bool ponderMode = false;
 
-    limits.startTime = now(); // As early as possible!
-
     while (is >> token)
-        if (token == "wtime")     is >> limits.time[WHITE];
-        else if (token == "btime")     is >> limits.time[BLACK];
-        else if (token == "winc")      is >> limits.inc[WHITE];
-        else if (token == "binc")      is >> limits.inc[BLACK];
-        else if (token == "movestogo") is >> limits.movestogo;
-        else if (token == "depth")     is >> limits.depth;
-        else if (token == "nodes")     is >> limits.nodes;
-        else if (token == "movetime")  is >> limits.movetime;
+        if (token == "wtime")     is >> Limits.time[WHITE];
+        else if (token == "btime")     is >> Limits.time[BLACK];
+        else if (token == "winc")      is >> Limits.inc[WHITE];
+        else if (token == "binc")      is >> Limits.inc[BLACK];
+        else if (token == "movestogo") is >> Limits.movestogo;
+        else if (token == "depth")     is >> Limits.depth;
+        else if (token == "nodes")     is >> Limits.nodes;
+        else if (token == "movetime")  is >> Limits.movetime;
 
 
     // TODO(gary): This just does the search on the UI thread...
     auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
-    search->set_time(limits);
     Move move = search->think();
     bh.do_move(move);
     printf("bestmove %s\n", UCI::move(move).c_str());
@@ -170,10 +167,8 @@ int play_one_game(BoardHistory& bh) {
         return 0;
       }
     }
-    Utils::LimitsType limits;
-    limits.startTime = now();
+    Limits.startTime = now();
     auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
-    search->set_time(limits);
     Move move = search->think();
 
     bh.do_move(move);

@@ -45,6 +45,8 @@
 
 using namespace Utils;
 
+LimitsType Limits;
+
 UCTSearch::UCTSearch(BoardHistory&& bh)
     : bh_(std::move(bh)) {
     set_playout_limit(cfg_max_playouts);
@@ -219,7 +221,7 @@ void UCTWorker::operator()() {
         if (result.valid()) {
             m_search->increment_playouts();
         }
-    } while (m_search->is_running() && !m_search->playout_limit_reached());
+    } while (m_search->is_running() && !m_search->halt_search());
 }
 
 void UCTSearch::increment_playouts() {
@@ -231,10 +233,10 @@ Move UCTSearch::think() {
     assert(m_nodes == 0);
 
     // set up timing info
-    Color us = bh_.cur().side_to_move();
-    int game_ply = bh_.cur().game_ply();
 
-    Time.init(m_limit, us, game_ply);
+    Time.init(bh_.cur().side_to_move(), bh_.cur().game_ply());
+    m_target_time = get_search_time();
+    m_start_time = now();
 
     // create a sorted list of legal moves (make sure we play something legal and decent even in time trouble)
     float root_eval;
@@ -319,20 +321,16 @@ void UCTSearch::ponder() {
     myprintf("\n%d visits, %d nodes\n\n", m_root.get_visits(), (int)m_nodes);
 }
 
+int UCTSearch::get_search_time() {
+    if (Limits.use_time_management() && !Limits.dynamic_controls_set()){
+        return -1;
+    }
+
+    return Limits.movetime ? Limits.movetime : Time.optimum();
+}
+
 bool UCTSearch::halt_search() {
-    int elapsed = Time.elapsed();
-
-    if (m_limit.use_time_management() && !m_limit.dynamic_controls_set()){
-        return playout_limit_reached();
-    }
-
-    if((m_limit.use_time_management() && elapsed > Time.maximum() - 10)
-        || (m_limit.movetime && elapsed >= m_limit.movetime)) {
-        return true;
-    } else if (m_limit.use_time_management()){
-        return (Time.elapsed() > Time.optimum() - 10);
-    }
-    return false;
+    return m_target_time < 0 ? playout_limit_reached() : m_target_time < now() - m_start_time;
 }
 
 void UCTSearch::set_playout_limit(int playouts) {
@@ -342,10 +340,6 @@ void UCTSearch::set_playout_limit(int playouts) {
     } else {
         m_maxplayouts = playouts;
     }
-}
-
-void UCTSearch::set_time(Utils::LimitsType limit) {
-    m_limit = limit;
 }
 
 

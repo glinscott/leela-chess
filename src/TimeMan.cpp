@@ -77,13 +77,13 @@ namespace {
 ///  inc >  0 && movestogo == 0 means: x basetime + z increment
 ///  inc >  0 && movestogo != 0 means: x moves in y minutes + z increment
 
-void TimeManagement::init(Utils::LimitsType& limits, Color us, int ply) {
+void TimeManagement::init(Color us, int ply) {
 
 
-    startTime = limits.startTime;
-    optimumTime = maximumTime = limits.time[us];
+    startTime = Limits.startTime;
+    optimumTime = maximumTime = Limits.time[us];
 
-    const int MaxMTG = limits.movestogo ? std::min(limits.movestogo, MoveHorizon) : MoveHorizon;
+    const int MaxMTG = Limits.movestogo ? std::min(Limits.movestogo, MoveHorizon) : MoveHorizon;
 
     // We calculate optimum time usage for different hypothetical "moves to go"-values
     // and choose the minimum of calculated search time values. Usually the greatest
@@ -91,8 +91,8 @@ void TimeManagement::init(Utils::LimitsType& limits, Color us, int ply) {
     for (int hypMTG = 1; hypMTG <= MaxMTG; ++hypMTG)
     {
         // Calculate thinking time for hypothetical "moves to go"-value
-        int hypMyTime =  limits.time[us]
-                         + limits.inc[us] * (hypMTG - 1)
+        int hypMyTime =  Limits.time[us]
+                         + Limits.inc[us] * (hypMTG - 1)
                          - 30 * (2 + std::min(hypMTG, 40));
 
         hypMyTime = std::max(hypMyTime, 0);

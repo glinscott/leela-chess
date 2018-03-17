@@ -21,19 +21,20 @@
 
 #include "Utils.h"
 #include "Types.h"
+#include "UCTSearch.h"
 
 /// The TimeManagement class computes the optimal time to think depending on
 /// the maximum available time, the game move number and other parameters.
 
 class TimeManagement {
 public:
-    void init(Utils::LimitsType& limits, Color us, int ply);
-    int optimum() const { return optimumTime; }
-    int maximum() const { return maximumTime; }
-    int elapsed() const { return int(now() - startTime); }
+    void init(Color us, int ply);
+    std::atomic<int>  optimum() const { return {optimumTime}; }
+    std::atomic<int>  maximum() const { return {maximumTime}; }
+    std::atomic<int>  elapsed() const { return {int(now() - startTime)}; }
 
 private:
-    TimePoint startTime;
+    std::atomic<TimePoint> startTime;
     int optimumTime;
     int maximumTime;
 };
