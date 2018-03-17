@@ -199,7 +199,9 @@ void Training::dump_training_v2(int game_score, OutputChunker& outchunk) {
         // Then the move probabilities (7696 bytes)
         assert(step.probabilities.size()*sizeof(step.probabilities[0]) == 7696);
         for (auto p : step.probabilities) {
-            out.write(reinterpret_cast<char*>(&p), sizeof(p));
+            uint32 *vp = reinterpret_cast<uint32*>(&p);
+            uint32 v = htole32(*vp);
+            out.write(reinterpret_cast<char*>(&v), sizeof(v));
         }
 
         // 112 bitplanes (896 bytes)
