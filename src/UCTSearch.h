@@ -120,12 +120,12 @@ struct LimitsType {
         startTime = now();
     }
 
-    std::atomic<bool> dynamic_controls_set() const {
-        return {(time[WHITE] | time[BLACK] | inc[WHITE] | inc[BLACK] | npmsec | movestogo) != 0};
+    bool dynamic_controls_set() const {
+        return (time[WHITE] | time[BLACK] | inc[WHITE] | inc[BLACK] | npmsec | movestogo) != 0;
     }
 
-    std::atomic<bool> use_time_management() const {
-        return {!(mate | movetime | depth | nodes | perft | infinite)};
+    bool use_time_management() const {
+        return !(mate | movetime | depth | nodes | perft | infinite);
     }
 
     std::vector<Move> searchmoves;

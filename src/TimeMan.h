@@ -29,9 +29,9 @@
 class TimeManagement {
 public:
     void init(Color us, int ply);
-    std::atomic<int>  optimum() const { return {optimumTime}; }
-    std::atomic<int>  maximum() const { return {maximumTime}; }
-    std::atomic<int>  elapsed() const { return {int(now() - startTime)}; }
+    int optimum() const { return optimumTime; }
+    int maximum() const { return maximumTime; }
+    int elapsed() const { return int(now() - startTime); }
 
 private:
     std::atomic<TimePoint> startTime;

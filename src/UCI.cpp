@@ -120,8 +120,6 @@ namespace {
     Limits = LimitsType();
     string token;
 
-    bool ponderMode = false;
-
     while (is >> token)
         if (token == "wtime")     is >> Limits.time[WHITE];
         else if (token == "btime")     is >> Limits.time[BLACK];

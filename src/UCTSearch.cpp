@@ -285,9 +285,9 @@ Move UCTSearch::think() {
     dump_stats(bh_, m_root);
     Training::record(bh_, m_root);
 
-    int centiseconds_elapsed = Time.elapsed();
-    if (centiseconds_elapsed > 0) {
-        dump_analysis(centiseconds_elapsed, true);
+    int milliseconds_elapsed = Time.elapsed();
+    if (milliseconds_elapsed > 0) {
+        dump_analysis(milliseconds_elapsed, true);
     }
     Move bestmove = get_best_move();
     return bestmove;
@@ -326,11 +326,7 @@ int UCTSearch::get_search_time() {
         return -1;
     }
 
-    if (Limits.movetime) {
-        return Limits.movetime;
-    } else {
-        return Time.optimum();
-    }
+    return Limits.movetime ? Limits.movetime : Time.optimum();
 }
 
 bool UCTSearch::halt_search() {
