@@ -27,13 +27,16 @@
 #include "Movegen.h"
 #include "pgn.h"
 #include "Position.h"
+#include "Misc.h"
 #include "Training.h"
 #include "UCI.h"
 #include "UCTSearch.h"
+#include "Utils.h"
 
 using namespace std;
 
 enum SyncCout { IO_LOCK, IO_UNLOCK };
+
 std::ostream& operator<<(std::ostream&, SyncCout);
 
 #define sync_cout std::cout << IO_LOCK
@@ -114,24 +117,19 @@ namespace {
 
   void go(BoardHistory& bh, istringstream& is) {
 
+    Limits = LimitsType();
     string token;
-    /*
-    bool ponderMode = false;
-
-    limits.startTime = now(); // As early as possible!
 
     while (is >> token)
-        if (token == "wtime")     is >> limits.time[WHITE];
-        else if (token == "btime")     is >> limits.time[BLACK];
-        else if (token == "winc")      is >> limits.inc[WHITE];
-        else if (token == "binc")      is >> limits.inc[BLACK];
-        else if (token == "movestogo") is >> limits.movestogo;
-        else if (token == "depth")     is >> limits.depth;
-        else if (token == "nodes")     is >> limits.nodes;
-        else if (token == "movetime")  is >> limits.movetime;
-        else if (token == "infinite")  limits.infinite = 1;
-        else if (token == "ponder")    ponderMode = true;
-    */
+        if (token == "wtime")     is >> Limits.time[WHITE];
+        else if (token == "btime")     is >> Limits.time[BLACK];
+        else if (token == "winc")      is >> Limits.inc[WHITE];
+        else if (token == "binc")      is >> Limits.inc[BLACK];
+        else if (token == "movestogo") is >> Limits.movestogo;
+        else if (token == "depth")     is >> Limits.depth;
+        else if (token == "nodes")     is >> Limits.nodes;
+        else if (token == "movetime")  is >> Limits.movetime;
+
 
     // TODO(gary): This just does the search on the UI thread...
     auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
@@ -167,6 +165,7 @@ int play_one_game(BoardHistory& bh) {
         return 0;
       }
     }
+    Limits.startTime = now();
     auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
     Move move = search->think();
 

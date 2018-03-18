@@ -101,7 +101,7 @@ file (GLOB lczero_SRC "${SrcPath}/*.cpp")
 list (REMOVE_ITEM lczero_SRC ${lczero_MAIN})
 
 # Reuse for lczero and gtest
-add_library (objs OBJECT ${lczero_SRC})
+add_library (objs OBJECT ${lczero_SRC} src/Misc.h)
 add_executable (lczero $<TARGET_OBJECTS:objs> ${lczero_MAIN})
 
 target_link_libraries (lczero ${Boost_LIBRARIES})

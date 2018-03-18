@@ -26,6 +26,8 @@
 
 #include "Position.h"
 #include "UCTNode.h"
+#include "TimeMan.h"
+#include "Utils.h"
 
 // SearchResult is in [0,1]
 // 0.0 represents Black win
@@ -73,22 +75,27 @@ public:
     bool is_running() const;
     bool playout_limit_reached() const;
     void increment_playouts();
+    bool halt_search();
     SearchResult play_simulation(BoardHistory& bh, UCTNode* const node);
     
 private:
     void dump_stats(BoardHistory& pos, UCTNode& parent);
     std::string get_pv(BoardHistory& pos, UCTNode& parent);
-    void dump_analysis(int elapsed, bool force_output);
+    void dump_analysis(int64_t elapsed, bool force_output);
     Move get_best_move();
 
     BoardHistory bh_;
     UCTNode m_root{MOVE_NONE, 0.0f, 0.5f};
     std::atomic<int> m_nodes{0};
     std::atomic<int> m_playouts{0};
+    std::atomic<int64_t> m_target_time{0};
+    std::atomic<int64_t> m_start_time{0};
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
 
     bool quiet_ = true;
+
+    int get_search_time();
 };
 
 class UCTWorker {
@@ -101,5 +108,35 @@ private:
     UCTSearch* m_search;
     UCTNode* m_root;
 };
+
+/// LimitsType struct stores information sent by GUI about available time to
+/// search the current move, maximum depth/time, or if we are in analysis mode.
+
+struct LimitsType {
+
+    LimitsType() { // Init explicitly due to broken value-initialization of non POD in MSVC
+        nodes = time[WHITE] = time[BLACK] = inc[WHITE] = inc[BLACK] =
+        npmsec = movestogo = depth = movetime = mate = perft = infinite = 0;
+        startTime = now();
+    }
+
+    int64_t timeStarted() const { return startTime; }
+
+    bool dynamic_controls_set() const {
+        return (time[WHITE] | time[BLACK] | inc[WHITE] | inc[BLACK] | npmsec | movestogo) != 0;
+    }
+
+    bool use_time_management() const {
+        return !(mate | movetime | depth | nodes | perft | infinite);
+    }
+
+    std::vector<Move> searchmoves;
+    int time[COLOR_NB], inc[COLOR_NB], npmsec, movestogo, depth,
+            movetime, mate, perft, infinite;
+    int64_t nodes;
+    TimePoint startTime;
+};
+
+extern LimitsType Limits;
 
 #endif
