@@ -33,6 +33,9 @@ import time
 import tensorflow as tf
 import unittest
 
+# binary version
+VERSION = struct.pack('i', 2)
+
 # 14*8 planes, 4 castling, 1 color, 1 50rule, 1 movecount, 1 unused
 DATA_ITEM_LINES = 121
 
@@ -179,10 +182,7 @@ class ChunkParser:
         winner = int(text_item[120])
         assert winner == 1 or winner == -1 or winner == 0
 
-        # Apply a version
-        version = struct.pack('i', 1)
-
-        return True, self.v2_struct.pack(version, probs, planes, us_ooo, us_oo, them_ooo, them_oo, stm, rule50_count, move_count, winner)
+        return True, self.v2_struct.pack(VERSION, probs, planes, us_ooo, us_oo, them_ooo, them_oo, stm, rule50_count, move_count, winner)
 
 
     def convert_v2_to_tuple(self, content):
@@ -224,6 +224,9 @@ class ChunkParser:
             v2 format records.
         """
         if chunkdata[0:4] == b'\1\0\0\0':
+            # invalidated by bug see issue #119
+            return
+        elif chunkdata[0:4] == VERSION:
             #print("V2 chunkdata")
             for i in range(0, len(chunkdata), self.v2_struct.size):
                 if self.sample > 1:
