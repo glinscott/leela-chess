@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -66,7 +67,7 @@ func readSettings(path string) (string, string) {
 	return settings.User, settings.Pass
 }
 
-func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse) error {
+func uploadGame(httpClient *http.Client, path string, train_dir string, pgn string, nextGame client.NextGameResponse) error {
 	extraParams := map[string]string{
 		"user":        *USER,
 		"password":    *PASSWORD,
@@ -93,6 +94,12 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 	fmt.Println(resp.Header)
 	fmt.Println(body)
 
+	// Delete file and dir, as they are no longer used.
+	err = os.RemoveAll(train_dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return nil
 }
 
@@ -106,12 +113,18 @@ func playMatch() {
 }
 */
 
-func train(networkPath string) (string, string) {
-	// pid is intended for use in multi-threaded training
+func train(networkPath string) (string, string, string) {
+
+	// Try to make a unique id by combining random, time and pid. (used for multithreading)
 	pid := os.Getpid()
+	rand_number := rand.Intn(10000000)
+	time_now := time.Now().Unix()
+
+	unique_id := fmt.Sprintf("%v-%v-%v", pid, time_now, rand_number)
+	dir_name := fmt.Sprintf("data-%v", unique_id)
 
 	dir, _ := os.Getwd()
-	train_dir := path.Join(dir, fmt.Sprintf("data-%v", pid))
+	train_dir := path.Join(dir, dir_name)
 	if _, err := os.Stat(train_dir); err == nil {
 		files, err := ioutil.ReadDir(train_dir)
 		if err != nil {
@@ -129,8 +142,9 @@ func train(networkPath string) (string, string) {
 
 	num_games := 1
 	gpu_id := fmt.Sprintf("--gpu=%v", *GPU)
-	train_cmd := fmt.Sprintf("--start=train %v %v", pid, num_games)
+	train_cmd := fmt.Sprintf("--start=train %v %v", unique_id, num_games)
 	weights := fmt.Sprintf("--weights=%s", networkPath)
+
 	// cmd := exec.Command(path.Join(dir, "lczero"), weights, "--randomize", "-n", "-t1", "-p20", "--noponder", "--quiet", train_cmd)
 	cmd := exec.Command(path.Join(dir, "lczero"), weights, gpu_id, "--randomize", "-n", "-t1", "--quiet", train_cmd)
 
@@ -176,7 +190,7 @@ func train(networkPath string) (string, string) {
 		log.Fatal(err)
 	}
 
-	return path.Join(train_dir, "training.0.gz"), pgn
+	return path.Join(train_dir, "training.0.gz"), pgn, train_dir
 }
 
 func getNetwork(httpClient *http.Client, sha string) (string, error) {
@@ -208,8 +222,9 @@ func nextGame(httpClient *http.Client, hostname string) error {
 	if err != nil {
 		return err
 	}
-	trainFile, pgn := train(networkPath)
-	uploadGame(httpClient, trainFile, pgn, nextGame)
+	trainFile, pgn, train_dir := train(networkPath)
+
+	go uploadGame(httpClient, trainFile, train_dir, pgn, nextGame)
 	return nil
 }
 
