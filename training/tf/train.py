@@ -126,7 +126,8 @@ def main():
     num_chunks = cfg['dataset']['num_chunks']
     chunks = get_latest_chunks(cfg['dataset']['input'], num_chunks)
 
-    num_train = int(num_chunks*cfg['dataset']['train_ratio'])
+    train_ratio = cfg['dataset']['train_ratio']
+    num_train = int(num_chunks*train_ratio)
     shuffle_size = cfg['training']['shuffle_size']
     ChunkParser.BATCH_SIZE = cfg['training']['batch_size']
 
@@ -146,7 +147,9 @@ def main():
     dataset = dataset.prefetch(4)
     train_iterator = dataset.make_one_shot_iterator()
 
-    test_parser = ChunkParser(FileDataSrc(chunks[num_train:]), batch_size=ChunkParser.BATCH_SIZE)
+    shuffle_size = int(shuffle_size*(1.0-train_ratio))
+    test_parser = ChunkParser(FileDataSrc(chunks[num_train:]), 
+            shuffle_size=shuffle_size, sample=SKIP, batch_size=ChunkParser.BATCH_SIZE)
     dataset = tf.data.Dataset.from_generator(
         test_parser.parse, output_types=(tf.string, tf.string, tf.string))
     dataset = dataset.map(ChunkParser.parse_function)
@@ -161,7 +164,7 @@ def main():
         tfprocess.restore(cp)
 
     # Sweeps through all test chunks statistically
-    num_evals = int(round(((num_chunks-num_train) * (200 / SKIP)) / ChunkParser.BATCH_SIZE))
+    num_evals = (num_chunks-num_train)*10 // ChunkParser.BATCH_SIZE
     print("Using {} evaluation batches".format(num_evals))
 
     # while True:

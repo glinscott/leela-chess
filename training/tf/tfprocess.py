@@ -201,7 +201,7 @@ class TFProcess:
         # Determine learning rate
         lr_values = self.cfg['training']['lr_values']
         lr_boundaries = self.cfg['training']['lr_boundaries']
-        steps_total = steps % self.cfg['training']['total_steps']
+        steps_total = (steps-1) % self.cfg['training']['total_steps']
         self.lr = lr_values[bisect.bisect_right(lr_boundaries, steps_total)]
 
         # Keep running averages
