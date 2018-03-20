@@ -683,10 +683,11 @@ func viewTrainingRuns(c *gin.Context) {
 	rows := []gin.H{}
 	for _, training_run := range training_runs {
 		rows = append(rows, gin.H{
-			"id":          training_run.ID,
-			"active":      training_run.Active,
-			"trainParams": training_run.TrainParameters,
-			"description": training_run.Description,
+			"id":            training_run.ID,
+			"active":        training_run.Active,
+			"trainParams":   training_run.TrainParameters,
+			"bestNetworkId": training_run.BestNetworkID,
+			"description":   training_run.Description,
 		})
 	}
 
