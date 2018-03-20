@@ -80,7 +80,7 @@ func getExtraParams() map[string]string {
 	}
 }
 
-func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse) error {
+func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse, retryCount int) error {
 	extraParams := getExtraParams()
 	extraParams["training_id"] = strconv.Itoa(int(nextGame.TrainingId))
 	extraParams["network_id"] = strconv.Itoa(int(nextGame.NetworkId))
@@ -96,6 +96,8 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 	body := &bytes.Buffer{}
 	_, err = body.ReadFrom(resp.Body)
 	if err != nil {
+		time.Sleep(time.Millisecond * 2000 << retryCount)
+		uploadGame(httpClient, path, pgn, nextGame, retryCount+1)
 		return err
 	}
 	resp.Body.Close()
@@ -328,7 +330,7 @@ func nextGame(httpClient *http.Client) error {
 			return err
 		}
 		result, pgn := playMatch(networkPath, candidatePath, params, nextGame.Flip)
-		client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
+		go client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
 		return nil
 	} else if nextGame.Type == "train" {
 		networkPath, err := getNetwork(httpClient, nextGame.Sha, true)
@@ -336,7 +338,7 @@ func nextGame(httpClient *http.Client) error {
 			return err
 		}
 		trainFile, pgn := train(networkPath, params)
-		uploadGame(httpClient, trainFile, pgn, nextGame)
+		go uploadGame(httpClient, trainFile, pgn, nextGame, 0)
 		return nil
 	}
 
