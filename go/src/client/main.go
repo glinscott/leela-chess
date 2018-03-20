@@ -328,7 +328,7 @@ func nextGame(httpClient *http.Client) error {
 			return err
 		}
 		result, pgn := playMatch(networkPath, candidatePath, params, nextGame.Flip)
-		client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
+		go client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
 		return nil
 	} else if nextGame.Type == "train" {
 		networkPath, err := getNetwork(httpClient, nextGame.Sha, true)
@@ -336,7 +336,7 @@ func nextGame(httpClient *http.Client) error {
 			return err
 		}
 		trainFile, pgn := train(networkPath, params)
-		uploadGame(httpClient, trainFile, pgn, nextGame)
+		go uploadGame(httpClient, trainFile, pgn, nextGame)
 		return nil
 	}
 
