@@ -11,20 +11,33 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
-func postJson(httpClient *http.Client, uri string, target interface{}) error {
-	r, err := httpClient.Post(uri, "application/json", bytes.NewBuffer([]byte{}))
+func postParams(httpClient *http.Client, uri string, data map[string]string, target interface{}) error {
+	var encoded string
+	if data != nil {
+		values := url.Values{}
+		for key, val := range data {
+			values.Set(key, val)
+		}
+		encoded = values.Encode()
+	}
+	r, err := httpClient.Post(uri, "application/x-www-form-urlencoded", strings.NewReader(encoded))
 	if err != nil {
 		return err
 	}
 	defer r.Body.Close()
 	b, _ := ioutil.ReadAll(r.Body)
-	err = json.Unmarshal(b, target)
-	if err != nil {
-		log.Printf("Bad JSON from %s -- %s\n", uri, string(b))
+	if target != nil {
+		err = json.Unmarshal(b, target)
+		if err != nil {
+			log.Printf("Bad JSON from %s -- %s\n", uri, string(b))
+		}
 	}
 	return err
 }
@@ -62,21 +75,32 @@ func BuildUploadRequest(uri string, params map[string]string, paramName, path st
 }
 
 type NextGameResponse struct {
-	Type       string
-	TrainingId uint
-	NetworkId  uint
-	Sha        string
+	Type         string
+	TrainingId   uint
+	NetworkId    uint
+	Sha          string
+	CandidateSha string
+	Params       string
+	Flip         bool
+	MatchGameId  uint
 }
 
-func NextGame(httpClient *http.Client, hostname string) (NextGameResponse, error) {
+func NextGame(httpClient *http.Client, hostname string, params map[string]string) (NextGameResponse, error) {
 	resp := NextGameResponse{}
-	err := postJson(httpClient, hostname+"/next_game", &resp)
+	err := postParams(httpClient, hostname+"/next_game", params, &resp)
 
 	if len(resp.Sha) == 0 {
 		return resp, errors.New("Server gave back empty SHA")
 	}
 
 	return resp, err
+}
+
+func UploadMatchResult(httpClient *http.Client, hostname string, match_game_id uint, result int, pgn string, params map[string]string) error {
+	params["match_game_id"] = strconv.Itoa(int(match_game_id))
+	params["result"] = strconv.Itoa(result)
+	params["pgn"] = pgn
+	return postParams(httpClient, hostname+"/match_result", params, nil)
 }
 
 func DownloadNetwork(httpClient *http.Client, hostname string, networkPath string, sha string) error {

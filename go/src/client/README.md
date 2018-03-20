@@ -8,6 +8,11 @@ export GOPATH=/Users/gary/go:/Users/gary/Development/leela-chess/go
 ```
 Here, I've set my system install of go as the first entry, and then the leela-chess/go directory as the second.
 
+Pre-reqs:
+```
+go get -u github.com/notnil/chess
+```
+
 Then you just need to `go build`, and it should produce a `client` executable.
 
 # Running
