@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"client/http"
+
 	"github.com/notnil/chess"
 )
 
@@ -202,9 +203,9 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	var result int
 	game := chess.NewGame(chess.UseNotation(chess.LongAlgebraicNotation{}))
 	move_history := ""
+	turn = 0
 	for {
-		moves := game.ValidMoves()
-		if len(moves) == 0 {
+		if turn >= 450 || game.Outcome() != chess.NoOutcome {
 			if game.Outcome() == chess.WhiteWon {
 				result = 1
 			} else if game.Outcome() == chess.BlackWon {
@@ -239,6 +240,7 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 			move_history = " moves"
 		}
 		move_history += " " + best_move
+		turn += 1
 	}
 
 	chess.UseNotation(chess.AlgebraicNotation{})(game)
