@@ -203,7 +203,7 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	var result int
 	game := chess.NewGame(chess.UseNotation(chess.LongAlgebraicNotation{}))
 	move_history := ""
-	turn = 0
+	turn := 0
 	for {
 		if turn >= 450 || game.Outcome() != chess.NoOutcome {
 			if game.Outcome() == chess.WhiteWon {
