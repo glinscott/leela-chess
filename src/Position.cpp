@@ -45,7 +45,7 @@ namespace Zobrist {
   Key castling[CASTLING_RIGHT_NB];
   Key side;
   Key rule50[102/RULE50_SCALE];
-  Key repetitions[3];
+  Key repetition[2];
 }
 
 namespace {
@@ -124,17 +124,17 @@ void Position::init() {
   for (int i = 0; i < 102/RULE50_SCALE; ++i) {
       Zobrist::rule50[i] = rng.RandInt<Key>();
   }
-  for (int i = 0; i <= 2; ++i) {
-      Zobrist::repetitions[i] = rng.RandInt<Key>();
+  for (int i = 0; i < 2; ++i) {
+      Zobrist::repetition[i] = rng.RandInt<Key>();
   }
 }
 
 Key Position::full_key() const {
   auto rule50 = std::min(101 / RULE50_SCALE, st->rule50 / RULE50_SCALE);
-  auto reps = std::min(2, repetitions_count());
+  bool drawbyrep = repetitions_count() > 1;
   // NOTE: Network will call this and then repetitions_count
   // on cache misses. Could be optimized.
-  return st->key ^ Zobrist::rule50[rule50] ^ Zobrist::repetitions[reps];
+  return st->key ^ Zobrist::rule50[rule50] ^ Zobrist::repetition[drawbyrep];
 }
 
 /// Position::set() initializes the position object with the given FEN string.
