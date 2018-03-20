@@ -66,23 +66,29 @@ function(_FIND_OPENCL_VERSION)
   CMAKE_POP_CHECK_STATE()
 endfunction()
 
-find_path(OpenCL_INCLUDE_DIR
-  NAMES
-    CL/cl.h OpenCL/cl.h
-  PATHS
-    ENV "PROGRAMFILES(X86)"
-    ENV AMDAPPSDKROOT
-    ENV INTELOCLSDKROOT
-    ENV NVSDKCOMPUTE_ROOT
-    ENV CUDA_PATH
-    ENV ATISTREAMSDKROOT
-    /usr/local/cuda
-    /usr
-  PATH_SUFFIXES
-    include
-    OpenCL/common/inc
-    "AMD APP/include"
-  NO_DEFAULT_PATH)
+if(APPLE)
+  find_path(OpenCL_INCLUDE_DIR
+    NAMES
+      CL/cl.h OpenCL/cl.h)
+else()
+  find_path(OpenCL_INCLUDE_DIR
+    NAMES
+      CL/cl.h OpenCL/cl.h
+    PATHS
+      ENV "PROGRAMFILES(X86)"
+      ENV AMDAPPSDKROOT
+      ENV INTELOCLSDKROOT
+      ENV NVSDKCOMPUTE_ROOT
+      ENV CUDA_PATH
+      ENV ATISTREAMSDKROOT
+      /usr/local/cuda
+      /usr
+    PATH_SUFFIXES
+      include
+      OpenCL/common/inc
+      "AMD APP/include"
+    NO_DEFAULT_PATH)
+endif()
 
 _FIND_OPENCL_VERSION()
 
@@ -118,6 +124,9 @@ if(WIN32)
         lib/x64
         OpenCL/common/lib/x64)
   endif()
+elseif(APPLE)
+  find_library(OpenCL_LIBRARY
+    NAMES OpenCL)
 else()
   find_library(OpenCL_LIBRARY
     NAMES OpenCL
