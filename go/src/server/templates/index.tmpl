@@ -1,6 +1,6 @@
 {{define "content"}}
-<div class="alert alert-primary" role="alert">
-	Client v2 has been released, please upgrade both client and lczero executable from <a href="https://github.com/glinscott/leela-chess/releases/tag/v0.2">Github</a>.
+<div class="alert alert-danger" role="alert">
+  Client v3 is a critical upgrade, or matches may go into infinite loops.  Download <a href="https://github.com/glinscott/leela-chess/releases/tag/v0.2">here</a>.
 </div>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
@@ -20,6 +20,7 @@
 <div id="eloChart"></div>
 
 <h2>Active Users</h2>
+<h6>{{.active_users}} users in the last day have played {{.games_played}} games</h6>
 <div class="table-responsive">
   <table class="table table-striped table-sm">
     <thead>

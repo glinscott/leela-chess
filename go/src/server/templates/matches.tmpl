@@ -5,8 +5,8 @@
     <thead>
       <tr>
         <th>Id</th>
-        <th>Current ID</th>
         <th>Candidate ID</th>
+        <th>Current ID</th>
         <th>Score</th>
         <th>Done</th>
       </tr>
@@ -15,8 +15,8 @@
       {{range .matches}}
       <tr>
 				<td><a href="/match/{{.id}}">{{.id}}</a></td>
-        <td>{{.current_id}}</td>
         <td>{{.candidate_id}}</td>
+        <td>{{.current_id}}</td>
         <td>{{.score}}</td>
         <td>{{.done}}</td>
       </tr>
