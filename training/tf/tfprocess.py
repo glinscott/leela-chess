@@ -82,8 +82,8 @@ class TFProcess:
         self.init_net(self.next_batch)
 
     def init_net(self, next_batch):
-        self.x = next_batch[0]  # tf.placeholder(tf.float32, [None, 18, 19 * 19])
-        self.y_ = next_batch[1] # tf.placeholder(tf.float32, [None, 362])
+        self.x = next_batch[0]  # tf.placeholder(tf.float32, [None, 120, 8*8])
+        self.y_ = next_batch[1] # tf.placeholder(tf.float32, [None, 1924])
         self.z_ = next_batch[2] # tf.placeholder(tf.float32, [None, 1])
         self.batch_norm_count = 0
         self.y_conv, self.z_conv = self.construct_net(self.x)
