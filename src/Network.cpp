@@ -1043,7 +1043,10 @@ void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
     if (pos->can_castle(WHITE_OO)) planes.bit[kFeatureBase+(us==WHITE?0:2)+1].set();
     if (us == BLACK) planes.bit[kFeatureBase+4].set();
     planes.rule50_count = pos->rule50_count();
-    planes.move_count = pos->game_ply();
+    // Move count is redundant in chess and was clamped to uint8_t. We disabled
+    // in training and so we should disable the move_count plane as input to
+    // the NN here.
+    planes.move_count = 0;
 
     int mc = bh.positions.size() - 1;
     for (int i = 0; i < std::min(T_HISTORY, mc + 1); ++i) {
