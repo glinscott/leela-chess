@@ -710,7 +710,7 @@ func viewTrainingRuns(c *gin.Context) {
 
 func viewStats(c *gin.Context) {
 	var networks []db.Network
-	err := db.GetDB().Order("id desc").Limit(3).Find(&networks).Error
+	err := db.GetDB().Order("id desc").Where("id > 2").Find(&networks).Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
