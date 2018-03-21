@@ -764,7 +764,7 @@ func viewMatch(c *gin.Context) {
 	}
 
 	games := []db.MatchGame{}
-	err = db.GetDB().Where(&db.MatchGame{MatchID: match.ID}).Order("id").Find(&games).Error
+	err = db.GetDB().Where(&db.MatchGame{MatchID: match.ID}).Preload("User").Order("id").Find(&games).Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -773,11 +773,27 @@ func viewMatch(c *gin.Context) {
 
 	gamesJson := []gin.H{}
 	for _, game := range games {
+		color := "white"
+		if game.Flip {
+			color = "black"
+		}
+		result := "-"
+		if game.Done {
+			if game.Result == 1 {
+				result = "win"
+			} else if game.Result == -1 {
+				result = "loss"
+			} else {
+				result = "draw"
+			}
+		}
 		gamesJson = append(gamesJson, gin.H{
 			"id":         game.ID,
 			"created_at": game.CreatedAt.String(),
-			"result":     game.Result,
+			"result":     result,
 			"done":       game.Done,
+			"user":       game.User.Username,
+			"color":      color,
 		})
 	}
 

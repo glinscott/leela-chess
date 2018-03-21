@@ -5,17 +5,21 @@
     <thead>
       <tr>
         <th>Game Id</th>
+        <th>Candidate Color</th>
         <th>Result</th>
-				<th>Finished</th>
-				<th>Time</th>
+        <th>Finished</th>
+        <th>User</th>
+        <th>Time</th>
       </tr>
     </thead>
     <tbody>
       {{range .games}}
       <tr>
-				<td><a href="/match_game/{{.id}}">{{.id}}</a></td>
+        <td><a href="/match_game/{{.id}}">{{.id}}</a></td>
+        <td>{{.color}}</td>
         <td>{{.result}}</td>
         <td>{{.done}}</td>
+        <td><a href="/user/{{.user}}">{{.user}}</a></td>
         <td>{{.created_at}}</td>
       </tr>
       {{end}}
