@@ -445,7 +445,7 @@ func matchResult(c *gin.Context) {
 	c.String(http.StatusOK, fmt.Sprintf("Match game %d successfuly uploaded from user=%s.", match_game.ID, user.Username))
 }
 
-func getActiveUsers() ([]gin.H, error) {
+func getActiveUsers() (gin.H, error) {
 	rows, err := db.GetDB().Raw(`SELECT username, training_games.version, training_games.created_at, c.count FROM users
 LEFT JOIN training_games
 ON users.id = training_games.user_id
@@ -462,7 +462,9 @@ ORDER BY c.count DESC`).Rows()
 	}
 	defer rows.Close()
 
-	result := []gin.H{}
+	active_users := 0
+	games_played := 0
+	users_json := []gin.H{}
 	for rows.Next() {
 		var username string
 		var version int
@@ -470,7 +472,10 @@ ORDER BY c.count DESC`).Rows()
 		var count uint64
 		rows.Scan(&username, &version, &created_at, &count)
 
-		result = append(result, gin.H{
+		active_users += 1
+		games_played += int(count)
+
+		users_json = append(users_json, gin.H{
 			"user":         username,
 			"games_today":  count,
 			"system":       "",
@@ -479,6 +484,11 @@ ORDER BY c.count DESC`).Rows()
 		})
 	}
 
+	result := gin.H{
+		"active_users": active_users,
+		"games_played": games_played,
+		"users":        users_json,
+	}
 	return result, nil
 }
 
@@ -549,8 +559,10 @@ func frontPage(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "index", gin.H{
-		"Users":    users,
-		"progress": progress,
+		"active_users": users["active_users"],
+		"games_played": users["games_played"],
+		"Users":        users["users"],
+		"progress":     progress,
 	})
 }
 
@@ -732,7 +744,7 @@ func viewMatches(c *gin.Context) {
 			"id":           match.ID,
 			"current_id":   match.CurrentBestID,
 			"candidate_id": match.CandidateID,
-			"score":        fmt.Sprintf("%d - %d - %d", match.Wins, match.Losses, match.Draws),
+			"score":        fmt.Sprintf("+%d -%d =%d", match.Wins, match.Losses, match.Draws),
 			"done":         match.Done,
 		})
 	}
@@ -752,7 +764,7 @@ func viewMatch(c *gin.Context) {
 	}
 
 	games := []db.MatchGame{}
-	err = db.GetDB().Where(&db.MatchGame{MatchID: match.ID}).Find(&games).Error
+	err = db.GetDB().Where(&db.MatchGame{MatchID: match.ID}).Order("id").Find(&games).Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
