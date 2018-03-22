@@ -30,8 +30,10 @@
 #include "Training.h"
 #include "UCI.h"
 #include "UCTSearch.h"
+#include "Utils.h"
 
 using namespace std;
+using namespace Utils;
 
 enum SyncCout { IO_LOCK, IO_UNLOCK };
 std::ostream& operator<<(std::ostream&, SyncCout);
@@ -137,7 +139,7 @@ namespace {
     auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
     Move move = search->think();
     bh.do_move(move);
-    printf("bestmove %s\n", UCI::move(move).c_str());
+    myprintf_so("bestmove %s\n", UCI::move(move).c_str());
   }
 
   // called when receiving the 'perft Depth' command
@@ -184,8 +186,8 @@ int play_one_game() {
   Training::clear_training();
   int game_score = play_one_game(bh);
 
-  printf("PGN\n%s\nEND\n", bh.pgn().c_str());
-  printf("Score: %d\n", game_score);
+  myprintf_so("PGN\n%s\nEND\n", bh.pgn().c_str());
+  myprintf_so("Score: %d\n", game_score);
 
   return game_score;
 }
@@ -202,7 +204,7 @@ void generate_training_games(istringstream& is) {
   fs::path dir("data-" + suffix);
   if (!fs::exists(dir)) {
     fs::create_directories(dir);
-    printf("Created dirs %s\n", dir.string().c_str());
+    myprintf_so("Created dirs %s\n", dir.string().c_str());
   }
   auto chunker = OutputChunker{dir.string() + "/training", true};
   for (int64_t i = 0; i < num_games; i++) {
@@ -235,7 +237,7 @@ Bg3 15. f4 d6 16. cxd6+ Ke8 17. Kg1 Bd7 18. a4 Rd8 {0.50s} 19. a5 Ra8 {0.54s}
   PGNParser parser(ss);
   auto game = parser.parse();
 
-  printf("%s\n", game->bh.cur().fen().c_str());
+  myprintf_so("%s\n", game->bh.cur().fen().c_str());
 
   /*
   Network::DebugRawData debug_data;

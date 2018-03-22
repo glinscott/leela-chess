@@ -48,7 +48,6 @@
 #include "UCTNode.h"
 #endif
 
-#include "Utils.h"
 #include "Random.h"
 #include "Network.h"
 #include "NNCache.h"
@@ -901,7 +900,7 @@ bool compare_net_outputs(std::vector<float>& data,
             myprintf("Error in OpenCL calculation: expected %f got %f (%lli"
                        "(error=%f%%)\n", ref[idx], data[idx], num_expansions.load(), err * 100.0);
             if (num_expansions < min_correct_expansions) {
-                printf("Update your GPU drivers or reduce the amount of games "
+                myprintf_so("Update your GPU drivers or reduce the amount of games "
                            "played simultaneously.\n");
                 throw std::runtime_error("OpenCL self-check mismatch.");
             }

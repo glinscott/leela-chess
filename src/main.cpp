@@ -40,7 +40,7 @@
 using namespace Utils;
 
 static void license_blurb() {
-    printf(
+    myprintf_so(
         "LCZero Copyright (C) 2017  Gary Linscott\n"
         "Based on:"
         "Leela Chess Copyright (C) 2017 benediamond\n"
@@ -282,7 +282,7 @@ void generate_supervised_data(const std::string& filename) {
   fs::path dir("supervise-" + fp.stem().string());
   if (!fs::exists(dir)) {
     fs::create_directories(dir);
-    printf("Created dirs %s\n", dir.string().c_str());
+    myprintf_so("Created dirs %s\n", dir.string().c_str());
   }
   auto chunker = OutputChunker{dir.string() + "/training", true, 15000};
 
@@ -295,10 +295,10 @@ void generate_supervised_data(const std::string& filename) {
     Training::clear_training();
     auto game = parser.parse();
     if (game == nullptr) {
-      printf("Invalid game in %s\n", filename.c_str());
+      myprintf_so("Invalid game in %s\n", filename.c_str());
       break;
     }
-    printf("\rProcessed %d games", ++games);
+    myprintf_so("\rProcessed %d games", ++games);
     BoardHistory bh;
     bh.set(Position::StartFEN);
     for (int i = 0; i < static_cast<int>(game->bh.positions.size()) - 1; ++i) {

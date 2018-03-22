@@ -199,7 +199,7 @@ void UCTSearch::dump_analysis(int elapsed, bool force_output) {
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
     int   depth = log(float(m_nodes)) / log(1.8);
     auto visits = m_root.get_visits();
-    printf("info depth %d nodes %d nps %d score cp %d winrate %5.2f%% time %d pv %s\n",
+    myprintf_so("info depth %d nodes %d nps %d score cp %d winrate %5.2f%% time %d pv %s\n",
              depth, visits, 100 * visits / (elapsed + 1),
              cp, winrate, 10 * elapsed, pvstring.c_str());
 }
