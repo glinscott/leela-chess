@@ -1417,6 +1417,13 @@ void BoardHistory::do_move(Move m) {
   positions.back().do_move(m, *states.back());
 }
 
+bool BoardHistory::undo_move() {
+	if (positions.size() == 1) return false;
+	states.pop_back();
+	positions.pop_back();
+	return true;
+}
+
 std::string BoardHistory::pgn() const {
   std::string result;
   for (int i = 0; i< static_cast<int>(positions.size()) - 1; ++i) {
