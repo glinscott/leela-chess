@@ -6,6 +6,7 @@
         <th>ID</th>
         <th>Description</th>
         <th>Train Params</th>
+        <th>BestNetworkID</th>
         <th>Active</th>
       </tr>
     </thead>
@@ -15,6 +16,7 @@
         <td><a href="/training_run/{{.id}}">{{.id}}</a></td>
         <td>{{.description}}</td>
         <td>{{.trainParams}}</td>
+        <td>{{.bestNetworkId}}</td>
         <td>{{.active}}</td>
       </tr>
       {{end}}

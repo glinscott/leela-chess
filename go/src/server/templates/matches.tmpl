@@ -1,0 +1,30 @@
+{{define "content"}}
+<h2>Matches</h2>
+<div class="table-responsive">
+  <table class="table table-striped table-sm">
+    <thead>
+      <tr>
+        <th>Id</th>
+        <th>Candidate ID</th>
+        <th>Current ID</th>
+        <th>Score</th>
+        <th>Done</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .matches}}
+      <tr>
+				<td><a href="/match/{{.id}}">{{.id}}</a></td>
+        <td>{{.candidate_id}}</td>
+        <td>{{.current_id}}</td>
+        <td>{{.score}}</td>
+        <td>{{.done}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+{{define "scripts"}}
+{{end}}

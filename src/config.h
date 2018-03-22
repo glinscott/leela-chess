@@ -59,11 +59,20 @@ typedef unsigned char uint8;
 /* Data type definitions */
 
 #ifdef _WIN32
-typedef __int64 int64 ;
+typedef __int64 int64;
 typedef unsigned __int64 uint64;
-#else
-typedef long long int int64 ;
+#define htole64(x) (x)
+#define htole32(x) (x)
+#elif defined(__APPLE__)
+typedef long long int int64;
 typedef  unsigned long long int uint64;
+#include <libkern/OSByteOrder.h>
+#define htole32(x) OSSwapHostToLittleInt32(x)
+#define htole64(x) OSSwapHostToLittleInt64(x)
+#else
+typedef long long int int64;
+typedef  unsigned long long int uint64;
+#include <endian.h>
 #endif
 
 using net_t = float;

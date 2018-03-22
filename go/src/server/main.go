@@ -20,25 +20,91 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func checkUser(c *gin.Context) (*db.User, error) {
+	if len(c.PostForm("user")) == 0 {
+		return nil, errors.New("No user supplied")
+	}
+
+	user := &db.User{
+		Password: c.PostForm("password"),
+	}
+	err := db.GetDB().Where(db.User{Username: c.PostForm("user")}).FirstOrCreate(&user).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure passwords match
+	if user.Password != c.PostForm("password") {
+		return nil, errors.New("Incorrect password")
+	}
+
+	return user, nil
+}
+
 func nextGame(c *gin.Context) {
+	user, err := checkUser(c)
+
 	training_run := db.TrainingRun{
 		Active: true,
 	}
-	// TODO(gary): Need to set some sort of priority system here.
-	err := db.GetDB().Preload("BestNetwork").Where(&training_run).First(&training_run).Error
+	// TODO(gary): Only really supports one training run right now...
+	err = db.GetDB().Where(&training_run).First(&training_run).Error
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid training run")
 		return
 	}
 
-	// TODO: Check for active matches.
+	network := db.Network{}
+	err = db.GetDB().Where("id = ?", training_run.BestNetworkID).First(&network).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	if user != nil {
+		var match []db.Match
+		err = db.GetDB().Preload("Candidate").Where("done=false").Limit(1).Find(&match).Error
+		if err != nil {
+			log.Println(err)
+			c.String(500, "Internal error")
+			return
+		}
+		if len(match) > 0 {
+			// Return this match
+			match_game := db.MatchGame{
+				UserID:  user.ID,
+				MatchID: match[0].ID,
+			}
+			err = db.GetDB().Create(&match_game).Error
+			// Note, this could cause an imbalance of white/black games for a particular match,
+			// but it's good enough for now.
+			flip := (match_game.ID & 1) == 1
+			db.GetDB().Model(&match_game).Update("flip", flip)
+			if err != nil {
+				log.Println(err)
+				c.String(500, "Internal error")
+				return
+			}
+			result := gin.H{
+				"type":         "match",
+				"matchGameId":  match_game.ID,
+				"sha":          network.Sha,
+				"candidateSha": match[0].Candidate.Sha,
+				"params":       match[0].Parameters,
+				"flip":         flip,
+			}
+			c.JSON(http.StatusOK, result)
+			return
+		}
+	}
 
 	result := gin.H{
 		"type":       "train",
 		"trainingId": training_run.ID,
-		"networkId":  training_run.BestNetwork.ID,
-		"sha":        training_run.BestNetwork.Sha,
+		"networkId":  training_run.BestNetworkID,
+		"sha":        network.Sha,
 		"params":     training_run.TrainParameters,
 	}
 	c.JSON(http.StatusOK, result)
@@ -68,14 +134,9 @@ func computeSha(http_file *multipart.FileHeader) (string, error) {
 	return sha, nil
 }
 
-func getTrainingRun(training_id string) (*db.TrainingRun, error) {
-	id, err := strconv.ParseUint(training_id, 10, 32)
-	if err != nil {
-		return nil, err
-	}
-
+func getTrainingRun(training_id uint) (*db.TrainingRun, error) {
 	var training_run db.TrainingRun
-	err = db.GetDB().Where("id = ?", id).First(&training_run).Error
+	err := db.GetDB().Where("id = ?", training_id).First(&training_run).Error
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +176,9 @@ func uploadNetwork(c *gin.Context) {
 	}
 
 	// Create new network
+	// TODO(gary): Just hardcoding this for now.
+	var training_run_id uint = 1
+	network.TrainingRunID = training_run_id
 	layers, err := strconv.ParseInt(c.PostForm("layers"), 10, 32)
 	network.Layers = int(layers)
 	filters, err := strconv.ParseInt(c.PostForm("filters"), 10, 32)
@@ -141,18 +205,26 @@ func uploadNetwork(c *gin.Context) {
 		return
 	}
 
-	// Set the best network of this training_run
-	training_run, err := getTrainingRun(c.PostForm("training_id"))
+	// Create a match to see if this network is better
+	training_run, err := getTrainingRun(training_run_id)
 	if err != nil {
 		log.Println(err)
-		c.String(http.StatusBadRequest, "Invalid training run")
+		c.String(500, "Internal error")
 		return
 	}
-	training_run.BestNetwork = network
-	err = db.GetDB().Save(training_run).Error
+
+	match := db.Match{
+		TrainingRunID: training_run_id,
+		CandidateID:   network.ID,
+		CurrentBestID: training_run.BestNetworkID,
+		Done:          false,
+		GameCap:       400,
+		Parameters:    `["--noise"]`,
+	}
+	err = db.GetDB().Create(&match).Error
 	if err != nil {
 		log.Println(err)
-		c.String(500, "Failed to update best training_run")
+		c.String(500, "Internal error")
 		return
 	}
 
@@ -160,25 +232,23 @@ func uploadNetwork(c *gin.Context) {
 }
 
 func uploadGame(c *gin.Context) {
-	var user db.User
-	user.Password = c.PostForm("password")
-	err := db.GetDB().Where(db.User{Username: c.PostForm("user")}).FirstOrCreate(&user).Error
+	user, err := checkUser(c)
 	if err != nil {
 		log.Println(err)
-		c.String(http.StatusBadRequest, "Invalid user")
+		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Ensure passwords match
-	if user.Password != c.PostForm("password") {
-		c.String(http.StatusBadRequest, "Incorrect password")
-		return
-	}
-
-	training_run, err := getTrainingRun(c.PostForm("training_id"))
+	training_id, err := strconv.ParseUint(c.PostForm("training_id"), 10, 32)
 	if err != nil {
 		log.Println(err)
-		c.String(http.StatusBadRequest, "Invalid training run")
+		c.String(http.StatusBadRequest, "Invalid training_id")
+	}
+
+	training_run, err := getTrainingRun(uint(training_id))
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
 		return
 	}
 
@@ -258,7 +328,124 @@ func getNetwork(c *gin.Context) {
 	c.File(network.Path)
 }
 
-func getActiveUsers() ([]gin.H, error) {
+func setBestNetwork(training_id uint, network_id uint) error {
+	// Set the best network of this training_run
+	training_run, err := getTrainingRun(training_id)
+	if err != nil {
+		return err
+	}
+	err = db.GetDB().Model(&training_run).Update("best_network_id", network_id).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkMatchFinished(match_id uint) error {
+	// Now check to see if match is finished
+	var match db.Match
+	err := db.GetDB().Where("id = ?", match_id).First(&match).Error
+	if err != nil {
+		return err
+	}
+
+	// Already done?  Just return
+	if match.Done {
+		return nil
+	}
+
+	if match.Wins+match.Losses+match.Draws >= match.GameCap {
+		err = db.GetDB().Model(&match).Update("done", true).Error
+		if err != nil {
+			return err
+		}
+		// Update to our new best network
+		// TODO(SPRT)
+		if match.Wins > match.Losses {
+			err = setBestNetwork(match.TrainingRunID, match.CandidateID)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func matchResult(c *gin.Context) {
+	user, err := checkUser(c)
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, err.Error())
+		return
+	}
+
+	match_game_id, err := strconv.ParseUint(c.PostForm("match_game_id"), 10, 32)
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Invalid match_game_id")
+		return
+	}
+
+	var match_game db.MatchGame
+	err = db.GetDB().Where("id = ?", match_game_id).First(&match_game).Error
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Invalid match_game")
+		return
+	}
+
+	result, err := strconv.ParseInt(c.PostForm("result"), 10, 32)
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Unable to parse result")
+		return
+	}
+
+	good_result := result == 0 || result == -1 || result == 1
+	if !good_result {
+		c.String(http.StatusBadRequest, "Bad result")
+		return
+	}
+
+	err = db.GetDB().Model(&match_game).Updates(db.MatchGame{
+		Result: int(result),
+		Done:   true,
+		Pgn:    c.PostForm("pgn"),
+	}).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	col := ""
+	if result == 0 {
+		col = "draws"
+	} else if result == 1 {
+		col = "wins"
+	} else {
+		col = "losses"
+	}
+	// Atomic update of game count
+	err = db.GetDB().Exec(fmt.Sprintf("UPDATE matches SET %s = %s + 1 WHERE id = ?", col, col), match_game.MatchID).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	err = checkMatchFinished(match_game.MatchID)
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	c.String(http.StatusOK, fmt.Sprintf("Match game %d successfuly uploaded from user=%s.", match_game.ID, user.Username))
+}
+
+func getActiveUsers() (gin.H, error) {
 	rows, err := db.GetDB().Raw(`SELECT username, training_games.version, training_games.created_at, c.count FROM users
 LEFT JOIN training_games
 ON users.id = training_games.user_id
@@ -275,7 +462,9 @@ ORDER BY c.count DESC`).Rows()
 	}
 	defer rows.Close()
 
-	result := []gin.H{}
+	active_users := 0
+	games_played := 0
+	users_json := []gin.H{}
 	for rows.Next() {
 		var username string
 		var version int
@@ -283,7 +472,10 @@ ORDER BY c.count DESC`).Rows()
 		var count uint64
 		rows.Scan(&username, &version, &created_at, &count)
 
-		result = append(result, gin.H{
+		active_users += 1
+		games_played += int(count)
+
+		users_json = append(users_json, gin.H{
 			"user":         username,
 			"games_today":  count,
 			"system":       "",
@@ -292,6 +484,11 @@ ORDER BY c.count DESC`).Rows()
 		})
 	}
 
+	result := gin.H{
+		"active_users": active_users,
+		"games_played": games_played,
+		"users":        users_json,
+	}
 	return result, nil
 }
 
@@ -362,8 +559,10 @@ func frontPage(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "index", gin.H{
-		"Users":    users,
-		"progress": progress,
+		"active_users": users["active_users"],
+		"games_played": users["games_played"],
+		"Users":        users["users"],
+		"progress":     progress,
 	})
 }
 
@@ -425,6 +624,29 @@ func game(c *gin.Context) {
 	})
 }
 
+func viewMatchGame(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	game := db.MatchGame{
+		ID: uint64(id),
+	}
+	err = db.GetDB().Where(&game).First(&game).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	c.HTML(http.StatusOK, "game", gin.H{
+		"pgn": game.Pgn,
+	})
+}
+
 func getNetworkCounts(networks []db.Network) map[uint]uint64 {
 	counts := make(map[uint]uint64)
 	for _, network := range networks {
@@ -434,7 +656,7 @@ func getNetworkCounts(networks []db.Network) map[uint]uint64 {
 }
 
 func viewNetworks(c *gin.Context) {
-	// TODO(gary): Whole things needs to take training_run into account...
+	// TODO(gary): Whole thing needs to take training_run into account...
 	var networks []db.Network
 	err := db.GetDB().Order("id desc").Find(&networks).Error
 	if err != nil {
@@ -473,10 +695,11 @@ func viewTrainingRuns(c *gin.Context) {
 	rows := []gin.H{}
 	for _, training_run := range training_runs {
 		rows = append(rows, gin.H{
-			"id":          training_run.ID,
-			"active":      training_run.Active,
-			"trainParams": training_run.TrainParameters,
-			"description": training_run.Description,
+			"id":            training_run.ID,
+			"active":        training_run.Active,
+			"trainParams":   training_run.TrainParameters,
+			"bestNetworkId": training_run.BestNetworkID,
+			"description":   training_run.Description,
 		})
 	}
 
@@ -506,6 +729,79 @@ func viewStats(c *gin.Context) {
 	})
 }
 
+func viewMatches(c *gin.Context) {
+	var matches []db.Match
+	err := db.GetDB().Order("id desc").Find(&matches).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	json := []gin.H{}
+	for _, match := range matches {
+		json = append(json, gin.H{
+			"id":           match.ID,
+			"current_id":   match.CurrentBestID,
+			"candidate_id": match.CandidateID,
+			"score":        fmt.Sprintf("+%d -%d =%d", match.Wins, match.Losses, match.Draws),
+			"done":         match.Done,
+		})
+	}
+
+	c.HTML(http.StatusOK, "matches", gin.H{
+		"matches": json,
+	})
+}
+
+func viewMatch(c *gin.Context) {
+	match := db.Match{}
+	err := db.GetDB().Where("id = ?", c.Param("id")).First(&match).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	games := []db.MatchGame{}
+	err = db.GetDB().Where(&db.MatchGame{MatchID: match.ID}).Preload("User").Order("id").Find(&games).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	gamesJson := []gin.H{}
+	for _, game := range games {
+		color := "white"
+		if game.Flip {
+			color = "black"
+		}
+		result := "-"
+		if game.Done {
+			if game.Result == 1 {
+				result = "win"
+			} else if game.Result == -1 {
+				result = "loss"
+			} else {
+				result = "draw"
+			}
+		}
+		gamesJson = append(gamesJson, gin.H{
+			"id":         game.ID,
+			"created_at": game.CreatedAt.String(),
+			"result":     result,
+			"done":       game.Done,
+			"user":       game.User.Username,
+			"color":      color,
+		})
+	}
+
+	c.HTML(http.StatusOK, "match", gin.H{
+		"games": gamesJson,
+	})
+}
+
 func createTemplates() multitemplate.Render {
 	r := multitemplate.New()
 	r.AddFromFiles("index", "templates/base.tmpl", "templates/index.tmpl")
@@ -514,6 +810,8 @@ func createTemplates() multitemplate.Render {
 	r.AddFromFiles("networks", "templates/base.tmpl", "templates/networks.tmpl")
 	r.AddFromFiles("training_runs", "templates/base.tmpl", "templates/training_runs.tmpl")
 	r.AddFromFiles("stats", "templates/base.tmpl", "templates/stats.tmpl")
+	r.AddFromFiles("match", "templates/base.tmpl", "templates/match.tmpl")
+	r.AddFromFiles("matches", "templates/base.tmpl", "templates/matches.tmpl")
 	return r
 }
 
@@ -532,9 +830,13 @@ func setupRouter() *gin.Engine {
 	router.GET("/networks", viewNetworks)
 	router.GET("/stats", viewStats)
 	router.GET("/training_runs", viewTrainingRuns)
+	router.GET("/match/:id", viewMatch)
+	router.GET("/matches", viewMatches)
+	router.GET("/match_game/:id", viewMatchGame)
 	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
 	router.POST("/upload_network", uploadNetwork)
+	router.POST("/match_result", matchResult)
 	return router
 }
 

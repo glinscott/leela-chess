@@ -45,11 +45,14 @@ type Match struct {
 	gorm.Model
 
 	TrainingRunID uint
+	Parameters    string
 
 	Candidate     Network
 	CandidateID   uint
 	CurrentBest   Network
 	CurrentBestID uint
+
+	GamesCreated int
 
 	Wins   int
 	Losses int
@@ -70,6 +73,9 @@ type MatchGame struct {
 
 	Version uint
 	Pgn     string
+	Result  int
+	Done    bool
+	Flip    bool
 }
 
 type TrainingGame struct {
