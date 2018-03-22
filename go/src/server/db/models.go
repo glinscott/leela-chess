@@ -60,6 +60,7 @@ type Match struct {
 
 	GameCap int
 	Done    bool
+	Passed  bool
 }
 
 type MatchGame struct {
