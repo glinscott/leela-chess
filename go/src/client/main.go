@@ -96,8 +96,8 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 	body := &bytes.Buffer{}
 	_, err = body.ReadFrom(resp.Body)
 	if err != nil {
-		time.Sleep(time.Millisecond * 2000 << retryCount)
-		uploadGame(httpClient, path, pgn, nextGame, retryCount+1)
+		time.Sleep(time.Second * (2 << retryCount))
+		err = uploadGame(httpClient, path, pgn, nextGame, retryCount+1)
 		return err
 	}
 	resp.Body.Close()
