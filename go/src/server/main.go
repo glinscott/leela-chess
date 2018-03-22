@@ -361,7 +361,12 @@ func checkMatchFinished(match_id uint) error {
 		}
 		// Update to our new best network
 		// TODO(SPRT)
-		if match.Wins > match.Losses {
+		passed := match.Wins > match.Losses
+		err = db.GetDB().Model(&match).Update("passed", passed).Error
+		if err != nil {
+			return err
+		}
+		if passed {
 			err = setBestNetwork(match.TrainingRunID, match.CandidateID)
 			if err != nil {
 				return err
