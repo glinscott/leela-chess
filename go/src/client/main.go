@@ -235,15 +235,15 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 			err := game.MoveStr(best_move)
 			if err != nil {
 				log.Println("Error decoding: " + best_move + " for game:\n" + game.String())
-				log.Fatal(err)
+				return 0, "", err
 			}
 			if len(move_history) == 0 {
 				move_history = " moves"
 			}
 			move_history += " " + best_move
 			turn += 1
-		case <-time.After(30 * time.Second):
-			log.Fatal("Bestmove has timed out, aborting match")
+		case <-time.After(60 * time.Second):
+			log.Println("Bestmove has timed out, aborting match")
 			return 0, "", errors.New("timeout")
 		}
 	}
