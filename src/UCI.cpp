@@ -300,6 +300,8 @@ void UCI::loop(const std::string& start) {
       token.clear(); // Avoid a stale if getline() returns empty or blank line
       is >> skipws >> token;
 
+	  if (token == "quit" || token == "exit") break;
+
       /*
       // The GUI sends 'ponderhit' to tell us the user has played the expected move.
       // So 'ponderhit' will be sent if we were told to ponder on the same move the
@@ -328,12 +330,37 @@ void UCI::loop(const std::string& start) {
       // Additional custom non-UCI commands, mainly for debugging
       else if (token == "train")   generate_training_games(is);
       else if (token == "bench")   bench();
-      //else if (token == "d")     sync_cout << pos << sync_endl;
+      else if (token == "d" || token == "showboard") sync_cout << bh.cur() << sync_endl;
+	  else if (token == "showfen") sync_cout << bh.cur().fen() << sync_endl;
+	  else if (token == "showgame") {
+		  std::string result;
+		  for (const auto &p : bh.positions) result += UCI::move(p.get_move()) + " ";
+		  sync_cout << "position startpos" << result.substr(UCI::move(MOVE_NONE).size()) << sync_endl; // don't print (none) for the first position
+	  }
+	  else if (token == "showpgn") sync_cout << bh.pgn() << sync_endl;
+	  else if (token == "undo") sync_cout << (bh.undo_move() ? "Undone" : "At first move") << sync_endl;
+	  else if (token == "usermove" || token == "play") {
+		  std::string ms; is >> ms;
+		  Move m = UCI::to_move(bh.cur(), ms);
+		  if (m == MOVE_NONE) m = bh.cur().san_to_move(ms);
+		  if (m != MOVE_NONE) {
+			  bh.do_move(m);
+			  sync_cout << "usermove " << UCI::move(m) << sync_endl;
+		  }
+		  else {
+			  sync_cout << "Illegal move: " << ms << sync_endl;
+		  }
+	  }
+	  else if (UCI::to_move(bh.cur(), token) != MOVE_NONE) {
+		  Move m = UCI::to_move(bh.cur(), token);
+		  bh.do_move(m);
+		  sync_cout << "usermove " << UCI::move(m) << sync_endl;
+	  }
       //else if (token == "eval")  sync_cout << Eval::trace(pos) << sync_endl;
       else
-          sync_cout << "Unknown command: " << token << " " << cmd << sync_endl;
+          sync_cout << "Unknown command [" << token << "] : " << cmd << sync_endl;
 
-  } while (token != "quit" && start.empty()); // Command line args are one-shot
+  } while (start.empty()); // Command line args are one-shot
 }
 
 /// UCI::square() converts a Square to a string in algebraic notation (g1, a7, etc.)
