@@ -195,9 +195,9 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     float feval = m_root.get_eval(color);
     float winrate = 100.0f * feval;
     // UCI-like output wants a depth and a cp.
-    // convert winrate to a cp estimate ... assume winrate = 1 / (1 + exp(-cp / 650))
-    // (650 can be tuned to have an output more or less matching e.g. SF, once both have similar strength)
-    int   cp = -650 * log(1 / feval - 1);
+    // convert winrate to a cp estimate ... assume winrate = 1 / (1 + exp(-cp / 91))
+    // (91 can be tuned to have an output more or less matching e.g. SF, once both have similar strength)
+    int   cp = -91 * log(1 / feval - 1);
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
     int   depth = log(float(m_nodes)) / log(1.8);
     auto visits = m_root.get_visits();
