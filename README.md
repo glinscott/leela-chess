@@ -13,15 +13,19 @@ Please visit the LCZero forum to discuss: https://groups.google.com/forum/#!foru
 
 # Contributing
 
-The server is live at http://lczero.org/.  Please download the client and give it a try.
+The server is live at http://lczero.org/.  Please download the client and give it a try: https://github.com/glinscott/leela-chess/releases.  More information on getting started here: https://github.com/glinscott/leela-chess/wiki.
 
 Of course, we also appreciate code reviews, pull requests and Windows testers!
 
+NOTE: The steps below are not required -- only for those that want to experiment with generating their own data.
+
 ## Weights
 
-The weights are located at https://github.com/glinscott/lczero-weights. Currently, the best weights were obtained through supervised learning on a human dataset with elo ratings > 2000.
+The weights from the distributed training are downloadable from http://lczero.org/networks, the best one is at the top.
 
-# Training
+Weights that we trained to prove the engine was solid are here https://github.com/glinscott/lczero-weights. Currently, the best weights were obtained through supervised learning on a human dataset with elo ratings > 2000.
+
+# Training a new net using self-play
 
 After compiling lczero (see below), try the following:
 ```
@@ -105,7 +109,7 @@ You can use this to adjust learning rates, etc.
   drivers is strongly recommended (OpenCL 1.2 support should be enough, even
   OpenCL 1.1 might work). If you do not have a GPU, modify config.h in the
   source and remove the line that says `#define USE_OPENCL`.
-* Tensorflow 1.4 or higher (for training)
+* Tensorflow 1.4 or higher (for training only)
 * The program has been tested on Linux.
 
 ## Example of compiling - Ubuntu 16.04
