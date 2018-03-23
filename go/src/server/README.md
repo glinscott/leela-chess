@@ -98,3 +98,5 @@ $ dropdb -U gorm gorm
 $ createdb -U gorm gorm
 $ gunzip -c backup.gz | psql gorm
 ```
+
+Note that on my mac, all the postgres utilities are at `/Library/PostgreSQL/10/bin/`.
