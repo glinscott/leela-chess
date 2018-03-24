@@ -19,6 +19,7 @@
 #include "config.h"
 #include "Utils.h"
 
+#include <iostream>
 #include <mutex>
 #include <cstdarg>
 #include <cstdio>
@@ -105,6 +106,14 @@ void Utils::myprintf_so(const char *fmt, ...) {
         va_start(ap, fmt);
         vfprintf(cfg_logfile_handle, fmt, ap);
         va_end(ap);
+    }
+}
+
+void Utils::mycout(std::string out) {
+    std::cout << out;
+    if (cfg_logfile_handle) {
+        std::lock_guard<std::mutex> lock(IOmutex);
+        fprintf(cfg_logfile_handle, out.c_str());
     }
 }
 

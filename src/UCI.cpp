@@ -36,28 +36,6 @@
 using namespace std;
 using namespace Utils;
 
-enum SyncCout { IO_LOCK, IO_UNLOCK };
-
-std::ostream& operator<<(std::ostream&, SyncCout);
-
-#define sync_cout std::cout << IO_LOCK
-#define sync_endl std::endl << IO_UNLOCK
-
-/// Used to serialize access to std::cout to avoid multiple threads writing at
-/// the same time.
-
-std::ostream& operator<<(std::ostream& os, SyncCout sc) {
-  static mutex m;
-
-  if (sc == IO_LOCK)
-      m.lock();
-
-  if (sc == IO_UNLOCK)
-      m.unlock();
-
-  return os;
-}
-
 namespace {
 
   // position() is called when engine receives the "position" UCI command.
@@ -108,7 +86,9 @@ namespace {
     while (is >> token)
         value += string(" ", value.empty() ? 0 : 1) + token;
 
-    sync_cout << "No such option: " << name << sync_endl;
+    std::stringstream out;
+    out << "No such option: " << name << endl;
+    mycout(out.str());
   }
 
 
@@ -146,7 +126,9 @@ namespace {
 
        Depth depth = Depth(d);
        uint64_t total = UCI::perft<true>(bh, depth);
-       sync_cout << "Total: " << total << sync_endl;
+       std::stringstream out;
+       out << "Total: " << total << endl;
+       mycout(out.str());
   }
 
 
@@ -272,8 +254,11 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
           nodes += cnt;
           bh.cur().undo_move(m);
       }
-      if (Root)
-          sync_cout << UCI::move(m) << ": " << cnt << sync_endl;
+      if (Root) {
+          std::stringstream out;
+          out << UCI::move(m) << ": " << cnt << endl;
+          mycout(out.str());
+      }
   }
   return nodes;
 }
@@ -288,16 +273,16 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
 void UCI::loop(const std::string& start) {
 
   string token, cmd = start;
-
   BoardHistory bh;
   bh.set(Position::StartFEN);
+  std::stringstream out;
 
   do {
       if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF
           cmd = "quit";
 
+      log_input(cmd);
       istringstream is(cmd);
-
       token.clear(); // Avoid a stale if getline() returns empty or blank line
       is >> skipws >> token;
 
@@ -315,24 +300,32 @@ void UCI::loop(const std::string& start) {
           Threads.ponder = false; // Switch to normal search
       */
 
-      if (token == "uci")
-          sync_cout << "id name lczero\n"
-                    << "uciok"  << sync_endl;
-
+      if (token == "uci") {
+          out.str("");
+          out << "id name lczero\n"
+              << "uciok"  << endl;
+          mycout(out.str());
+      }
       else if (token == "setoption")  setoption(is);
       else if (token == "go")         go(bh, is);
       else if (token == "perft")      uci_perft(bh, is);
       else if (token == "position")   position(bh, is);
       // else if (token == "ucinewgame") Search::clear();
-      else if (token == "isready")    sync_cout << "readyok" << sync_endl;
-
+      else if (token == "isready") {
+          out.str("");
+          out << "readyok" << endl;
+          mycout(out.str());
+      }
       // Additional custom non-UCI commands, mainly for debugging
       else if (token == "train")   generate_training_games(is);
       else if (token == "bench")   bench();
-      //else if (token == "d")     sync_cout << pos << sync_endl;
-      //else if (token == "eval")  sync_cout << Eval::trace(pos) << sync_endl;
-      else
-          sync_cout << "Unknown command: " << token << " " << cmd << sync_endl;
+      //else if (token == "d")     sync_cout << pos << endl;
+      //else if (token == "eval")  sync_cout << Eval::trace(pos) << endl;
+      else {
+          out.str("");
+          out << "Unknown command: " << token << " " << cmd << endl;
+          mycout(out.str());
+      }
 
   } while (token != "quit" && start.empty()); // Command line args are one-shot
 }
