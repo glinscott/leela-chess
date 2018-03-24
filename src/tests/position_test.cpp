@@ -153,3 +153,22 @@ TEST_F(PositionTest, KeyTest) {
   EXPECT_TRUE(key == bh_.cur().key());
   EXPECT_FALSE(full_key == bh_.cur().full_key());
 }
+
+TEST_F(PositionTest, PGNTest) {
+  BoardHistory bh_;
+  bh_.set(Position::StartFEN);
+  bh_.do_move(UCI::to_move(bh_.cur(), "f2f4"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "a7a6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "f4f5"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "e7e6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "f5e6"));
+  EXPECT_EQ(bh_.pgn(), "1. f4 a6 2. f5 e6 3. fxe6 ");
+
+  bh_.set(Position::StartFEN);
+  bh_.do_move(UCI::to_move(bh_.cur(), "f2f4"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "a7a6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "f4f5"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "e7e5"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "f5e6"));
+  EXPECT_EQ(bh_.pgn(), "1. f4 a6 2. f5 e5 3. fxe6 ");
+}
