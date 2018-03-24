@@ -885,9 +885,9 @@ void compare_net_outputs(std::vector<float>& data,
     static std::atomic<int64> num_expansions{min_correct_expansions};
     num_expansions = std::min(num_expansions + 1, 3 * min_correct_expansions);
 
-    // We accept an error up to 5%, but output values
+    // We accept an error up to 10%, but output values
     // smaller than 1/1000th are "rounded up" for the comparison.
-    constexpr float relative_error = 5e-2f;
+    constexpr float relative_error = 10e-2f;
     for (auto idx = size_t{0}; idx < data.size(); ++idx) {
         auto err = relative_difference(data[idx], ref[idx]);
         if (err > relative_error) {
