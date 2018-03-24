@@ -109,14 +109,6 @@ void Utils::myprintf_so(const char *fmt, ...) {
     }
 }
 
-void Utils::mycout(std::string out) {
-    std::cout << out;
-    if (cfg_logfile_handle) {
-        std::lock_guard<std::mutex> lock(IOmutex);
-        fprintf(cfg_logfile_handle, out.c_str());
-    }
-}
-
 static void gtp_fprintf(FILE* file, const std::string& prefix,
                         const char *fmt, va_list ap) {
     fprintf(file, "%s ", prefix.c_str());

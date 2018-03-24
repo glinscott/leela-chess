@@ -86,9 +86,7 @@ namespace {
     while (is >> token)
         value += string(" ", value.empty() ? 0 : 1) + token;
 
-    std::stringstream out;
-    out << "No such option: " << name << endl;
-    mycout(out.str());
+    myprintf_so("No such option: %s\n", name.c_str());
   }
 
 
@@ -126,9 +124,7 @@ namespace {
 
        Depth depth = Depth(d);
        uint64_t total = UCI::perft<true>(bh, depth);
-       std::stringstream out;
-       out << "Total: " << total << endl;
-       mycout(out.str());
+       myprintf_so("Total: %lld\n", total);
   }
 
 
@@ -255,9 +251,7 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
           bh.cur().undo_move(m);
       }
       if (Root) {
-          std::stringstream out;
-          out << UCI::move(m) << ": " << cnt << endl;
-          mycout(out.str());
+          myprintf("%s: %lld\n", UCI::move(m).c_str(), cnt);
       }
   }
   return nodes;
@@ -275,7 +269,6 @@ void UCI::loop(const std::string& start) {
   string token, cmd = start;
   BoardHistory bh;
   bh.set(Position::StartFEN);
-  std::stringstream out;
 
   do {
       if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF
@@ -301,10 +294,7 @@ void UCI::loop(const std::string& start) {
       */
 
       if (token == "uci") {
-          out.str("");
-          out << "id name lczero\n"
-              << "uciok"  << endl;
-          mycout(out.str());
+          myprintf("id name lczero\nuciok\n");
       }
       else if (token == "setoption")  setoption(is);
       else if (token == "go")         go(bh, is);
@@ -312,19 +302,15 @@ void UCI::loop(const std::string& start) {
       else if (token == "position")   position(bh, is);
       // else if (token == "ucinewgame") Search::clear();
       else if (token == "isready") {
-          out.str("");
-          out << "readyok" << endl;
-          mycout(out.str());
+          myprintf("readyok\n");
       }
       // Additional custom non-UCI commands, mainly for debugging
       else if (token == "train")   generate_training_games(is);
       else if (token == "bench")   bench();
       //else if (token == "d")     sync_cout << pos << endl;
       //else if (token == "eval")  sync_cout << Eval::trace(pos) << endl;
-      else {
-          out.str("");
-          out << "Unknown command: " << token << " " << cmd << endl;
-          mycout(out.str());
+      else if (token != "quit") {
+          myprintf("Unknown command: %s\n", cmd.c_str());
       }
 
   } while (token != "quit" && start.empty()); // Command line args are one-shot
