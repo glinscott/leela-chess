@@ -355,11 +355,11 @@ func checkMatchFinished(match_id uint) error {
 		return nil
 	}
 
-	elo0 := -10.0
+	elo0 := 0.0
 	elo1 := 10.0
 
-	alpha := 0.5
-	beta := 0.5
+	alpha := 0.05
+	beta := 0.05
 
 	s := sprt.MakeSprt(elo0, elo1, alpha, beta, match.Wins, match.Losses, match.Draws)
 
