@@ -1126,7 +1126,7 @@ std::string Position::move_to_san(Move m) const {
         result += file;
         result += rank;
       }
-    } else if (type_of(pc) == PAWN && board[to] != NO_PIECE) {
+    } else if (type_of(pc) == PAWN && (board[to] != NO_PIECE || type_of(m) == ENPASSANT)) {
       result += file;
     }
 
