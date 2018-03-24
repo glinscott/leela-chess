@@ -28,7 +28,7 @@ var HOSTNAME = flag.String("hostname", "http://162.217.248.187", "Address of the
 var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
 var GPU = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
-var DEBUG = flag.Bool("debug", false, "Enable debug mode to see verbose output")
+var DEBUG = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
 
 type Settings struct {
 	User string
@@ -271,6 +271,13 @@ func train(networkPath string, params []string) (string, string) {
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	if *DEBUG {
+		logs_dir := path.Join(dir, fmt.Sprintf("logs-%v", pid))
+		os.MkdirAll(logs_dir, os.ModePerm)
+		logfile := path.Join(logs_dir, fmt.Sprintf("%s.log", time.Now().Format("20060102150405")))
+		params = append(params, "-l" + logfile)
 	}
 
 	num_games := 1
