@@ -251,7 +251,7 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
           bh.cur().undo_move(m);
       }
       if (Root) {
-          myprintf("%s: %lld\n", UCI::move(m).c_str(), cnt);
+          myprintf_so("%s: %lld\n", UCI::move(m).c_str(), cnt);
       }
   }
   return nodes;
@@ -296,7 +296,7 @@ void UCI::loop(const std::string& start) {
       */
 
       if (token == "uci") {
-          myprintf("id name lczero\nuciok\n");
+          myprintf_so("id name lczero\nuciok\n");
       }
       else if (token == "setoption")  setoption(is);
       else if (token == "go")         go(bh, is);
@@ -304,7 +304,7 @@ void UCI::loop(const std::string& start) {
       else if (token == "position")   position(bh, is);
       // else if (token == "ucinewgame") Search::clear();
       else if (token == "isready") {
-          myprintf("readyok\n");
+          myprintf_so("readyok\n");
       }
       // Additional custom non-UCI commands, mainly for debugging
       else if (token == "train")   generate_training_games(is);
@@ -312,13 +312,12 @@ void UCI::loop(const std::string& start) {
       else if (token == "d" || token == "showboard") {
 		  std::stringstream ss;
 		  ss << bh.cur();
-		  myprintf("%s\n", ss.str().c_str());
-		  //myprintf("%s\n", bh.cur().c_str());
+		  myprintf_so("%s\n", ss.str().c_str());
 	  }
 	  else if (token == "showfen") {
 	      std::stringstream ss;
 		  ss << bh.cur().fen();
-		  myprintf("%s\n", ss.str().c_str());
+		  myprintf_so("%s\n", ss.str().c_str());
 	  }
 	  else if (token == "showgame") {
 		  std::string result;
@@ -329,30 +328,30 @@ void UCI::loop(const std::string& start) {
 				  result += UCI::move(p.get_move()) + " ";
 			  }
 		  }
-		  myprintf("position startpos%s\n", result.c_str());
+		  myprintf_so("position startpos%s\n", result.c_str());
 	  }
-	  else if (token == "showpgn") myprintf("%s\n", bh.pgn().c_str());
-	  else if (token == "undo") myprintf(bh.undo_move() ? "Undone\n" : "At first move\n");
+	  else if (token == "showpgn") myprintf_so("%s\n", bh.pgn().c_str());
+	  else if (token == "undo") myprintf_so(bh.undo_move() ? "Undone\n" : "At first move\n");
 	  else if (token == "usermove" || token == "play") {
 		  std::string ms; is >> ms;
 		  Move m = UCI::to_move(bh.cur(), ms);
 		  if (m == MOVE_NONE) m = bh.cur().san_to_move(ms);
 		  if (m != MOVE_NONE) {
 			  bh.do_move(m);
-			  myprintf("usermove %s\n", UCI::move(m).c_str());
+			  myprintf_so("usermove %s\n", UCI::move(m).c_str());
 		  }
 		  else {
-			  myprintf("Illegal move: %s\n", ms.c_str());
+			  myprintf_so("Illegal move: %s\n", ms.c_str());
 		  }
 	  }
 	  else if (UCI::to_move(bh.cur(), token) != MOVE_NONE) {
 		  Move m = UCI::to_move(bh.cur(), token);
 		  bh.do_move(m);
-		  myprintf("usermove %s\n", UCI::move(m).c_str());
+		  myprintf_so("usermove %s\n", UCI::move(m).c_str());
 	  }
 		  //else if (token == "eval")  sync_cout << Eval::trace(pos) << sync_endl;
 		  else if (token != "quit") {
-		  myprintf("Unknown command: %s\n", cmd.c_str());
+		  myprintf_so("Unknown command: %s\n", cmd.c_str());
 	  }
 
   } while (start.empty()); // Command line args are one-shot
