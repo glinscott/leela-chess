@@ -50,6 +50,7 @@ LimitsType Limits;
 UCTSearch::UCTSearch(BoardHistory&& bh)
     : bh_(std::move(bh)) {
     set_playout_limit(cfg_max_playouts);
+    set_visit_limit(cfg_max_visits);
     m_root = std::make_unique<UCTNode>(MOVE_NONE, 0.0f, 0.5f);
 
 }
@@ -212,8 +213,9 @@ bool UCTSearch::is_running() const {
     return m_run && m_nodes < MAX_TREE_SIZE;
 }
 
-bool UCTSearch::playout_limit_reached() const {
-    return m_playouts >= m_maxplayouts;
+bool UCTSearch::pv_limit_reached() const {
+    return m_playouts >= m_maxplayouts
+        || m_root->get_visits() >= m_maxvisits;
 }
 
 void UCTWorker::operator()() {
@@ -355,15 +357,26 @@ int UCTSearch::get_search_time() {
 
 // Used to check if we've run out of time or reached out playout limit
 bool UCTSearch::halt_search() {
-    return m_target_time < 0 ? playout_limit_reached() : m_target_time - 50 < now() - m_start_time;
+    return m_target_time < 0 ? pv_limit_reached() : m_target_time - 50 < now() - m_start_time;
 }
 
 void UCTSearch::set_playout_limit(int playouts) {
     static_assert(std::is_convertible<decltype(playouts), decltype(m_maxplayouts)>::value, "Inconsistent types for playout amount.");
     if (playouts == 0) {
-        m_maxplayouts = std::numeric_limits<decltype(m_maxplayouts)>::max();
+        // Divide max by 2 to prevent overflow when multithreading.
+        m_maxplayouts = std::numeric_limits<decltype(m_maxplayouts)>::max() / 2;
     } else {
         m_maxplayouts = playouts;
+    }
+}
+
+void UCTSearch::set_visit_limit(int visits) {
+    static_assert(std::is_convertible<decltype(visits), decltype(m_maxvisits)>::value, "Inconsistent types for visits amount.");
+    if (visits == 0) {
+        // Divide max by 2 to prevent overflow when multithreading.
+        m_maxvisits = std::numeric_limits<decltype(m_maxvisits)>::max() / 2;
+    } else {
+        m_maxvisits = visits;
     }
 }
 

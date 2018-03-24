@@ -69,11 +69,12 @@ public:
     UCTSearch(BoardHistory&& bh);
     Move think(BoardHistory&& bh);
     void set_playout_limit(int playouts);
+    void set_visit_limit(int visits);
     void set_analyzing(bool flag);
     void set_quiet(bool flag);
     void ponder();
     bool is_running() const;
-    bool playout_limit_reached() const;
+    bool pv_limit_reached() const;
     void increment_playouts();
     bool halt_search();
     SearchResult play_simulation(BoardHistory& bh, UCTNode* const node);
@@ -92,6 +93,7 @@ private:
     std::atomic<int64_t> m_start_time{0};
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
+    int m_maxvisits;
 
     bool quiet_ = true;
 
