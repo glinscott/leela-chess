@@ -366,7 +366,7 @@ func checkMatchFinished(match_id uint) error {
 	sprtStatus := s.GetStatus()
 	sprtResult := sprtStatus.GetResult()
 
-	if sprtResult != sprt.Continue {
+	if sprtResult != sprt.Continue || match.Wins+match.Losses+match.Draws >= match.GameCap {
 		err = db.GetDB().Model(&match).Update("done", true).Error
 		if err != nil {
 			return err
