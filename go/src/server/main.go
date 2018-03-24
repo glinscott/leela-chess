@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"server/db"
+	"server/sprt"
 	"strconv"
 	"time"
 
@@ -354,14 +355,24 @@ func checkMatchFinished(match_id uint) error {
 		return nil
 	}
 
-	if match.Wins+match.Losses+match.Draws >= match.GameCap {
+	elo0 := -10.0
+	elo1 := 10.0
+
+	alpha := 0.5
+	beta := 0.5
+
+	s := sprt.MakeSprt(elo0, elo1, alpha, beta, match.Wins, match.Losses, match.Draws)
+
+	sprtStatus := s.GetStatus()
+	sprtResult := sprtStatus.GetResult()
+
+	if sprtResult != sprt.Continue {
 		err = db.GetDB().Model(&match).Update("done", true).Error
 		if err != nil {
 			return err
 		}
-		// Update to our new best network
-		// TODO(SPRT)
-		passed := match.Wins > match.Losses
+
+		passed := sprtResult == sprt.AcceptH1
 		err = db.GetDB().Model(&match).Update("passed", passed).Error
 		if err != nil {
 			return err
