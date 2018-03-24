@@ -279,6 +279,8 @@ void UCI::loop(const std::string& start) {
       token.clear(); // Avoid a stale if getline() returns empty or blank line
       is >> skipws >> token;
 
+	  if (token == "quit" || token == "exit") break;
+
       /*
       // The GUI sends 'ponderhit' to tell us the user has played the expected move.
       // So 'ponderhit' will be sent if we were told to ponder on the same move the
@@ -307,13 +309,53 @@ void UCI::loop(const std::string& start) {
       // Additional custom non-UCI commands, mainly for debugging
       else if (token == "train")   generate_training_games(is);
       else if (token == "bench")   bench();
-      //else if (token == "d")     sync_cout << pos << endl;
-      //else if (token == "eval")  sync_cout << Eval::trace(pos) << endl;
-      else if (token != "quit") {
-          myprintf("Unknown command: %s\n", cmd.c_str());
-      }
+      else if (token == "d" || token == "showboard") {
+		  std::stringstream ss;
+		  ss << bh.cur();
+		  myprintf("%s\n", ss.str().c_str());
+		  //myprintf("%s\n", bh.cur().c_str());
+	  }
+	  else if (token == "showfen") {
+	      std::stringstream ss;
+		  ss << bh.cur().fen();
+		  myprintf("%s\n", ss.str().c_str());
+	  }
+	  else if (token == "showgame") {
+		  std::string result;
+		  for (const auto &p : bh.positions) {
+			  if (result == "") {
+			      result = " "; // first position has no move
+			  } else {
+				  result += UCI::move(p.get_move()) + " ";
+			  }
+		  }
+		  myprintf("position startpos%s\n", result.c_str());
+	  }
+	  else if (token == "showpgn") myprintf("%s\n", bh.pgn().c_str());
+	  else if (token == "undo") myprintf(bh.undo_move() ? "Undone\n" : "At first move\n");
+	  else if (token == "usermove" || token == "play") {
+		  std::string ms; is >> ms;
+		  Move m = UCI::to_move(bh.cur(), ms);
+		  if (m == MOVE_NONE) m = bh.cur().san_to_move(ms);
+		  if (m != MOVE_NONE) {
+			  bh.do_move(m);
+			  myprintf("usermove %s\n", UCI::move(m).c_str());
+		  }
+		  else {
+			  myprintf("Illegal move: %s\n", ms.c_str());
+		  }
+	  }
+	  else if (UCI::to_move(bh.cur(), token) != MOVE_NONE) {
+		  Move m = UCI::to_move(bh.cur(), token);
+		  bh.do_move(m);
+		  myprintf("usermove %s\n", UCI::move(m).c_str());
+	  }
+		  //else if (token == "eval")  sync_cout << Eval::trace(pos) << sync_endl;
+		  else if (token != "quit") {
+		  myprintf("Unknown command: %s\n", cmd.c_str());
+	  }
 
-  } while (token != "quit" && start.empty()); // Command line args are one-shot
+  } while (start.empty()); // Command line args are one-shot
 }
 
 /// UCI::square() converts a Square to a string in algebraic notation (g1, a7, etc.)

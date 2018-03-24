@@ -1126,7 +1126,7 @@ std::string Position::move_to_san(Move m) const {
         result += file;
         result += rank;
       }
-    } else if (type_of(pc) == PAWN && board[to] != NO_PIECE) {
+    } else if (type_of(pc) == PAWN && (board[to] != NO_PIECE || type_of(m) == ENPASSANT)) {
       result += file;
     }
 
@@ -1415,6 +1415,13 @@ void BoardHistory::do_move(Move m) {
   states.emplace_back(new StateInfo);
   positions.push_back(positions.back());
   positions.back().do_move(m, *states.back());
+}
+
+bool BoardHistory::undo_move() {
+	if (positions.size() == 1) return false;
+	states.pop_back();
+	positions.pop_back();
+	return true;
 }
 
 std::string BoardHistory::pgn() const {
