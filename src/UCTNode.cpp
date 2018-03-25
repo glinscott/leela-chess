@@ -35,6 +35,7 @@
 #include "Position.h"
 #include "Parameters.h"
 #include "Movegen.h"
+#include "UCI.h"
 #include "UCTNode.h"
 #include "UCTSearch.h"
 #include "Utils.h"
@@ -337,6 +338,17 @@ UCTNode& UCTNode::get_best_root_child(Color color) {
                               NodeComp(color))->get());
 }
 
+size_t UCTNode::count_nodes() const {
+    auto nodecount = size_t{0};
+    if (m_has_children) {
+        nodecount += m_children.size();
+        for (auto& child : m_children) {
+            nodecount += child->count_nodes();
+        }
+    }
+    return nodecount;
+}
+
 UCTNode* UCTNode::get_first_child() const {
     if (m_children.empty()) {
         return nullptr;
@@ -346,4 +358,23 @@ UCTNode* UCTNode::get_first_child() const {
 
 const std::vector<UCTNode::node_ptr_t>& UCTNode::get_children() const {
     return m_children;
+}
+
+UCTNode::node_ptr_t UCTNode::find_new_root(BoardHistory& old_bh, BoardHistory& new_bh) {
+    UCTNode::node_ptr_t new_root = nullptr;
+    for (auto& node : m_children) {
+        auto move = node->get_move();
+        old_bh.do_move(move);
+        if (old_bh.cur().full_key() == new_bh.cur().full_key()) {
+            new_root = std::move(node);
+        } else {
+            new_root = node->find_new_root(old_bh, new_bh);
+        }
+        old_bh.undo_move();
+        if (new_root != nullptr) {
+            break;
+        }
+    }
+
+    return new_root;
 }
