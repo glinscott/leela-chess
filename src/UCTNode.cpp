@@ -364,10 +364,8 @@ UCTNode::node_ptr_t UCTNode::find_new_root(BoardHistory& old_bh, BoardHistory& n
     UCTNode::node_ptr_t new_root = nullptr;
     for (auto& node : m_children) {
         auto move = node->get_move();
-        std::string tmp = UCI::move(move);
-        auto before_key = old_bh.cur().key();
         old_bh.do_move(move);
-        if (old_bh.cur().key() == new_bh.cur().key()) {
+        if (old_bh.cur().full_key() == new_bh.cur().full_key()) {
             new_root = std::move(node);
         } else {
             new_root = node->find_new_root(old_bh, new_bh);
