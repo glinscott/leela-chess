@@ -12,6 +12,10 @@ protected:
   }
 };
 
+void mock_shallow_repetitions(BoardHistory&& bh, int rep_cnt) {
+  EXPECT_EQ(bh.cur().repetitions_count(), rep_cnt);
+}
+
 TEST_F(PositionTest, IsDrawStartPosition) {
   Position pos;
   StateInfo si;
@@ -164,18 +168,18 @@ TEST_F(PositionTest, KeyTest) {
   bh_.do_move(UCI::to_move(bh_.cur(), "d3e3")); bh_.do_move(UCI::to_move(bh_.cur(), "d6e6"));
   bh_.do_move(UCI::to_move(bh_.cur(), "e3f3")); bh_.do_move(UCI::to_move(bh_.cur(), "e6f6"));
   bh_.do_move(UCI::to_move(bh_.cur(), "f3g3")); bh_.do_move(UCI::to_move(bh_.cur(), "f6g6"));
-  bh_ = bh_.shallow_clone();
   bh_.do_move(UCI::to_move(bh_.cur(), "g3h3"));
   EXPECT_EQ(bh_.cur().repetitions_count(), 0);
-  bh_ = bh_.shallow_clone();
+  mock_shallow_repetitions(bh_.shallow_clone(), 0);
   bh_.do_move(UCI::to_move(bh_.cur(), "g6h6"));
   EXPECT_EQ(bh_.cur().repetitions_count(), 0);
-  bh_ = bh_.shallow_clone();
+  mock_shallow_repetitions(bh_.shallow_clone(), 0);
   bh_.do_move(UCI::to_move(bh_.cur(), "h3a3"));
   EXPECT_EQ(bh_.cur().repetitions_count(), 1);
-  bh_ = bh_.shallow_clone();
+  mock_shallow_repetitions(bh_.shallow_clone(), 1);
   bh_.do_move(UCI::to_move(bh_.cur(), "h6a6"));
   EXPECT_EQ(bh_.cur().repetitions_count(), 1);
+  mock_shallow_repetitions(bh_.shallow_clone(), 1);
 }
 
 TEST_F(PositionTest, PGNTest) {
