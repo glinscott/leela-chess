@@ -202,9 +202,15 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     int   cp = -91 * log(1 / feval - 1);
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
     int   depth = log(float(m_nodes)) / log(1.8);
-    auto visits = m_root.get_visits();
-    myprintf_so("info depth %d nodes %d nps %.0f score cp %d winrate %5.2f%% time %lld pv %s\n",
-             depth, visits, 1000.0 * visits / (elapsed + 1),
+    // To report nodes, use visits.
+    //   - Only includes expanded nodes.
+    //   - Includes nodes carried over from tree reuse.
+    auto visits = m_root->get_visits();
+    // To report nps, use m_playouts to exclude nodes added by tree reuse,
+    // which is similar to a ponder hit. The user will expect to know how
+    // fast nodes are being added, not how big the ponder hit was.
+    myprintf_so("info depth %d nodes %d nps %0.f score cp %d winrate %5.2f%% time %lld pv %s\n",
+             depth, visits, 1000.0 * m_playouts / (elapsed + 1),
              cp, winrate, elapsed, pvstring.c_str());
 }
 
