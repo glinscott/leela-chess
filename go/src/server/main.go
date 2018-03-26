@@ -239,6 +239,18 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 
+	version, err := strconv.ParseUint(c.PostForm("version"), 10, 64)
+	if err != nil {
+		log.Println(err.Error())
+		c.String(http.StatusBadRequest, "Invalid version")
+		return
+	}
+	if version < 3 {
+		log.Println("Rejecting old game from %s, version %d", user.Username, version)
+		c.String(http.StatusBadRequest, "\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
+		return
+	}
+
 	training_id, err := strconv.ParseUint(c.PostForm("training_id"), 10, 32)
 	if err != nil {
 		log.Println(err)
@@ -283,12 +295,6 @@ func uploadGame(c *gin.Context) {
 	}
 
 	// Create new game
-	version, err := strconv.ParseUint(c.PostForm("version"), 10, 64)
-	if err != nil {
-		log.Println(err.Error())
-		c.String(http.StatusBadRequest, "Invalid version")
-		return
-	}
 	game := db.TrainingGame{
 		UserID:        user.ID,
 		TrainingRunID: training_run.ID,
