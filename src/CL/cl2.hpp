@@ -357,8 +357,8 @@
         cl::unmapSVM(inputB);
         cl::unmapSVM(output2);
 
-	    cl_int error;
-	    vectorAddKernel(
+        cl_int error;
+        vectorAddKernel(
             cl::EnqueueArgs(
                 cl::NDRange(numElements/2),
                 cl::NDRange(numElements/2)),
@@ -369,7 +369,7 @@
             3,
             aPipe,
             defaultDeviceQueue,
-		    error
+            error
             );
 
         cl::copy(outputBuffer, begin(output), end(output));
@@ -3069,7 +3069,7 @@ public:
      */
     cl_int setCallback(
         cl_int type,
-        void (CL_CALLBACK * pfn_notify)(cl_event, cl_int, void *),		
+        void (CL_CALLBACK * pfn_notify)(cl_event, cl_int, void *),
         void * user_data = NULL)
     {
         return detail::errHandler(
@@ -3258,7 +3258,7 @@ public:
      *  value - not the Memory class instance.
      */
     cl_int setDestructorCallback(
-        void (CL_CALLBACK * pfn_notify)(cl_mem, void *),		
+        void (CL_CALLBACK * pfn_notify)(cl_mem, void *),
         void * user_data = NULL)
     {
         return detail::errHandler(
@@ -3849,7 +3849,7 @@ public:
         }
 
         return result;
-    }		
+    }
 #endif // CL_HPP_TARGET_OPENCL_VERSION >= 110
 };
 

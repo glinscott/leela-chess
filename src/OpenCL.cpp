@@ -821,7 +821,7 @@ void OpenCL_Network::convolve1(int channels, int outputs,
                                    cl::NDRange(channelGroup, outputGroup, rowGroup));
     } catch (const cl::Error &e) {
         std::cerr << "Error in convolve1: " << e.what() << ": "
-	        << e.err() << std::endl;
+            << e.err() << std::endl;
         throw;
     }
 
@@ -840,7 +840,7 @@ void OpenCL_Network::convolve1(int channels, int outputs,
                                    cl::NDRange(std::min(8, outputs), 8));
     } catch (const cl::Error &e) {
         std::cerr << "Error in merge: " << e.what() << ": "
-	        << e.err() << std::endl;
+            << e.err() << std::endl;
         throw;
     }
 }
@@ -882,7 +882,7 @@ void OpenCL_Network::innerproduct(cl::Buffer& input,
                                    cl::NDRange(local_size));
     } catch (const cl::Error &e) {
         std::cerr << "Error in innerproduct: " << e.what() << ": "
-	        << e.err() << std::endl;
+            << e.err() << std::endl;
         throw;
     }
 }
@@ -1067,7 +1067,7 @@ void OpenCL::initialize(const int channels, const std::vector<int> & gpus,
             this_score += 1000 * boost::icontains(this_vendor, "nvidia");
             this_score +=  500 * boost::icontains(this_vendor, "intel");
             this_score +=  100 * (d.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_GPU);
-            this_score +=  opencl_version * 10;
+            this_score +=  int(opencl_version * 10);
             if (!silent) {
                 myprintf("Device score:  %d\n", this_score);
             }
@@ -1105,7 +1105,7 @@ void OpenCL::initialize(const int channels, const std::vector<int> & gpus,
     try {
         context = cl::Context(best_device);
     } catch (const cl::Error &e) {
-        myprintf("Error creating OpenCL context: %s: %d", e.what(), e.err());
+        myprintf("Error creating OpenCL context: %s: %d\n", e.what(), e.err());
         throw std::runtime_error("Error creating OpenCL context.");
     }
     m_context = context;
@@ -1120,7 +1120,7 @@ void OpenCL::initialize(const int channels, const std::vector<int> & gpus,
                                 + sourceCode_sgemm
                                 + sourceCode_sgemv);
     } catch (const cl::Error &e) {
-        myprintf("Error getting kernels: %s: %d", e.what(), e.err());
+        myprintf("Error getting kernels: %s: %d\n", e.what(), e.err());
         throw std::runtime_error("Error getting OpenCL kernels.");
     }
 

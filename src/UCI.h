@@ -67,8 +67,8 @@ private:
 
 void init(OptionsMap&);
 void loop(const std::string& start);
-std::string square(Square s);
-std::string move(Move m);
+std::string to_string(Square s);
+std::string to_string(Move m);
 Move to_move(const Position& pos, std::string const& str);
 
 template<bool Root>

@@ -37,7 +37,8 @@
 #include "Movegen.h"
 #include "pgn.h"
 
-using namespace Utils;
+using Utils::myprintf_so;
+using Utils::myprintf;
 
 static void license_blurb() {
     myprintf_so(
@@ -313,7 +314,7 @@ void generate_supervised_data(const std::string& filename) {
     }
     myprintf_so("\rProcessed %d games", ++games);
     BoardHistory bh;
-    bh.set(Position::StartFEN);
+    bh.init(Position::StartFEN);
     for (int i = 0; i < static_cast<int>(game->bh.positions.size()) - 1; ++i) {
       Move move = game->bh.positions[i + 1].get_move();
       Training::record(bh, move);
@@ -340,7 +341,8 @@ int main(int argc, char* argv[]) {
 
   setbuf(stdout, nullptr);
   setbuf(stderr, nullptr);
-#ifndef WIN32
+#ifndef _WIN32
+  // on windows, for some reason, this limits the cin line input to 255 characters
   setbuf(stdin, nullptr);
 #endif
   thread_pool.initialize(cfg_num_threads);

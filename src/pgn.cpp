@@ -38,7 +38,7 @@ std::unique_ptr<PGNGame> PGNParser::parse() {
   }
 
   std::unique_ptr<PGNGame> game(new PGNGame);
-  game->bh.set(Position::StartFEN);
+  game->bh.init(Position::StartFEN);
 
   auto game_result = parse_result(result);
   if (game_result) {

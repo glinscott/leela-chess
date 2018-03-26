@@ -47,14 +47,13 @@ namespace Utils {
 
     template<typename T>
     T rotl(const T x, const int k) {
-	    return (x << k) | (x >> (std::numeric_limits<T>::digits - k));
+        return (x << k) | (x >> (std::numeric_limits<T>::digits - k));
     }
 
     inline bool is7bit(int c) {
         return c >= 0 && c <= 127;
     }
 
-    size_t lcm(size_t a, size_t b);
     size_t ceilMultiple(size_t a, size_t b);
 
 }

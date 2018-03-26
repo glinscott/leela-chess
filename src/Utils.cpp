@@ -151,14 +151,6 @@ void Utils::log_input(const std::string& input) {
     }
 }
 
-size_t Utils::lcm(size_t a, size_t b) {
-    if (a % b == 0) {
-        return a;
-    }
-    size_t ret = a + (b - a % b);
-    return ret;
-}
-
 size_t Utils::ceilMultiple(size_t a, size_t b) {
     if (a % b == 0) {
         return a;
