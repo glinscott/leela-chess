@@ -67,13 +67,14 @@ public:
     static constexpr auto MAX_TREE_SIZE = 40'000'000;
 
     UCTSearch(BoardHistory&& bh);
-    Move think();
+    Move think(BoardHistory&& bh);
     void set_playout_limit(int playouts);
+    void set_visit_limit(int visits);
     void set_analyzing(bool flag);
     void set_quiet(bool flag);
     void ponder();
     bool is_running() const;
-    bool playout_limit_reached() const;
+    bool pv_limit_reached() const;
     void increment_playouts();
     bool halt_search();
     SearchResult play_simulation(BoardHistory& bh, UCTNode* const node);
@@ -85,13 +86,15 @@ private:
     Move get_best_move();
 
     BoardHistory bh_;
-    UCTNode m_root{MOVE_NONE, 0.0f, 0.5f};
+    Key m_prevroot_full_key{0};
+    std::unique_ptr<UCTNode> m_root;
     std::atomic<int> m_nodes{0};
     std::atomic<int> m_playouts{0};
     std::atomic<int64_t> m_target_time{0};
     std::atomic<int64_t> m_start_time{0};
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
+    int m_maxvisits;
 
     bool quiet_ = true;
 

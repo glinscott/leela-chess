@@ -64,6 +64,8 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("playouts,p", po::value<int>(),
                        "Weaken engine by limiting the number of playouts. "
                        "Requires --noponder.")
+        ("visits,v", po::value<int>(),
+                       "Weaken engine by limiting the number of visits.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
                         "Resign when winrate is less than x%.")
         ("noise,n", "Apply dirichlet noise to root.")
@@ -207,6 +209,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
                      "Add --noponder if you want a weakened engine.\n");
             exit(EXIT_FAILURE);
         }
+    }
+
+    if (vm.count("visits")) {
+        cfg_max_visits = vm["visits"].as<int>();
     }
 
     if (vm.count("resignpct")) {

@@ -94,7 +94,7 @@ namespace {
   // the thinking time and other parameters from the input string, then starts
   // the search.
 
-  void go(BoardHistory& bh, istringstream& is) {
+  void go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
 
     Limits = LimitsType();
     string token;
@@ -111,8 +111,7 @@ namespace {
 
 
     // TODO(gary): This just does the search on the UI thread...
-    auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
-    Move move = search->think();
+    Move move = search.think(bh.shallow_clone());
     bh.do_move(move);
     myprintf_so("bestmove %s\n", UCI::move(move).c_str());
   }
@@ -146,7 +145,7 @@ int play_one_game(BoardHistory& bh) {
     }
     Limits.startTime = now();
     auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
-    Move move = search->think();
+    Move move = search->think(bh.shallow_clone());
 
     bh.do_move(move);
   }
@@ -226,7 +225,7 @@ Bg3 15. f4 d6 16. cxd6+ Ke8 17. Kg1 Bd7 18. a4 Rd8 {0.50s} 19. a5 Ra8 {0.54s}
 
   auto search = std::make_unique<UCTSearch>(std::move(game->bh));
   search->set_quiet(false);
-  search->think();
+  search->think(game->bh.shallow_clone());
 }
 
 } // namespace
@@ -265,10 +264,10 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
 /// In addition to the UCI ones, also some additional debug commands are supported.
 
 void UCI::loop(const std::string& start) {
-
   string token, cmd = start;
   BoardHistory bh;
   bh.set(Position::StartFEN);
+  static auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
 
   do {
       if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF
@@ -299,7 +298,7 @@ void UCI::loop(const std::string& start) {
           myprintf_so("id name lczero\nuciok\n");
       }
       else if (token == "setoption")  setoption(is);
-      else if (token == "go")         go(bh, is);
+      else if (token == "go")         go(*search, bh, is);
       else if (token == "perft")      uci_perft(bh, is);
       else if (token == "position")   position(bh, is);
       // else if (token == "ucinewgame") Search::clear();
