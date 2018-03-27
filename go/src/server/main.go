@@ -24,6 +24,9 @@ func checkUser(c *gin.Context) (*db.User, error) {
 	if len(c.PostForm("user")) == 0 {
 		return nil, errors.New("No user supplied")
 	}
+	if len(c.PostForm("user")) > 32 {
+		return nil, errors.New("Username too long")
+	}
 
 	user := &db.User{
 		Password: c.PostForm("password"),
@@ -485,6 +488,10 @@ ORDER BY c.count DESC`).Rows()
 
 		active_users += 1
 		games_played += int(count)
+
+		if len(username) > 32 {
+			username = username[0:32] + "..."
+		}
 
 		users_json = append(users_json, gin.H{
 			"user":         username,
