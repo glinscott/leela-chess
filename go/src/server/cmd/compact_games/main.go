@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"server/db"
 	"strings"
@@ -38,14 +39,15 @@ func addFile(tw *tar.Writer, path string) error {
 	return nil
 }
 
-func tarGames(games []db.TrainingGame) {
+func tarGames(games []db.TrainingGame) string {
 	dir, err := ioutil.TempDir("", "example")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
 
-	outputTar, err := os.Create(fmt.Sprintf("games%d.tar.gz", games[0].ID))
+	outputPath := fmt.Sprintf("games%d.tar.gz", games[0].ID)
+	outputTar, err := os.Create(outputPath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -68,12 +70,10 @@ func tarGames(games []db.TrainingGame) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer gzFile.Close()
 		gzr, err := gzip.NewReader(gzFile)
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer gzr.Close()
 
 		tmpFile, err := os.Create(path)
 		if err != nil {
@@ -89,7 +89,11 @@ func tarGames(games []db.TrainingGame) {
 		if err != nil {
 			log.Fatal(err)
 		}
+		gzr.Close()
+		gzFile.Close()
 	}
+
+	return outputPath
 }
 
 func main() {
@@ -100,12 +104,19 @@ func main() {
 
 	// Query for all the active games we haven't yet compacted.
 	games := []db.TrainingGame{}
-	err := db.GetDB().Debug().Order("id asc").Limit(10).Where("compacted = false AND id > 17").Find(&games).Error
+	err := db.GetDB().Debug().Order("id asc").Limit(10000).Where("compacted = false AND id >= 40000").Find(&games).Error
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	tarGames(games)
+	outputPath := tarGames(games)
+	cmd := exec.Command("aws", "s3", "cp", outputPath, "s3://lczero/training/")
+	cmd.Stdout = os.Stdout
+	err = cmd.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	for _, game := range games {
 		err = db.GetDB().Model(&game).Update("compacted", true).Error
 		if err != nil {
