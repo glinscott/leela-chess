@@ -70,7 +70,7 @@ void Parameters::setup_default_parameters() {
     cfg_max_threads = std::max(1, std::min(num_cpus, MAX_CPUS));
     cfg_num_threads = 2;
 
-    cfg_max_playouts = std::numeric_limits<decltype(cfg_max_playouts)>::max();
+    cfg_max_playouts = std::numeric_limits<decltype(cfg_max_playouts)>::max() / 2;
     cfg_max_visits   = 800;
     cfg_lagbuffer_cs = 100;
 #ifdef USE_OPENCL

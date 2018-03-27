@@ -209,6 +209,11 @@ static std::string parse_commandline(int argc, char *argv[]) {
                      "Add --noponder if you want a weakened engine.\n");
             exit(EXIT_FAILURE);
         }
+        if (!vm.count("visits")) {
+            // If the user specifies playouts they probably
+            // do not want the default 800 visits.
+            cfg_max_visits = std::numeric_limits<decltype(cfg_max_visits)>::max() / 2;
+        }
     }
 
     if (vm.count("visits")) {

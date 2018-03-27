@@ -129,6 +129,7 @@ namespace {
 
 // Return the score from the self-play game
 int play_one_game(BoardHistory& bh) {
+  auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
   for (int game_ply = 0; game_ply < 450; ++game_ply) {
     if (bh.cur().is_draw()) {
       return 0;
@@ -144,7 +145,6 @@ int play_one_game(BoardHistory& bh) {
       }
     }
     Limits.startTime = now();
-    auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
     Move move = search->think(bh.shallow_clone());
 
     bh.do_move(move);

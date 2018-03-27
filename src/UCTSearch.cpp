@@ -257,7 +257,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     m_prevroot_full_key = new_bh.cur().full_key();
 
 #ifndef NDEBUG
-    myprintf("update_root, %d -> %d nodes (%.1f%% reused)\n",
+    myprintf("update_root, %d -> %d expanded nodes (%.1f%% reused)\n",
         start_nodes,
         m_nodes.load(),
         m_nodes > 0 ? 100.0 * m_nodes.load() / start_nodes : 0);
@@ -353,7 +353,7 @@ void UCTSearch::ponder() {
     myprintf("\n");
     dump_stats(bh_, *m_root);
 
-    myprintf("\n%d visits, %d nodes\n\n", m_root->get_visits(), (int)m_nodes);
+    myprintf("\n%d visits, %d expanded nodes\n\n", m_root->get_visits(), (int)m_nodes);
 }
 
 // Returns the amount of time to use for a turn in milliseconds
