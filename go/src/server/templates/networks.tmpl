@@ -6,9 +6,11 @@
       <tr>
         <th>Id</th>
         <th>Network</th>
+        <th>Elo</th>
         <th>Games</th>
         <th>Blocks</th>
         <th>Filters</th>
+        <th>Time</th>
       </tr>
     </thead>
     <tbody>
@@ -16,9 +18,11 @@
       <tr>
         <td>{{.id}}</td>
         <td><a href="/get_network?sha={{.sha}}">{{.short_sha}}</a></td>
+        <td>{{.elo}}</td>
         <td>{{.games}}</td>
         <td>{{.blocks}}</td>
         <td>{{.filters}}</td>
+        <td>{{.created_at}}</td>
       </tr>
       {{end}}
     </tbody>

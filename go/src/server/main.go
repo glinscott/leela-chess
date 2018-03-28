@@ -24,6 +24,9 @@ func checkUser(c *gin.Context) (*db.User, error) {
 	if len(c.PostForm("user")) == 0 {
 		return nil, errors.New("No user supplied")
 	}
+	if len(c.PostForm("user")) > 32 {
+		return nil, errors.New("Username too long")
+	}
 
 	user := &db.User{
 		Password: c.PostForm("password"),
@@ -239,6 +242,18 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 
+	version, err := strconv.ParseUint(c.PostForm("version"), 10, 64)
+	if err != nil {
+		log.Println(err.Error())
+		c.String(http.StatusBadRequest, "Invalid version")
+		return
+	}
+	if version < 3 {
+		log.Println("Rejecting old game from %s, version %d", user.Username, version)
+		c.String(http.StatusBadRequest, "\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
+		return
+	}
+
 	training_id, err := strconv.ParseUint(c.PostForm("training_id"), 10, 32)
 	if err != nil {
 		log.Println(err)
@@ -283,12 +298,6 @@ func uploadGame(c *gin.Context) {
 	}
 
 	// Create new game
-	version, err := strconv.ParseUint(c.PostForm("version"), 10, 64)
-	if err != nil {
-		log.Println(err.Error())
-		c.String(http.StatusBadRequest, "Invalid version")
-		return
-	}
 	game := db.TrainingGame{
 		UserID:        user.ID,
 		TrainingRunID: training_run.ID,
@@ -480,6 +489,10 @@ ORDER BY c.count DESC`).Rows()
 		active_users += 1
 		games_played += int(count)
 
+		if len(username) > 32 {
+			username = username[0:32] + "..."
+		}
+
 		users_json = append(users_json, gin.H{
 			"user":         username,
 			"games_today":  count,
@@ -524,6 +537,7 @@ func getProgress() ([]gin.H, error) {
 		"rating": 0.0,
 		"best":   false,
 		"sprt":   "FAIL",
+		"hash":   "",
 	})
 
 	var count uint64 = 0
@@ -549,6 +563,7 @@ func getProgress() ([]gin.H, error) {
 				"rating": elo + matchElo,
 				"best":   best,
 				"sprt":   sprt,
+				"hash":   network.Sha[0:8],
 			})
 			if matches[matchIdx].Passed {
 				elo += matchElo
@@ -562,6 +577,7 @@ func getProgress() ([]gin.H, error) {
 				"rating": elo,
 				"best":   true,
 				"sprt":   sprt,
+				"hash":   network.Sha[0:8],
 			})
 		}
 	}
@@ -691,16 +707,25 @@ func viewNetworks(c *gin.Context) {
 		return
 	}
 
+	progress, err := getProgress()
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
 	counts := getNetworkCounts(networks)
 	json := []gin.H{}
-	for _, network := range networks {
+	for i, network := range networks {
 		json = append(json, gin.H{
-			"id":        network.ID,
-			"games":     counts[network.ID],
-			"sha":       network.Sha,
-			"short_sha": network.Sha[0:8],
-			"blocks":    network.Layers,
-			"filters":   network.Filters,
+			"id":         network.ID,
+			"elo":        fmt.Sprintf("%.2f", progress[len(progress)-1-i]["rating"]),
+			"games":      counts[network.ID],
+			"sha":        network.Sha,
+			"short_sha":  network.Sha[0:8],
+			"blocks":     network.Layers,
+			"filters":    network.Filters,
+			"created_at": network.CreatedAt,
 		})
 	}
 
@@ -736,7 +761,7 @@ func viewTrainingRuns(c *gin.Context) {
 
 func viewStats(c *gin.Context) {
 	var networks []db.Network
-	err := db.GetDB().Order("id desc").Limit(3).Find(&networks).Error
+	err := db.GetDB().Order("id desc").Where("games_played > 0").Limit(3).Find(&networks).Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -766,12 +791,25 @@ func viewMatches(c *gin.Context) {
 
 	json := []gin.H{}
 	for _, match := range matches {
+		elo := calcElo(match.Wins, match.Losses, match.Draws)
+		table_class := "active"
+		if match.Done {
+			if match.Passed {
+				table_class = "success"
+			} else {
+				table_class = "danger"
+			}
+		}
 		json = append(json, gin.H{
 			"id":           match.ID,
 			"current_id":   match.CurrentBestID,
 			"candidate_id": match.CandidateID,
 			"score":        fmt.Sprintf("+%d -%d =%d", match.Wins, match.Losses, match.Draws),
+			"elo":          fmt.Sprintf("%.2f", elo),
 			"done":         match.Done,
+			"table_class":  table_class,
+			"passed":       match.Passed,
+			"created_at":   match.CreatedAt,
 		})
 	}
 

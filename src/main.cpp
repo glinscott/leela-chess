@@ -59,11 +59,13 @@ static std::string parse_commandline(int argc, char *argv[]) {
     v_desc.add_options()
         ("help,h", "Show commandline options.")
         ("threads,t", po::value<int>()->default_value
-                      (std::min(2, cfg_num_threads)),
+                      (std::min(cfg_num_threads, cfg_max_threads)),
                       "Number of threads to use.")
         ("playouts,p", po::value<int>(),
                        "Weaken engine by limiting the number of playouts. "
                        "Requires --noponder.")
+        ("visits,v", po::value<int>(),
+                       "Weaken engine by limiting the number of visits.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
                         "Resign when winrate is less than x%.")
         ("noise,n", "Apply dirichlet noise to root.")
@@ -157,12 +159,14 @@ static std::string parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("threads")) {
         int num_threads = vm["threads"].as<int>();
-        if (num_threads > cfg_num_threads) {
-            myprintf("Clamping threads to maximum = %d\n", cfg_num_threads);
-        } else if (num_threads != cfg_num_threads) {
+        if (num_threads > cfg_max_threads) {
+            myprintf("Clamping threads to maximum = %d\n", cfg_max_threads);
+            cfg_num_threads = cfg_max_threads;
+        } else {
             myprintf("Using %d thread(s).\n", num_threads);
             cfg_num_threads = num_threads;
         }
+        
     }
 
     if (vm.count("seed")) {
@@ -205,6 +209,15 @@ static std::string parse_commandline(int argc, char *argv[]) {
                      "Add --noponder if you want a weakened engine.\n");
             exit(EXIT_FAILURE);
         }
+        if (!vm.count("visits")) {
+            // If the user specifies playouts they probably
+            // do not want the default 800 visits.
+            cfg_max_visits = MAXINT_DIV2;
+        }
+    }
+
+    if (vm.count("visits")) {
+        cfg_max_visits = vm["visits"].as<int>();
     }
 
     if (vm.count("resignpct")) {
