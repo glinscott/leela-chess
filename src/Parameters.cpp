@@ -41,6 +41,7 @@ using namespace Utils;
 
 // Configuration flags
 bool cfg_allow_pondering;
+int cfg_max_threads;
 int cfg_num_threads;
 int cfg_max_playouts;
 int cfg_lagbuffer_cs;
@@ -65,7 +66,7 @@ bool cfg_quiet;
 void Parameters::setup_default_parameters() {
     cfg_allow_pondering = true;
     int num_cpus = std::thread::hardware_concurrency();
-    //cfg_num_threads = std::max(1, std::min(num_cpus, MAX_CPUS));
+    cfg_max_threads = std::max(1, std::min(num_cpus, MAX_CPUS));
     cfg_num_threads = 2;
 
     cfg_max_playouts = 800;
