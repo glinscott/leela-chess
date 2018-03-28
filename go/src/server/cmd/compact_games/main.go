@@ -39,6 +39,44 @@ func addFile(tw *tar.Writer, path string) error {
 	return nil
 }
 
+func tarGame(game *db.TrainingGame, dir string, tw *tar.Writer) error {
+	if !strings.HasSuffix(game.Path, ".gz") {
+		log.Fatal("Not reading gz file?")
+	}
+
+	path := filepath.Base(game.Path)
+	path = filepath.Join(dir, path[0:len(path)-3])
+	// log.Printf("Compressing %s to %s\n", game.Path, path)
+
+	gzFile, err := os.Open("../../" + game.Path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer gzFile.Close()
+	gzr, err := gzip.NewReader(gzFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer gzr.Close()
+
+	tmpFile, err := os.Create(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer tmpFile.Close()
+	_, err = io.Copy(tmpFile, gzr)
+	if err != nil {
+		return err
+	}
+
+	err = addFile(tw, path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return nil
+}
+
 func tarGames(games []db.TrainingGame) string {
 	dir, err := ioutil.TempDir("", "example")
 	if err != nil {
@@ -57,41 +95,17 @@ func tarGames(games []db.TrainingGame) string {
 	tw := tar.NewWriter(gw)
 	defer tw.Close()
 
-	for _, game := range games {
-		if !strings.HasSuffix(game.Path, ".gz") {
-			log.Fatal("Not reading gz file?")
-		}
+	fmt.Printf("Starting at game %d\n", games[0].ID)
+	for idx, game := range games {
+		fmt.Printf("\r%d/%d games", idx, len(games))
 
-		path := filepath.Base(game.Path)
-		path = filepath.Join(dir, path[0:len(path)-3])
-		log.Printf("Compressing %s to %s\n", game.Path, path)
-
-		gzFile, err := os.Open("../../" + game.Path)
+		err = tarGame(&game, dir, tw)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println()
+			log.Print(err)
 		}
-		gzr, err := gzip.NewReader(gzFile)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		tmpFile, err := os.Create(path)
-		if err != nil {
-			log.Fatal(err)
-		}
-		_, err = io.Copy(tmpFile, gzr)
-		if err != nil {
-			log.Fatal(err)
-		}
-		tmpFile.Close()
-
-		err = addFile(tw, path)
-		if err != nil {
-			log.Fatal(err)
-		}
-		gzr.Close()
-		gzFile.Close()
 	}
+	fmt.Println()
 
 	return outputPath
 }
@@ -104,15 +118,23 @@ func main() {
 
 	// Query for all the active games we haven't yet compacted.
 	games := []db.TrainingGame{}
-	err := db.GetDB().Debug().Order("id asc").Limit(10000).Where("compacted = false AND id >= 40000").Find(&games).Error
+	numGames := 10000
+	err := db.GetDB().Order("id asc").Limit(numGames).Where("compacted = false AND id >= 40000").Find(&games).Error
 	if err != nil {
 		log.Fatal(err)
+	}
+	if len(games) != numGames {
+		log.Fatal("Not enough games")
 	}
 
 	outputPath := tarGames(games)
 	cmd := exec.Command("aws", "s3", "cp", outputPath, "s3://lczero/training/")
 	cmd.Stdout = os.Stdout
 	err = cmd.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = os.Remove(outputPath)
 	if err != nil {
 		log.Fatal(err)
 	}
