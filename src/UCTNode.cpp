@@ -367,7 +367,6 @@ UCTNode::node_ptr_t UCTNode::find_new_root(Key prevroot_full_key, BoardHistory& 
     UCTNode::node_ptr_t new_root = nullptr;
     std::vector<Move> moves;
     for (auto pos : boost::adaptors::reverse(new_bh.positions)) {
-        auto move = pos.get_move();
         if (pos.full_key() == prevroot_full_key) {
             new_root = find_path(moves);
             break;
