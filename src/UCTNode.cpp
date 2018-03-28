@@ -270,27 +270,44 @@ void UCTNode::accumulate_eval(float eval) {
     atomic_add(m_whiteevals, (double)eval);
 }
 
-UCTNode* UCTNode::uct_select_child(Color color) {
+UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     UCTNode* best = nullptr;
-    float best_value = -1000.0f;
+    auto best_value = std::numeric_limits<double>::lowest();
 
     LOCK(m_nodemutex, lock);
-    // Count parentvisits.
-    // We do this manually to avoid issues with transpositions.
+
+    // Count parentvisits manually to avoid issues with transpositions.
+    auto total_visited_policy = 0.0f;
     auto parentvisits = size_t{0};
     for (const auto& child : m_children) {
         parentvisits += child->get_visits();
+        if (child->get_visits() > 0) {
+            total_visited_policy += child->get_score();
+        }
     }
-    float numerator = std::sqrt((double)parentvisits);
+
+    auto numerator = std::sqrt((double)parentvisits);
+    auto fpu_reduction = 0.0f;
+    // Lower the expected eval for moves that are likely not the best.
+    // Do not do this if we have introduced noise at this node exactly
+    // to explore more.
+    if (!is_root || !cfg_noise) {
+        fpu_reduction = cfg_fpu_reduction * std::sqrt(total_visited_policy);
+    }
+
+    // Estimated eval for unknown nodes = original parent NN eval - reduction
+    auto fpu_eval = get_eval(color) - fpu_reduction;
 
     for (const auto& child : m_children) {
-        // get_eval() will automatically set first-play-urgency
-        auto winrate = child->get_eval(color);
+        float winrate = fpu_eval;
+        if (child->get_visits() > 0) {
+            winrate = child->get_eval(color);
+        }
         auto psa = child->get_score();
-        auto denom = 1.0f + child->get_visits();
+        auto denom = 1.0 + child->get_visits();
         auto puct = cfg_puct * psa * (numerator / denom);
         auto value = winrate + puct;
-        assert(value > -1000.0f);
+        assert(value > std::numeric_limits<double>::lowest());
 
         if (value > best_value) {
             best_value = value;

@@ -41,6 +41,7 @@ extern bool cfg_tune_only;
 #endif
 extern float cfg_puct;
 extern float cfg_softmax_temp;
+extern float cfg_fpu_reduction;
 extern std::string cfg_logfile;
 extern std::string cfg_weightsfile;
 extern std::string cfg_supervise;
