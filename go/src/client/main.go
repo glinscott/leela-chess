@@ -249,7 +249,7 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	return result, game.String()
 }
 
-func train(networkPath string, params []string) (string, string) {
+func train(networkPath string, count int, params []string) (string, string) {
 	// pid is intended for use in multi-threaded training
 	pid := os.Getpid()
 
@@ -282,7 +282,7 @@ func train(networkPath string, params []string) (string, string) {
 		log.Fatal(err)
 	}
 
-	return path.Join(train_dir, "training.0.gz"), c.Pgn
+	return path.Join(train_dir, "training." + fmt.Sprintf("%d", count) + ".gz"), c.Pgn
 }
 
 func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, error) {
@@ -309,7 +309,7 @@ func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, err
 	return path, nil
 }
 
-func nextGame(httpClient *http.Client) error {
+func nextGame(httpClient *http.Client, count int) error {
 	nextGame, err := client.NextGame(httpClient, *HOSTNAME, getExtraParams())
 	if err != nil {
 		return err
@@ -337,7 +337,7 @@ func nextGame(httpClient *http.Client) error {
 		if err != nil {
 			return err
 		}
-		trainFile, pgn := train(networkPath, params)
+		trainFile, pgn := train(networkPath, count, params)
 		go uploadGame(httpClient, trainFile, pgn, nextGame, 0)
 		return nil
 	}
@@ -360,13 +360,16 @@ func main() {
 	}
 
 	httpClient := &http.Client{}
-	for {
-		err := nextGame(httpClient)
+	start := time.Now()
+	for i := 0;; i++ {
+		err := nextGame(httpClient, i)
 		if err != nil {
 			log.Print(err)
 			log.Print("Sleeping for 30 seconds...")
 			time.Sleep(30 * time.Second)
 			continue
 		}
+		elapsed := time.Since(start)
+		log.Printf("Completed %d games in %s time", count, elapsed)
 	}
 }
