@@ -17,6 +17,9 @@ sudo apt-get install -y nginx
 sudo systemctl status nginx
 
 cp nginx/default /etc/nginx/sites-available/default
+
+# Create cache directory
+mkdir -p /home/web/nginx/cache/
 ```
 
 Installing postgres:
@@ -76,6 +79,11 @@ curl -F 'file=@weights.txt.gz' -F 'training_id=1' -F 'layers=6' -F 'filters=64' 
 Connecting through psql:
 ```
 sudo -u postgres psql -d gorm
+```
+
+Restarting nginx:
+```
+sudo service nginx restart
 ```
 
 ### Setting up backup

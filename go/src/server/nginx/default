@@ -15,6 +15,9 @@ upstream backend {
         server 127.0.0.1:8080;
 }
 
+proxy_cache_path /home/web/nginx/cache/ levels=1:2 keys_zone=cache:10m max_size=10g
+                 inactive=60m use_temp_path=off;
+
 # Default server configuration
 #
 server {
@@ -52,6 +55,12 @@ server {
 	proxy_set_header X-Forwarded-Proto $scheme;
 
 	location / {
+		proxy_cache cache;
+
+		# TODO(gary): Should set these from the server...
+		proxy_ignore_headers Cache-Control;
+		proxy_cache_valid any 1m;
+
 		proxy_pass http://backend;
 	}
 }
