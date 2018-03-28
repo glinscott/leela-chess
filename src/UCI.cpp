@@ -223,7 +223,7 @@ Bg3 15. f4 d6 16. cxd6+ Ke8 17. Kg1 Bd7 18. a4 Rd8 {0.50s} 19. a5 Ra8 {0.54s}
   fclose(f);
   */
 
-  auto search = std::make_unique<UCTSearch>(std::move(game->bh));
+  auto search = std::make_unique<UCTSearch>(game->bh.shallow_clone());
   search->set_quiet(false);
   search->think(game->bh.shallow_clone());
 }
@@ -267,7 +267,7 @@ void UCI::loop(const std::string& start) {
   string token, cmd = start;
   BoardHistory bh;
   bh.set(Position::StartFEN);
-  static auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
+  auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
 
   do {
       if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF

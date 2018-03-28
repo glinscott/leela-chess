@@ -212,7 +212,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
         if (!vm.count("visits")) {
             // If the user specifies playouts they probably
             // do not want the default 800 visits.
-            cfg_max_visits = std::numeric_limits<decltype(cfg_max_visits)>::max() / 2;
+            cfg_max_visits = MAXINT_DIV2;
         }
     }
 
