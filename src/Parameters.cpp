@@ -41,6 +41,7 @@ using namespace Utils;
 
 // Configuration flags
 bool cfg_allow_pondering;
+int cfg_max_threads;
 int cfg_num_threads;
 int cfg_max_playouts;
 int cfg_lagbuffer_cs;
