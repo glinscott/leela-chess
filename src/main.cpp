@@ -59,7 +59,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
     v_desc.add_options()
         ("help,h", "Show commandline options.")
         ("threads,t", po::value<int>()->default_value
-                      (std::min(3, cfg_num_threads)),
+                      (std::min(cfg_num_threads, cfg_max_threads)),
                       "Number of threads to use.")
         ("playouts,p", po::value<int>(),
                        "Weaken engine by limiting the number of playouts. "
@@ -157,12 +157,14 @@ static std::string parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("threads")) {
         int num_threads = vm["threads"].as<int>();
-        if (num_threads > cfg_num_threads) {
-            myprintf("Clamping threads to maximum = %d\n", cfg_num_threads);
-        } else if (num_threads != cfg_num_threads) {
+        if (num_threads > cfg_max_threads) {
+            myprintf("Clamping threads to maximum = %d\n", cfg_max_threads);
+            cfg_num_threads = cfg_max_threads;
+        } else {
             myprintf("Using %d thread(s).\n", num_threads);
             cfg_num_threads = num_threads;
         }
+        
     }
 
     if (vm.count("seed")) {
