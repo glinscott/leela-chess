@@ -65,7 +65,13 @@ See https://github.com/glinscott/leela-chess/tree/master/go/src/client/README.md
 This client will produce self-play games and upload them to http://lczero.org. 
 A central server uses these self-play games as input to the training process.
 
-# Training
+## Weights
+
+The weights from the distributed training are downloadable from http://lczero.org/networks, the best one is the top network that has some Games played on it.
+
+Weights that we trained to prove the engine was solid are here https://github.com/glinscott/lczero-weights. Currently, the best weights were obtained through supervised learning on a human dataset with elo ratings > 2000.
+
+# Training a new net using self-play
 
 Running the Training is not required to help the project, only the central server needs to do this.
 The distributed part is running the client to create self-play games. Those games are uploaded

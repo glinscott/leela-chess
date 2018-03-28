@@ -7,18 +7,24 @@
         <th>Id</th>
         <th>Candidate ID</th>
         <th>Current ID</th>
+        <th>Pass</th>
         <th>Score</th>
+        <th>Elo Delta</th>
         <th>Done</th>
+        <th>Time</th>
       </tr>
     </thead>
     <tbody>
       {{range .matches}}
-      <tr>
+      <tr class="table-{{.table_class}}">
 				<td><a href="/match/{{.id}}">{{.id}}</a></td>
         <td>{{.candidate_id}}</td>
         <td>{{.current_id}}</td>
+        <td>{{.passed}}</td>
         <td>{{.score}}</td>
+        <td>{{.elo}}</td>
         <td>{{.done}}</td>
+        <td>{{.created_at}}</td>
       </tr>
       {{end}}
     </tbody>
