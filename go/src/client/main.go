@@ -96,6 +96,8 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 	body := &bytes.Buffer{}
 	_, err = body.ReadFrom(resp.Body)
 	if err != nil {
+		log.Print(err)
+		log.Print("Error uploading, retrying...")
 		time.Sleep(time.Second * (2 << retryCount))
 		err = uploadGame(httpClient, path, pgn, nextGame, retryCount+1)
 		return err
@@ -104,6 +106,22 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 	fmt.Println(resp.StatusCode)
 	fmt.Println(resp.Header)
 	fmt.Println(body)
+
+	train_dir := filepath.Dir(path)
+	if _, err := os.Stat(train_dir); err == nil {
+		files, err := ioutil.ReadDir(train_dir)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Cleanup training files:\n")
+		for _, f := range files {
+			fmt.Printf("%s/%s\n", train_dir, f.Name())
+		}
+		err = os.RemoveAll(train_dir)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	return nil
 }
@@ -259,22 +277,7 @@ func train(networkPath string, count int, params []string) (string, string) {
 	pid := os.Getpid()
 
 	dir, _ := os.Getwd()
-	train_dir := path.Join(dir, fmt.Sprintf("data-%v", pid))
-	if _, err := os.Stat(train_dir); err == nil {
-		files, err := ioutil.ReadDir(train_dir)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("Cleanup training files:\n")
-		for _, f := range files {
-			fmt.Printf("%s/%s\n", train_dir, f.Name())
-		}
-		err = os.RemoveAll(train_dir)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
+	train_dir := path.Join(dir, fmt.Sprintf("data-%v-%v", pid, count))
 	if *DEBUG {
 		logs_dir := path.Join(dir, fmt.Sprintf("logs-%v", pid))
 		os.MkdirAll(logs_dir, os.ModePerm)
@@ -283,7 +286,7 @@ func train(networkPath string, count int, params []string) (string, string) {
 	}
 
 	num_games := 1
-	train_cmd := fmt.Sprintf("--start=train %v %v", pid, num_games)
+	train_cmd := fmt.Sprintf("--start=train %v-%v %v", pid, count, num_games)
 	params = append(params, train_cmd)
 
 	c := CmdWrapper{}
@@ -294,7 +297,7 @@ func train(networkPath string, count int, params []string) (string, string) {
 		log.Fatal(err)
 	}
 
-	return path.Join(train_dir, "training."+fmt.Sprintf("%d", count)+".gz"), c.Pgn
+	return path.Join(train_dir, "training.0.gz"), c.Pgn
 }
 
 func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, error) {
