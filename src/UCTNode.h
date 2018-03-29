@@ -42,6 +42,7 @@ public:
     explicit UCTNode(Move move, float score, float init_eval);
     UCTNode() = delete;
     ~UCTNode();
+    size_t count_nodes() const;
     bool first_visit() const;
     bool has_children() const;
     bool create_children(std::atomic<int> & nodecount, const BoardHistory& state, float& eval);
@@ -66,6 +67,8 @@ public:
 
     void sort_root_children(Color color);
     UCTNode& get_best_root_child(Color color);
+    UCTNode::node_ptr_t find_new_root(Key prevroot_full_key, BoardHistory& new_bh);
+    UCTNode::node_ptr_t find_path(std::vector<Move>& moves);
 
 private:
     void link_nodelist(std::atomic<int>& nodecount, std::vector<Network::scored_node>& nodelist, float init_eval);

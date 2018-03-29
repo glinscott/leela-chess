@@ -9,19 +9,73 @@ The goal is to build a strong UCT chess AI following the same type of techniques
 
 We will need to do this with a distributed project, as it requires a huge amount of compute.
 
-Please visit the LCZero forum to discuss: https://groups.google.com/forum/#!forum/lczero
+Please visit the LCZero forum to discuss: https://groups.google.com/forum/#!forum/lczero, or the github issues.
 
 # Contributing
 
-The server is live at http://lczero.org/.  Please download the client and give it a try.
+For precompiled binaries, see:
+* [https://github.com/glinscott/leela-chess/wiki](wiki)
+* [https://github.com/glinscott/leela-chess/wiki/Getting-Started](wiki/Getting-Started)
 
+For live status: http://lczero.org
+
+The rest of this page is for users who want to compile the code themselves.
 Of course, we also appreciate code reviews, pull requests and Windows testers!
+
+# Compiling
+
+## Requirements
+
+* GCC, Clang or MSVC, any C++14 compiler
+* boost 1.58.x or later (libboost-all-dev on Debian/Ubuntu)
+* BLAS Library: OpenBLAS (libopenblas-dev) or (optionally) Intel MKL
+* zlib library (zlib1g & zlib1g-dev on Debian/Ubuntu)
+* Standard OpenCL C headers (opencl-headers on Debian/Ubuntu, or at
+  https://github.com/KhronosGroup/OpenCL-Headers/tree/master/opencl22/)
+* OpenCL ICD loader (ocl-icd-libopencl1 on Debian/Ubuntu, or reference implementation at https://github.com/KhronosGroup/OpenCL-ICD-Loader)
+* An OpenCL capable device, preferably a very, very fast GPU, with recent
+  drivers is strongly recommended (OpenCL 1.2 support should be enough, even
+  OpenCL 1.1 might work). If you do not have a GPU, modify config.h in the
+  source and remove the line that says `#define USE_OPENCL`.
+* Tensorflow 1.4 or higher (for training)
+* The program has been tested on Linux.
+
+## Example of compiling - Ubuntu 16.04
+
+    # Install dependencies
+    sudo apt install libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
+
+    # Test for OpenCL support & compatibility
+    sudo apt install clinfo && clinfo
+
+    # Clone github repo
+    git clone git@github.com:glinscott/leela-chess.git
+    cd leela-chess
+    git submodule update --init --recursive
+    mkdir build && cd build
+    
+    # Configure, build and run tests
+    cmake ..
+    make
+    ./tests
+
+# Compiling Client
+
+See https://github.com/glinscott/leela-chess/tree/master/go/src/client/README.md.
+This client will produce self-play games and upload them to http://lczero.org. 
+A central server uses these self-play games as input to the training process.
 
 ## Weights
 
-The weights are located at https://github.com/glinscott/lczero-weights. Currently, the best weights were obtained through supervised learning on a human dataset with elo ratings > 2000.
+The weights from the distributed training are downloadable from http://lczero.org/networks, the best one is the top network that has some Games played on it.
 
-# Training
+Weights that we trained to prove the engine was solid are here https://github.com/glinscott/lczero-weights. Currently, the best weights were obtained through supervised learning on a human dataset with elo ratings > 2000.
+
+# Training a new net using self-play
+
+Running the Training is not required to help the project, only the central server needs to do this.
+The distributed part is running the client to create self-play games. Those games are uploaded
+http://lczero.org, and used as the input to the training process.
 
 After compiling lczero (see below), try the following:
 ```
@@ -89,47 +143,6 @@ It is safe to kill the training process and restart it at any time.  It will
 automatically resume using the tensorflow checkpoint.
 
 You can use this to adjust learning rates, etc.
-
-# Compiling
-
-## Requirements
-
-* GCC, Clang or MSVC, any C++14 compiler
-* boost 1.58.x or later (libboost-all-dev on Debian/Ubuntu)
-* BLAS Library: OpenBLAS (libopenblas-dev) or (optionally) Intel MKL
-* zlib library (zlib1g & zlib1g-dev on Debian/Ubuntu)
-* Standard OpenCL C headers (opencl-headers on Debian/Ubuntu, or at
-  https://github.com/KhronosGroup/OpenCL-Headers/tree/master/opencl22/)
-* OpenCL ICD loader (ocl-icd-libopencl1 on Debian/Ubuntu, or reference implementation at https://github.com/KhronosGroup/OpenCL-ICD-Loader)
-* An OpenCL capable device, preferably a very, very fast GPU, with recent
-  drivers is strongly recommended (OpenCL 1.2 support should be enough, even
-  OpenCL 1.1 might work). If you do not have a GPU, modify config.h in the
-  source and remove the line that says `#define USE_OPENCL`.
-* Tensorflow 1.4 or higher (for training)
-* The program has been tested on Linux.
-
-## Example of compiling - Ubuntu 16.04
-
-    # Install dependencies
-    sudo apt install libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
-
-    # Test for OpenCL support & compatibility
-    sudo apt install clinfo && clinfo
-
-    # Clone github repo
-    git clone git@github.com:glinscott/leela-chess.git
-    cd leela-chess
-    git submodule update --init --recursive
-    mkdir build && cd build
-    
-    # Configure, build and run tests
-    cmake ..
-    make
-    ./tests
-
-# Compiling Client
-
-See https://github.com/glinscott/leela-chess/tree/master/go/src/client/README.md.
 
 # Other projects
 

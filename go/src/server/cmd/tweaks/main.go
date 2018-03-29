@@ -64,6 +64,21 @@ func newMatch() {
 	}
 }
 
+func updateMatchPassed() {
+	var matches []db.Match
+	err := db.GetDB().Find(&matches).Error
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, match := range matches {
+		match.Passed = match.Wins > match.Losses
+		err = db.GetDB().Save(&match).Error
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
 func main() {
 	db.Init(true)
 	db.SetupDB()
@@ -72,6 +87,7 @@ func main() {
 	// makeRunActive()
 	// newMatch()
 	// updateNetworkCounts()
+	// updateMatchPassed()
 
 	defer db.Close()
 }

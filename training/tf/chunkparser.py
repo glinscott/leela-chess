@@ -170,7 +170,7 @@ class ChunkParser:
         them_oo = int(text_item[115])
         stm = int(text_item[116])
         rule50_count = min(int(text_item[117]), 255)
-        move_count = min(int(text_item[118]), 255)
+        move_count = 0
 
         # Load the probabilities.
         probabilities = np.array(text_item[119].split()).astype(np.float32)
@@ -208,6 +208,8 @@ class ChunkParser:
                 uint8 planes (120 * 8 * 8 bytes)
         """
         (ver, probs, planes, us_ooo, us_oo, them_ooo, them_oo, stm, rule50_count, move_count, winner) = self.v2_struct.unpack(content)
+        # Enforce move_count to 0
+        move_count = 0
         # Unpack planes.
         planes = np.unpackbits(np.frombuffer(planes, dtype=np.uint8))
         planes = planes.tobytes() + self.flat_planes[us_ooo] + self.flat_planes[us_oo] + self.flat_planes[them_ooo] + self.flat_planes[them_oo] + self.flat_planes[stm] + self.flat_planes[rule50_count] + self.flat_planes[move_count] + self.flat_planes[0]

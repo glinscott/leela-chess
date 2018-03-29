@@ -28,7 +28,7 @@ var HOSTNAME = flag.String("hostname", "http://162.217.248.187", "Address of the
 var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
 var GPU = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
-var DEBUG = flag.Bool("debug", false, "Enable debug mode to see verbose output")
+var DEBUG = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
 
 type Settings struct {
 	User string
@@ -76,7 +76,7 @@ func getExtraParams() map[string]string {
 	return map[string]string{
 		"user":     *USER,
 		"password": *PASSWORD,
-		"version":  "2",
+		"version":  "4",
 	}
 }
 
@@ -182,7 +182,7 @@ func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 	}
 }
 
-func playMatch(baselinePath string, candidatePath string, params []string, flip bool) (int, string) {
+func playMatch(baselinePath string, candidatePath string, params []string, flip bool) (int, string, error) {
 	baseline := CmdWrapper{}
 	baseline.launch(baselinePath, params, true)
 	defer baseline.Input.Close()
@@ -232,21 +232,26 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 		io.WriteString(p.Input, "position startpos"+move_history+"\n")
 		io.WriteString(p.Input, "go\n")
 
-		best_move := <-p.BestMove
-		err := game.MoveStr(best_move)
-		if err != nil {
-			log.Println("Error decoding: " + best_move + " for game:\n" + game.String())
-			log.Fatal(err)
+		select {
+		case best_move := <-p.BestMove:
+			err := game.MoveStr(best_move)
+			if err != nil {
+				log.Println("Error decoding: " + best_move + " for game:\n" + game.String())
+				return 0, "", err
+			}
+			if len(move_history) == 0 {
+				move_history = " moves"
+			}
+			move_history += " " + best_move
+			turn += 1
+		case <-time.After(60 * time.Second):
+			log.Println("Bestmove has timed out, aborting match")
+			return 0, "", errors.New("timeout")
 		}
-		if len(move_history) == 0 {
-			move_history = " moves"
-		}
-		move_history += " " + best_move
-		turn += 1
 	}
 
 	chess.UseNotation(chess.AlgebraicNotation{})(game)
-	return result, game.String()
+	return result, game.String(), nil
 }
 
 func train(networkPath string, count int, params []string) (string, string) {
@@ -268,6 +273,13 @@ func train(networkPath string, count int, params []string) (string, string) {
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	if *DEBUG {
+		logs_dir := path.Join(dir, fmt.Sprintf("logs-%v", pid))
+		os.MkdirAll(logs_dir, os.ModePerm)
+		logfile := path.Join(logs_dir, fmt.Sprintf("%s.log", time.Now().Format("20060102150405")))
+		params = append(params, "-l" + logfile)
 	}
 
 	num_games := 1
@@ -329,7 +341,10 @@ func nextGame(httpClient *http.Client, count int) error {
 		if err != nil {
 			return err
 		}
-		result, pgn := playMatch(networkPath, candidatePath, params, nextGame.Flip)
+		result, pgn, err := playMatch(networkPath, candidatePath, params, nextGame.Flip)
+		if err != nil {
+			return err
+		}
 		go client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
 		return nil
 	} else if nextGame.Type == "train" {

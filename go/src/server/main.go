@@ -24,6 +24,9 @@ func checkUser(c *gin.Context) (*db.User, error) {
 	if len(c.PostForm("user")) == 0 {
 		return nil, errors.New("No user supplied")
 	}
+	if len(c.PostForm("user")) > 32 {
+		return nil, errors.New("Username too long")
+	}
 
 	user := &db.User{
 		Password: c.PostForm("password"),
@@ -239,6 +242,18 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 
+	version, err := strconv.ParseUint(c.PostForm("version"), 10, 64)
+	if err != nil {
+		log.Println(err.Error())
+		c.String(http.StatusBadRequest, "Invalid version")
+		return
+	}
+	if version < 3 {
+		log.Println("Rejecting old game from %s, version %d", user.Username, version)
+		c.String(http.StatusBadRequest, "\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
+		return
+	}
+
 	training_id, err := strconv.ParseUint(c.PostForm("training_id"), 10, 32)
 	if err != nil {
 		log.Println(err)
@@ -283,12 +298,6 @@ func uploadGame(c *gin.Context) {
 	}
 
 	// Create new game
-	version, err := strconv.ParseUint(c.PostForm("version"), 10, 64)
-	if err != nil {
-		log.Println(err.Error())
-		c.String(http.StatusBadRequest, "Invalid version")
-		return
-	}
 	game := db.TrainingGame{
 		UserID:        user.ID,
 		TrainingRunID: training_run.ID,
@@ -361,7 +370,12 @@ func checkMatchFinished(match_id uint) error {
 		}
 		// Update to our new best network
 		// TODO(SPRT)
-		if match.Wins > match.Losses {
+		passed := match.Wins > match.Losses
+		err = db.GetDB().Model(&match).Update("passed", passed).Error
+		if err != nil {
+			return err
+		}
+		if passed {
 			err = setBestNetwork(match.TrainingRunID, match.CandidateID)
 			if err != nil {
 				return err
@@ -445,7 +459,7 @@ func matchResult(c *gin.Context) {
 	c.String(http.StatusOK, fmt.Sprintf("Match game %d successfuly uploaded from user=%s.", match_game.ID, user.Username))
 }
 
-func getActiveUsers() ([]gin.H, error) {
+func getActiveUsers() (gin.H, error) {
 	rows, err := db.GetDB().Raw(`SELECT username, training_games.version, training_games.created_at, c.count FROM users
 LEFT JOIN training_games
 ON users.id = training_games.user_id
@@ -462,7 +476,9 @@ ORDER BY c.count DESC`).Rows()
 	}
 	defer rows.Close()
 
-	result := []gin.H{}
+	active_users := 0
+	games_played := 0
+	users_json := []gin.H{}
 	for rows.Next() {
 		var username string
 		var version int
@@ -470,7 +486,14 @@ ORDER BY c.count DESC`).Rows()
 		var count uint64
 		rows.Scan(&username, &version, &created_at, &count)
 
-		result = append(result, gin.H{
+		active_users += 1
+		games_played += int(count)
+
+		if len(username) > 32 {
+			username = username[0:32] + "..."
+		}
+
+		users_json = append(users_json, gin.H{
 			"user":         username,
 			"games_today":  count,
 			"system":       "",
@@ -479,6 +502,11 @@ ORDER BY c.count DESC`).Rows()
 		})
 	}
 
+	result := gin.H{
+		"active_users": active_users,
+		"games_played": games_played,
+		"users":        users_json,
+	}
 	return result, nil
 }
 
@@ -509,6 +537,7 @@ func getProgress() ([]gin.H, error) {
 		"rating": 0.0,
 		"best":   false,
 		"sprt":   "FAIL",
+		"hash":   "",
 	})
 
 	var count uint64 = 0
@@ -517,17 +546,40 @@ func getProgress() ([]gin.H, error) {
 	for _, network := range networks {
 		count += counts[network.ID]
 		var sprt string = "???"
+		var best bool = false
 		for matchIdx < len(matches) && matches[matchIdx].CurrentBestID == network.ID {
-			elo += calcElo(matches[matchIdx].Wins, matches[matchIdx].Losses, matches[matchIdx].Draws)
+			matchElo := calcElo(matches[matchIdx].Wins, matches[matchIdx].Losses, matches[matchIdx].Draws)
+			if matches[matchIdx].Done {
+				if matches[matchIdx].Passed {
+					sprt = "PASS"
+					best = true
+				} else {
+					sprt = "FAIL"
+					best = false
+				}
+			}
+			result = append(result, gin.H{
+				"net":    count,
+				"rating": elo + matchElo,
+				"best":   best,
+				"sprt":   sprt,
+				"hash":   network.Sha[0:8],
+			})
+			if matches[matchIdx].Passed {
+				elo += matchElo
+			}
 			matchIdx += 1
-			sprt = "PASS"
 		}
-		result = append(result, gin.H{
-			"net":    count,
-			"rating": elo,
-			"best":   true,
-			"sprt":   sprt,
-		})
+		// TODO(gary): Hack for start...
+		if network.ID == 2 {
+			result = append(result, gin.H{
+				"net":    count,
+				"rating": elo,
+				"best":   true,
+				"sprt":   sprt,
+				"hash":   network.Sha[0:8],
+			})
+		}
 	}
 
 	return result, nil
@@ -549,8 +601,10 @@ func frontPage(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "index", gin.H{
-		"Users":    users,
-		"progress": progress,
+		"active_users": users["active_users"],
+		"games_played": users["games_played"],
+		"Users":        users["users"],
+		"progress":     progress,
 	})
 }
 
@@ -653,16 +707,25 @@ func viewNetworks(c *gin.Context) {
 		return
 	}
 
+	progress, err := getProgress()
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
 	counts := getNetworkCounts(networks)
 	json := []gin.H{}
-	for _, network := range networks {
+	for i, network := range networks {
 		json = append(json, gin.H{
-			"id":        network.ID,
-			"games":     counts[network.ID],
-			"sha":       network.Sha,
-			"short_sha": network.Sha[0:8],
-			"blocks":    network.Layers,
-			"filters":   network.Filters,
+			"id":         network.ID,
+			"elo":        fmt.Sprintf("%.2f", progress[len(progress)-1-i]["rating"]),
+			"games":      counts[network.ID],
+			"sha":        network.Sha,
+			"short_sha":  network.Sha[0:8],
+			"blocks":     network.Layers,
+			"filters":    network.Filters,
+			"created_at": network.CreatedAt,
 		})
 	}
 
@@ -698,7 +761,7 @@ func viewTrainingRuns(c *gin.Context) {
 
 func viewStats(c *gin.Context) {
 	var networks []db.Network
-	err := db.GetDB().Order("id desc").Limit(3).Find(&networks).Error
+	err := db.GetDB().Order("id desc").Where("games_played > 0").Limit(3).Find(&networks).Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -728,12 +791,25 @@ func viewMatches(c *gin.Context) {
 
 	json := []gin.H{}
 	for _, match := range matches {
+		elo := calcElo(match.Wins, match.Losses, match.Draws)
+		table_class := "active"
+		if match.Done {
+			if match.Passed {
+				table_class = "success"
+			} else {
+				table_class = "danger"
+			}
+		}
 		json = append(json, gin.H{
 			"id":           match.ID,
 			"current_id":   match.CurrentBestID,
 			"candidate_id": match.CandidateID,
-			"score":        fmt.Sprintf("%d - %d - %d", match.Wins, match.Losses, match.Draws),
+			"score":        fmt.Sprintf("+%d -%d =%d", match.Wins, match.Losses, match.Draws),
+			"elo":          fmt.Sprintf("%.2f", elo),
 			"done":         match.Done,
+			"table_class":  table_class,
+			"passed":       match.Passed,
+			"created_at":   match.CreatedAt,
 		})
 	}
 
@@ -752,7 +828,7 @@ func viewMatch(c *gin.Context) {
 	}
 
 	games := []db.MatchGame{}
-	err = db.GetDB().Where(&db.MatchGame{MatchID: match.ID}).Find(&games).Error
+	err = db.GetDB().Where(&db.MatchGame{MatchID: match.ID}).Preload("User").Order("id").Find(&games).Error
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -761,11 +837,27 @@ func viewMatch(c *gin.Context) {
 
 	gamesJson := []gin.H{}
 	for _, game := range games {
+		color := "white"
+		if game.Flip {
+			color = "black"
+		}
+		result := "-"
+		if game.Done {
+			if game.Result == 1 {
+				result = "win"
+			} else if game.Result == -1 {
+				result = "loss"
+			} else {
+				result = "draw"
+			}
+		}
 		gamesJson = append(gamesJson, gin.H{
 			"id":         game.ID,
 			"created_at": game.CreatedAt.String(),
-			"result":     game.Result,
+			"result":     result,
 			"done":       game.Done,
+			"user":       game.User.Username,
+			"color":      color,
 		})
 	}
 

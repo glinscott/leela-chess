@@ -398,7 +398,7 @@ std::string Tuner::tune_sgemm(const int m, const int n, const int k,
         }
     }
     if (best_time == 0) {
-        printf("Failed to find a working configuration.\nCheck your OpenCL drivers.\n");
+        myprintf_so("Failed to find a working configuration.\nCheck your OpenCL drivers.\n");
         throw std::runtime_error("Tuner failed to find working configuration.");
     }
     return best_params;
