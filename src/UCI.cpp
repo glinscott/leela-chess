@@ -268,7 +268,7 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
 }
 
 /// convert a board history into a command that recreates that position. pass a shallow_clone to minimise it.
-std::string showgame(BoardHistory &bh)
+std::string showgame(const BoardHistory &bh)
 {
     auto it = bh.positions.begin(), it_end = bh.positions.end();
     std::string fen = it->fen();
