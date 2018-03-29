@@ -31,8 +31,10 @@
 #define USE_OPENBLAS
 #endif
 //#define USE_MKL
+#ifndef FEATURE_USE_CPU_ONLY
 #define USE_OPENCL
 #define USE_OPENCL_SELFCHECK
+#endif
 static constexpr int SELFCHECK_PROBABILITY = 2000;
 static constexpr int SELFCHECK_MIN_EXPANSIONS = 2'000'000;
 //#define USE_TUNER
