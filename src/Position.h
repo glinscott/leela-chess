@@ -51,7 +51,7 @@ struct StateInfo {
   Bitboard   blockersForKing[COLOR_NB];
   Bitboard   pinnersForKing[COLOR_NB];
   Bitboard   checkSquares[PIECE_TYPE_NB];
-  Move		   move;  //--added by me--helps with undoing moves.
+  Move       move;  //--added by me--helps with undoing moves.
 };
 
 /// A list to keep track of the position states along the setup moves (from the
@@ -154,6 +154,7 @@ public:
   Color side_to_move() const;
   int game_ply() const;
   bool is_draw() const;
+  bool has_no_moves() const;
   int repetitions_count() const;
   int rule50_count() const;
 
@@ -187,7 +188,7 @@ private:
   Bitboard castlingPath[CASTLING_RIGHT_NB];
   int gamePly;
   Color sideToMove;
-	StateInfo* st;
+  StateInfo* st;
 };
 
 extern std::ostream& operator<<(std::ostream& os, const Position& pos);

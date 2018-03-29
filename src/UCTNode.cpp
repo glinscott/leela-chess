@@ -60,6 +60,7 @@ bool UCTNode::first_visit() const {
     return m_visits == 0;
 }
 
+/// returns true only if the children were created in this thread and the eval is populated
 bool UCTNode::create_children(std::atomic<int>& nodecount, const BoardHistory& state, float& eval) {
     // check whether somebody beat us to it (atomic)
     if (has_children()) {
@@ -134,7 +135,7 @@ void UCTNode::link_nodelist(std::atomic<int>& nodecount, std::vector<Network::sc
         );
     }
 
-    nodecount += m_children.size();
+    nodecount += (int)m_children.size();
     m_has_children = true;
 }
 
@@ -168,7 +169,7 @@ void UCTNode::dirichlet_noise(float epsilon, float alpha) {
     }
 }
 
-void UCTNode::randomize_first_proportionally(float tau) {
+void UCTNode::randomize_first_proportionally(const float tau) {
     auto accum = 0.0f;
     auto normfactor = 0.0f;
     auto accum_vector = std::vector<float>{};
@@ -176,9 +177,9 @@ void UCTNode::randomize_first_proportionally(float tau) {
     // Calculate exponentiated visit count vector, normalised to the first child visits
     for (const auto& child : m_children) {
         if (normfactor == 0.0f) {
-            normfactor = child->get_visits();
+            normfactor = 1.0f / child->get_visits();
         }
-        accum += std::pow(child->get_visits()/normfactor,1/tau);
+        accum += std::pow(child->get_visits() * normfactor, 1/tau);
         accum_vector.emplace_back(accum);
         // myprintf("Visits: %d Exponentiated visits: %11.9f Cumulative visits: %11.9f\n",child->get_visits(), std::pow(child->get_visits()/normfactor,1.0f/tau), accum); 
     }
@@ -303,7 +304,7 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
         }
     }
 
-    auto numerator = std::sqrt((double)parentvisits);
+    auto numerator = (float)std::sqrt((double)parentvisits);
     auto fpu_reduction = 0.0f;
     // Lower the expected eval for moves that are likely not the best.
     // Do not do this if we have introduced noise at this node exactly

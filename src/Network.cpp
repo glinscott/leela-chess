@@ -170,14 +170,14 @@ std::vector<float> Network::winograd_transform_f(const std::vector<float>& f,
 }
 
 std::vector<float> Network::zeropad_U(const std::vector<float>& U,
-                                      const int outputs, const int channels,
-                                      const int outputs_pad,
-                                      const int channels_pad) {
+                                      const size_t outputs, const size_t channels,
+                                      const size_t outputs_pad,
+                                      const size_t channels_pad) {
     // Fill with zeroes
     auto Upad = std::vector<float>(WINOGRAD_TILE * outputs_pad * channels_pad);
 
-    for(auto o = 0; o < outputs; o++) {
-        for(auto c = 0; c < channels; c++) {
+    for(auto o = size_t{0}; o < outputs; o++) {
+        for(auto c = size_t{0}; c < channels; c++) {
             for(auto xi = 0; xi < WINOGRAD_ALPHA; xi++){
                 for(auto nu = 0; nu < WINOGRAD_ALPHA; nu++) {
                     Upad[xi * (WINOGRAD_ALPHA * outputs_pad * channels_pad)
@@ -221,7 +221,7 @@ std::pair<int, int> Network::load_network(std::istream& wtfile) {
     myprintf("Detecting residual layers...");
     myprintf("v%d...", m_format_version);
     // First line was the version number
-    auto linecount = size_t{1};
+    auto linecount = int{1};
     auto channels = 0;
     while (std::getline(wtfile, line)) {
         auto iss = std::stringstream{line};
@@ -229,8 +229,8 @@ std::pair<int, int> Network::load_network(std::istream& wtfile) {
         // so this tells us the amount of channels in the residual layers.
         // We are assuming all layers have the same amount of filters.
         if (linecount == 2) {
-            auto count = std::distance(std::istream_iterator<std::string>(iss),
-                                       std::istream_iterator<std::string>());
+            auto count = (int)std::distance(std::istream_iterator<std::string>(iss),
+                                            std::istream_iterator<std::string>());
             myprintf("%d channels...", count);
             channels = count;
         }
@@ -378,7 +378,7 @@ void Network::initialize(void) {
         exit(EXIT_FAILURE);
     }
 
-    auto weight_index = size_t{0};
+    auto weight_index = int{0};
     // Input convolution
     // Winograd transform convolution weights
     conv_weights[weight_index] =
@@ -388,7 +388,7 @@ void Network::initialize(void) {
 
     // Residual block convolutions
     for (auto i = size_t{0}; i < residual_blocks * 2; i++) {
-		conv_weights[weight_index] =
+        conv_weights[weight_index] =
             winograd_transform_f(conv_weights[weight_index],
                                  channels, channels);
         weight_index++;
@@ -770,7 +770,7 @@ void Network::winograd_convolve3(const int outputs,
                                  std::vector<float>& output) {
 
     constexpr unsigned int filter_len = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
-    const auto input_channels = U.size() / (outputs * filter_len);
+    const auto input_channels = (int)U.size() / (outputs * filter_len);
 
     winograd_transform_in(input, V, input_channels);
     winograd_sgemm(U, V, M, input_channels, outputs);
@@ -778,7 +778,7 @@ void Network::winograd_convolve3(const int outputs,
 }
 
 template<unsigned int filter_size>
-void convolve(size_t outputs,
+void convolve(unsigned int outputs,
               const std::vector<net_t>& input,
               const std::vector<float>& weights,
               const std::vector<float>& biases,
@@ -788,7 +788,7 @@ void convolve(size_t outputs,
     constexpr unsigned int height = 8;
     constexpr unsigned int board_squares = width * height;
     constexpr unsigned int filter_len = filter_size * filter_size;
-    const auto input_channels = weights.size() / (biases.size() * filter_len);
+    const auto input_channels = (unsigned int)(weights.size() / (biases.size() * filter_len));
     const auto filter_dim = filter_len * input_channels;
     assert(outputs * board_squares == output.size());
 
@@ -890,7 +890,7 @@ void Network::forward_cpu(std::vector<float>& input,
     constexpr int height = 8;
     constexpr int tiles = width * height / 4;
     // Calculate output channels
-    const auto output_channels = conv_biases[0].size();
+    const auto output_channels = (int)conv_biases[0].size();
     //input_channels is the maximum number of input channels of any convolution.
     //Residual blocks are identical, but the first convolution might be bigger
     //when the network has very few filters
@@ -914,7 +914,7 @@ void Network::forward_cpu(std::vector<float>& input,
     auto conv_in = std::vector<float>(output_channels * width * height);
     auto res = std::vector<float>(output_channels * width * height);
     for (auto i = size_t{1}; i < conv_weights.size(); i += 2) {
-        auto output_channels = conv_biases[i].size();
+        auto output_channels = (int)conv_biases[i].size();
         std::swap(conv_out, conv_in);
         std::copy(begin(conv_in), end(conv_in), begin(res));
         winograd_convolve3(output_channels, conv_in,
@@ -923,7 +923,7 @@ void Network::forward_cpu(std::vector<float>& input,
                       batchnorm_means[i].data(),
                       batchnorm_stddivs[i].data());
 
-        output_channels = conv_biases[i + 1].size();
+        output_channels = (int)conv_biases[i + 1].size();
         std::swap(conv_out, conv_in);
         winograd_convolve3(output_channels, conv_in,
                            conv_weights[i + 1], V, M, conv_out);
@@ -1036,7 +1036,7 @@ Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawDa
     auto full_key = pos.cur().full_key();
 
     // See if we already have this in the cache.
-    if (!skip_cache) {
+    if (!debug_data && !skip_cache) {
         if (NNCache::get_NNCache().lookup(full_key, result)) {
             return result;
         }
@@ -1175,7 +1175,7 @@ void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
     // the NN here.
     planes.move_count = 0;
 
-    int mc = bh.positions.size() - 1;
+    int mc = (int)bh.positions.size() - 1;
     bool flip = us == BLACK;
     for (int i = 0; i < std::min(T_HISTORY, mc + 1); ++i) {
         pos = &bh.positions[mc - i];
