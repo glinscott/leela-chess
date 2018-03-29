@@ -1,6 +1,7 @@
 package db
 
 import (
+	"server/sprt"
 	"time"
 
 	"github.com/jinzhu/gorm"
@@ -61,6 +62,8 @@ type Match struct {
 	GameCap int
 	Done    bool
 	Passed  bool
+
+	Sprt sprt.SimpleSPRT
 }
 
 type MatchGame struct {
