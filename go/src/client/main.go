@@ -80,7 +80,7 @@ func getExtraParams() map[string]string {
 	}
 }
 
-func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse, retryCount int) error {
+func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse, retryCount uint) error {
 	extraParams := getExtraParams()
 	extraParams["training_id"] = strconv.Itoa(int(nextGame.TrainingId))
 	extraParams["network_id"] = strconv.Itoa(int(nextGame.NetworkId))
@@ -279,7 +279,7 @@ func train(networkPath string, count int, params []string) (string, string) {
 		logs_dir := path.Join(dir, fmt.Sprintf("logs-%v", pid))
 		os.MkdirAll(logs_dir, os.ModePerm)
 		logfile := path.Join(logs_dir, fmt.Sprintf("%s.log", time.Now().Format("20060102150405")))
-		params = append(params, "-l" + logfile)
+		params = append(params, "-l"+logfile)
 	}
 
 	num_games := 1
@@ -294,7 +294,7 @@ func train(networkPath string, count int, params []string) (string, string) {
 		log.Fatal(err)
 	}
 
-	return path.Join(train_dir, "training." + fmt.Sprintf("%d", count) + ".gz"), c.Pgn
+	return path.Join(train_dir, "training."+fmt.Sprintf("%d", count)+".gz"), c.Pgn
 }
 
 func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, error) {
@@ -376,7 +376,7 @@ func main() {
 
 	httpClient := &http.Client{}
 	start := time.Now()
-	for i := 0;; i++ {
+	for i := 0; ; i++ {
 		err := nextGame(httpClient, i)
 		if err != nil {
 			log.Print(err)
@@ -385,6 +385,6 @@ func main() {
 			continue
 		}
 		elapsed := time.Since(start)
-		log.Printf("Completed %d games in %s time", count, elapsed)
+		log.Printf("Completed %d games in %s time", i, elapsed)
 	}
 }
