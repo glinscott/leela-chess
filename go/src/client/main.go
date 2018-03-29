@@ -28,7 +28,7 @@ var HOSTNAME = flag.String("hostname", "http://162.217.248.187", "Address of the
 var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
 var GPU = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
-var THREADS = flag.Int("threads", 1, "Number of threads to use")
+var THREADS = flag.Int("threads", 1, "Number of threads to use. Normally best to run multiple clients with 1 thread each.")
 var DEBUG = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
 
 type Settings struct {
