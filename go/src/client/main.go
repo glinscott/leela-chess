@@ -80,7 +80,7 @@ func getExtraParams() map[string]string {
 	}
 }
 
-func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse) error {
+func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse, retryCount int) error {
 	extraParams := getExtraParams()
 	extraParams["training_id"] = strconv.Itoa(int(nextGame.TrainingId))
 	extraParams["network_id"] = strconv.Itoa(int(nextGame.NetworkId))
@@ -96,6 +96,8 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 	body := &bytes.Buffer{}
 	_, err = body.ReadFrom(resp.Body)
 	if err != nil {
+		time.Sleep(time.Second * (2 << retryCount))
+		err = uploadGame(httpClient, path, pgn, nextGame, retryCount+1)
 		return err
 	}
 	resp.Body.Close()
@@ -252,7 +254,7 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	return result, game.String(), nil
 }
 
-func train(networkPath string, params []string) (string, string) {
+func train(networkPath string, count int, params []string) (string, string) {
 	// pid is intended for use in multi-threaded training
 	pid := os.Getpid()
 
@@ -292,7 +294,7 @@ func train(networkPath string, params []string) (string, string) {
 		log.Fatal(err)
 	}
 
-	return path.Join(train_dir, "training.0.gz"), c.Pgn
+	return path.Join(train_dir, "training." + fmt.Sprintf("%d", count) + ".gz"), c.Pgn
 }
 
 func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, error) {
@@ -319,7 +321,7 @@ func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, err
 	return path, nil
 }
 
-func nextGame(httpClient *http.Client) error {
+func nextGame(httpClient *http.Client, count int) error {
 	nextGame, err := client.NextGame(httpClient, *HOSTNAME, getExtraParams())
 	if err != nil {
 		return err
@@ -343,15 +345,15 @@ func nextGame(httpClient *http.Client) error {
 		if err != nil {
 			return err
 		}
-		client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
+		go client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
 		return nil
 	} else if nextGame.Type == "train" {
 		networkPath, err := getNetwork(httpClient, nextGame.Sha, true)
 		if err != nil {
 			return err
 		}
-		trainFile, pgn := train(networkPath, params)
-		uploadGame(httpClient, trainFile, pgn, nextGame)
+		trainFile, pgn := train(networkPath, count, params)
+		go uploadGame(httpClient, trainFile, pgn, nextGame, 0)
 		return nil
 	}
 
@@ -373,13 +375,16 @@ func main() {
 	}
 
 	httpClient := &http.Client{}
-	for {
-		err := nextGame(httpClient)
+	start := time.Now()
+	for i := 0;; i++ {
+		err := nextGame(httpClient, i)
 		if err != nil {
 			log.Print(err)
 			log.Print("Sleeping for 30 seconds...")
 			time.Sleep(30 * time.Second)
 			continue
 		}
+		elapsed := time.Since(start)
+		log.Printf("Completed %d games in %s time", count, elapsed)
 	}
 }
