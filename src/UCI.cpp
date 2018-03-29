@@ -25,6 +25,7 @@
 #include <string>
 
 #include "Movegen.h"
+#include "Parameters.h"
 #include "pgn.h"
 #include "Position.h"
 #include "Misc.h"
@@ -224,8 +225,11 @@ Bg3 15. f4 d6 16. cxd6+ Ke8 17. Kg1 Bd7 18. a4 Rd8 {0.50s} 19. a5 Ra8 {0.54s}
   */
 
   auto search = std::make_unique<UCTSearch>(game->bh.shallow_clone());
+  auto save_cfg_timemanage = cfg_timemanage;
+  cfg_timemanage = false;
   search->set_quiet(false);
   search->think(game->bh.shallow_clone());
+  cfg_timemanage = save_cfg_timemanage;
 }
 
 } // namespace

@@ -299,6 +299,10 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     auto fpu_eval = get_eval(color) - fpu_reduction;
 
     for (const auto& child : m_children) {
+        if (!child->active()) {
+            continue;
+        }
+
         float winrate = fpu_eval;
         if (child->get_visits() > 0) {
             winrate = child->get_eval(color);
@@ -415,4 +419,12 @@ UCTNode::node_ptr_t UCTNode::find_path(std::vector<Move>& moves) {
         }
     }
     return nullptr;
+}
+
+void UCTNode::set_active(const bool active) {
+    m_status = active ? ACTIVE : PRUNED;
+}
+
+bool UCTNode::active() const {
+    return m_status == ACTIVE;
 }
