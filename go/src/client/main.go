@@ -128,7 +128,12 @@ func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 	c.BestMove = make(chan string)
 	weights := fmt.Sprintf("--weights=%s", networkPath)
 	dir, _ := os.Getwd()
-	c.Cmd = exec.Command(path.Join(dir, "lczero"), weights, fmt.Sprintf("-t%v", *THREADS))
+	var threads = *THREADS
+	if threads > 3 {
+		log.Print("Clamping to 3 threads")
+		threads = 3
+	}
+	c.Cmd = exec.Command(path.Join(dir, "lczero"), weights, fmt.Sprintf("-t%d", threads))
 	c.Cmd.Args = append(c.Cmd.Args, args...)
 	if *GPU != -1 {
 		c.Cmd.Args = append(c.Cmd.Args, fmt.Sprintf("--gpu=%v", *GPU))
