@@ -76,11 +76,11 @@ func getExtraParams() map[string]string {
 	return map[string]string{
 		"user":     *USER,
 		"password": *PASSWORD,
-		"version":  "3",
+		"version":  "4",
 	}
 }
 
-func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse) error {
+func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse, retryCount uint) error {
 	extraParams := getExtraParams()
 	extraParams["training_id"] = strconv.Itoa(int(nextGame.TrainingId))
 	extraParams["network_id"] = strconv.Itoa(int(nextGame.NetworkId))
@@ -96,12 +96,32 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 	body := &bytes.Buffer{}
 	_, err = body.ReadFrom(resp.Body)
 	if err != nil {
+		log.Print(err)
+		log.Print("Error uploading, retrying...")
+		time.Sleep(time.Second * (2 << retryCount))
+		err = uploadGame(httpClient, path, pgn, nextGame, retryCount+1)
 		return err
 	}
 	resp.Body.Close()
 	fmt.Println(resp.StatusCode)
 	fmt.Println(resp.Header)
 	fmt.Println(body)
+
+	train_dir := filepath.Dir(path)
+	if _, err := os.Stat(train_dir); err == nil {
+		files, err := ioutil.ReadDir(train_dir)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Cleanup training files:\n")
+		for _, f := range files {
+			fmt.Printf("%s/%s\n", train_dir, f.Name())
+		}
+		err = os.RemoveAll(train_dir)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	return nil
 }
@@ -252,36 +272,21 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	return result, game.String(), nil
 }
 
-func train(networkPath string, params []string) (string, string) {
+func train(networkPath string, count int, params []string) (string, string) {
 	// pid is intended for use in multi-threaded training
 	pid := os.Getpid()
 
 	dir, _ := os.Getwd()
-	train_dir := path.Join(dir, fmt.Sprintf("data-%v", pid))
-	if _, err := os.Stat(train_dir); err == nil {
-		files, err := ioutil.ReadDir(train_dir)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("Cleanup training files:\n")
-		for _, f := range files {
-			fmt.Printf("%s/%s\n", train_dir, f.Name())
-		}
-		err = os.RemoveAll(train_dir)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
+	train_dir := path.Join(dir, fmt.Sprintf("data-%v-%v", pid, count))
 	if *DEBUG {
 		logs_dir := path.Join(dir, fmt.Sprintf("logs-%v", pid))
 		os.MkdirAll(logs_dir, os.ModePerm)
 		logfile := path.Join(logs_dir, fmt.Sprintf("%s.log", time.Now().Format("20060102150405")))
-		params = append(params, "-l" + logfile)
+		params = append(params, "-l"+logfile)
 	}
 
 	num_games := 1
-	train_cmd := fmt.Sprintf("--start=train %v %v", pid, num_games)
+	train_cmd := fmt.Sprintf("--start=train %v-%v %v", pid, count, num_games)
 	params = append(params, train_cmd)
 
 	c := CmdWrapper{}
@@ -319,7 +324,7 @@ func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, err
 	return path, nil
 }
 
-func nextGame(httpClient *http.Client) error {
+func nextGame(httpClient *http.Client, count int) error {
 	nextGame, err := client.NextGame(httpClient, *HOSTNAME, getExtraParams())
 	if err != nil {
 		return err
@@ -343,15 +348,15 @@ func nextGame(httpClient *http.Client) error {
 		if err != nil {
 			return err
 		}
-		client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
+		go client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
 		return nil
 	} else if nextGame.Type == "train" {
 		networkPath, err := getNetwork(httpClient, nextGame.Sha, true)
 		if err != nil {
 			return err
 		}
-		trainFile, pgn := train(networkPath, params)
-		uploadGame(httpClient, trainFile, pgn, nextGame)
+		trainFile, pgn := train(networkPath, count, params)
+		go uploadGame(httpClient, trainFile, pgn, nextGame, 0)
 		return nil
 	}
 
@@ -373,13 +378,16 @@ func main() {
 	}
 
 	httpClient := &http.Client{}
-	for {
-		err := nextGame(httpClient)
+	start := time.Now()
+	for i := 0; ; i++ {
+		err := nextGame(httpClient, i)
 		if err != nil {
 			log.Print(err)
 			log.Print("Sleeping for 30 seconds...")
 			time.Sleep(30 * time.Second)
 			continue
 		}
+		elapsed := time.Since(start)
+		log.Printf("Completed %d games in %s time", i, elapsed)
 	}
 }
