@@ -199,7 +199,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // UCI-like output wants a depth and a cp.
     // convert winrate to a cp estimate ... assume winrate = 1 / (1 + exp(-cp / 91))
     // (91 can be tuned to have an output more or less matching e.g. SF, once both have similar strength)
-    int   cp = -91 * log(1 / feval - 1);
+    int   cp = -305.66f * log(1 / feval - 1);
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
     int   depth = log(float(m_nodes)) / log(1.8);
     // To report nodes, use visits.
