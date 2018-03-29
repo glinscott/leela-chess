@@ -29,6 +29,7 @@ var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
 var GPU = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
 var DEBUG = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
+var NEWTORK
 
 type Settings struct {
 	User string
@@ -352,6 +353,7 @@ func nextGame(httpClient *http.Client, count int) error {
 		if err != nil {
 			return err
 		}
+		NETWORK = networkPath
 		trainFile, pgn := train(networkPath, count, params)
 		go uploadGame(httpClient, trainFile, pgn, nextGame, 0)
 		return nil
@@ -380,8 +382,9 @@ func main() {
 		err := nextGame(httpClient, i)
 		if err != nil {
 			log.Print(err)
-			log.Print("Sleeping for 30 seconds...")
-			time.Sleep(30 * time.Second)
+			log.Print("Connection Error: Generating a game with last updated network weights...")
+			trainFile, pgn := train(NETWORK, count, params)
+			go uploadGame(httpClient, trainFile, pgn, nextGame, 0)			
 			continue
 		}
 		elapsed := time.Since(start)
