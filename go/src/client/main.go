@@ -29,7 +29,7 @@ var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
 var GPU = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
 var DEBUG = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
-var NEWTORK
+var NETWORK
 
 type Settings struct {
 	User string
