@@ -22,9 +22,12 @@
 #include <string>
 #include <vector>
 
+constexpr int MAXINT_DIV2 = std::numeric_limits<int>::max() / 2;
 extern bool cfg_allow_pondering;
+extern int cfg_max_threads;
 extern int cfg_num_threads;
 extern int cfg_max_playouts;
+extern int cfg_max_visits;
 extern int cfg_lagbuffer_cs;
 extern int cfg_resignpct;
 extern int cfg_noise;

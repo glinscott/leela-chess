@@ -12,6 +12,10 @@ protected:
   }
 };
 
+void mock_shallow_repetitions(BoardHistory&& bh, int rep_cnt) {
+  EXPECT_EQ(bh.cur().repetitions_count(), rep_cnt);
+}
+
 TEST_F(PositionTest, IsDrawStartPosition) {
   Position pos;
   StateInfo si;
@@ -152,4 +156,47 @@ TEST_F(PositionTest, KeyTest) {
   EXPECT_EQ(bh_.cur().rule50_count(), 8);
   EXPECT_TRUE(key == bh_.cur().key());
   EXPECT_FALSE(full_key == bh_.cur().full_key());
+
+  // Longer repetition test with shallow_clone
+  bh_.set(Position::StartFEN);
+  bh_.do_move(UCI::to_move(bh_.cur(), "a2a4")); bh_.do_move(UCI::to_move(bh_.cur(), "h7h5"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "a1a2")); bh_.do_move(UCI::to_move(bh_.cur(), "h8h6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "a2a3")); bh_.do_move(UCI::to_move(bh_.cur(), "h6a6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "a3b3")); bh_.do_move(UCI::to_move(bh_.cur(), "a6b6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "b3c3")); bh_.do_move(UCI::to_move(bh_.cur(), "b6c6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "c3d3")); bh_.do_move(UCI::to_move(bh_.cur(), "c6d6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "d3e3")); bh_.do_move(UCI::to_move(bh_.cur(), "d6e6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "e3f3")); bh_.do_move(UCI::to_move(bh_.cur(), "e6f6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "f3g3")); bh_.do_move(UCI::to_move(bh_.cur(), "f6g6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "g3h3"));
+  EXPECT_EQ(bh_.cur().repetitions_count(), 0);
+  mock_shallow_repetitions(bh_.shallow_clone(), 0);
+  bh_.do_move(UCI::to_move(bh_.cur(), "g6h6"));
+  EXPECT_EQ(bh_.cur().repetitions_count(), 0);
+  mock_shallow_repetitions(bh_.shallow_clone(), 0);
+  bh_.do_move(UCI::to_move(bh_.cur(), "h3a3"));
+  EXPECT_EQ(bh_.cur().repetitions_count(), 1);
+  mock_shallow_repetitions(bh_.shallow_clone(), 1);
+  bh_.do_move(UCI::to_move(bh_.cur(), "h6a6"));
+  EXPECT_EQ(bh_.cur().repetitions_count(), 1);
+  mock_shallow_repetitions(bh_.shallow_clone(), 1);
+}
+
+TEST_F(PositionTest, PGNTest) {
+  BoardHistory bh_;
+  bh_.set(Position::StartFEN);
+  bh_.do_move(UCI::to_move(bh_.cur(), "f2f4"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "a7a6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "f4f5"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "e7e6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "f5e6"));
+  EXPECT_EQ(bh_.pgn(), "1. f4 a6 2. f5 e6 3. fxe6 ");
+
+  bh_.set(Position::StartFEN);
+  bh_.do_move(UCI::to_move(bh_.cur(), "f2f4"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "a7a6"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "f4f5"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "e7e5"));
+  bh_.do_move(UCI::to_move(bh_.cur(), "f5e6"));
+  EXPECT_EQ(bh_.pgn(), "1. f4 a6 2. f5 e5 3. fxe6 ");
 }

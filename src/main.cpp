@@ -40,7 +40,7 @@
 using namespace Utils;
 
 static void license_blurb() {
-    printf(
+    myprintf_so(
         "LCZero Copyright (C) 2017  Gary Linscott\n"
         "Based on:"
         "Leela Chess Copyright (C) 2017 benediamond\n"
@@ -59,11 +59,13 @@ static std::string parse_commandline(int argc, char *argv[]) {
     v_desc.add_options()
         ("help,h", "Show commandline options.")
         ("threads,t", po::value<int>()->default_value
-                      (std::min(2, cfg_num_threads)),
+                      (std::min(cfg_num_threads, cfg_max_threads)),
                       "Number of threads to use.")
         ("playouts,p", po::value<int>(),
                        "Weaken engine by limiting the number of playouts. "
                        "Requires --noponder.")
+        ("visits,v", po::value<int>(),
+                       "Weaken engine by limiting the number of visits.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
                         "Resign when winrate is less than x%.")
         ("noise,n", "Apply dirichlet noise to root.")
@@ -157,12 +159,14 @@ static std::string parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("threads")) {
         int num_threads = vm["threads"].as<int>();
-        if (num_threads > cfg_num_threads) {
-            myprintf("Clamping threads to maximum = %d\n", cfg_num_threads);
-        } else if (num_threads != cfg_num_threads) {
+        if (num_threads > cfg_max_threads) {
+            myprintf("Clamping threads to maximum = %d\n", cfg_max_threads);
+            cfg_num_threads = cfg_max_threads;
+        } else {
             myprintf("Using %d thread(s).\n", num_threads);
             cfg_num_threads = num_threads;
         }
+        
     }
 
     if (vm.count("seed")) {
@@ -205,6 +209,15 @@ static std::string parse_commandline(int argc, char *argv[]) {
                      "Add --noponder if you want a weakened engine.\n");
             exit(EXIT_FAILURE);
         }
+        if (!vm.count("visits")) {
+            // If the user specifies playouts they probably
+            // do not want the default 800 visits.
+            cfg_max_visits = MAXINT_DIV2;
+        }
+    }
+
+    if (vm.count("visits")) {
+        cfg_max_visits = vm["visits"].as<int>();
     }
 
     if (vm.count("resignpct")) {
@@ -282,7 +295,7 @@ void generate_supervised_data(const std::string& filename) {
   fs::path dir("supervise-" + fp.stem().string());
   if (!fs::exists(dir)) {
     fs::create_directories(dir);
-    printf("Created dirs %s\n", dir.string().c_str());
+    myprintf_so("Created dirs %s\n", dir.string().c_str());
   }
   auto chunker = OutputChunker{dir.string() + "/training", true, 15000};
 
@@ -295,10 +308,10 @@ void generate_supervised_data(const std::string& filename) {
     Training::clear_training();
     auto game = parser.parse();
     if (game == nullptr) {
-      printf("Invalid game in %s\n", filename.c_str());
+      myprintf_so("Invalid game in %s\n", filename.c_str());
       break;
     }
-    printf("\rProcessed %d games", ++games);
+    myprintf_so("\rProcessed %d games", ++games);
     BoardHistory bh;
     bh.set(Position::StartFEN);
     for (int i = 0; i < static_cast<int>(game->bh.positions.size()) - 1; ++i) {

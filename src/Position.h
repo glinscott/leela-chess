@@ -409,6 +409,7 @@ struct BoardHistory {
   void set(const std::string& fen);
   BoardHistory shallow_clone() const;
   void do_move(Move m);
+  bool undo_move();
   std::string pgn() const;
 };
 

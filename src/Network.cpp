@@ -48,7 +48,6 @@
 #include "UCTNode.h"
 #endif
 
-#include "Utils.h"
 #include "Random.h"
 #include "Network.h"
 #include "NNCache.h"
@@ -874,8 +873,11 @@ T relative_difference(T a, T b) {
     return std::max(fabs((fa - fb) / fa), fabs((fa - fb) / fb));
 }
 
-void compare_net_outputs(std::vector<float>& data,
-                         std::vector<float>& ref) {
+bool compare_net_outputs(std::vector<float>& data,
+                         std::vector<float>& ref,
+                         bool display_only = false,
+                         std::string info = "") {
+    auto almost_equal = true;
     // The idea is to allow an OpenCL error > 5% every SELFCHECK_MIN_EXPANSIONS
     // correct expansions. As the num_expansions increases between errors > 5%,
     // we'll allow more errors to occur (max 3) before crashing. As if it
@@ -885,16 +887,20 @@ void compare_net_outputs(std::vector<float>& data,
     static std::atomic<int64> num_expansions{min_correct_expansions};
     num_expansions = std::min(num_expansions + 1, 3 * min_correct_expansions);
 
-    // We accept an error up to 5%, but output values
+    // We accept an error up to 10%, but output values
     // smaller than 1/1000th are "rounded up" for the comparison.
-    constexpr float relative_error = 5e-2f;
+    constexpr float relative_error = 10e-2f;
     for (auto idx = size_t{0}; idx < data.size(); ++idx) {
         auto err = relative_difference(data[idx], ref[idx]);
-        if (err > relative_error) {
-            printf("Error in OpenCL calculation: expected %f got %f (%lli"
+        if (display_only) {
+            myprintf("compare_net_outputs %s idx %d data %f ref %f err=%f\n",
+                info.c_str(), idx, data[idx], ref[idx], err);
+        } else if (err > relative_error) {
+            almost_equal = false;
+            myprintf("Error in OpenCL calculation: expected %f got %f (%lli"
                        "(error=%f%%)\n", ref[idx], data[idx], num_expansions.load(), err * 100.0);
             if (num_expansions < min_correct_expansions) {
-                printf("Update your GPU drivers or reduce the amount of games "
+                myprintf_so("Update your GPU drivers or reduce the amount of games "
                            "played simultaneously.\n");
                 throw std::runtime_error("OpenCL self-check mismatch.");
             }
@@ -903,6 +909,7 @@ void compare_net_outputs(std::vector<float>& data,
             }
         }
     }
+    return almost_equal;
 }
 #endif
 
@@ -989,8 +996,25 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
         auto cpu_policy_data = std::vector<float>(policy_data.size());
         auto cpu_value_data = std::vector<float>(value_data.size());
         forward_cpu(input_data, cpu_policy_data, cpu_value_data);
-        compare_net_outputs(policy_data, cpu_policy_data);
-        compare_net_outputs(value_data, cpu_value_data);
+        auto almost_equal = compare_net_outputs(policy_data, cpu_policy_data);
+        almost_equal &= compare_net_outputs(value_data, cpu_value_data);
+        if (!almost_equal) {
+            myprintf("PGN\n%s\nEND\n", pos.pgn().c_str());
+            // Compare again but with debug info
+            compare_net_outputs(policy_data, cpu_policy_data, true, "orig policy");
+            compare_net_outputs(value_data, cpu_value_data, true, "orig value");
+            // Call opencl.forward again to see if the error is reproduceable.
+            std::vector<float> value_data_retry(Network::NUM_VALUE_INPUT_PLANES * width * height);
+            std::vector<float> policy_data_retry(Network::NUM_OUTPUT_POLICY);
+            opencl.forward(input_data, policy_data_retry, value_data_retry);
+            auto almost_equal_retry = compare_net_outputs(policy_data_retry, policy_data, true, "retry policy");
+            almost_equal_retry &= compare_net_outputs(value_data_retry, value_data, true, "retry value");
+            if (!almost_equal_retry) {
+                throw std::runtime_error("OpenCL retry self-check mismatch.");
+            } else {
+                myprintf("compare_net_outputs retry was ok\n");
+            }
+        }
     }
 #endif
 

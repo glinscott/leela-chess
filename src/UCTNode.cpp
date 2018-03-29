@@ -31,10 +31,12 @@
 #include <algorithm>
 #include <random>
 #include <numeric>
+#include <boost/range/adaptor/reversed.hpp>
 
 #include "Position.h"
 #include "Parameters.h"
 #include "Movegen.h"
+#include "UCI.h"
 #include "UCTNode.h"
 #include "UCTSearch.h"
 #include "Utils.h"
@@ -337,6 +339,17 @@ UCTNode& UCTNode::get_best_root_child(Color color) {
                               NodeComp(color))->get());
 }
 
+size_t UCTNode::count_nodes() const {
+    auto nodecount = size_t{0};
+    if (m_has_children) {
+        nodecount += m_children.size();
+        for (auto& child : m_children) {
+            nodecount += child->count_nodes();
+        }
+    }
+    return nodecount;
+}
+
 UCTNode* UCTNode::get_first_child() const {
     if (m_children.empty()) {
         return nullptr;
@@ -346,4 +359,43 @@ UCTNode* UCTNode::get_first_child() const {
 
 const std::vector<UCTNode::node_ptr_t>& UCTNode::get_children() const {
     return m_children;
+}
+
+// Search the new_bh backwards and see if we can find the prevroot_full_key.
+// May not find it if e.g. the user asked to evaluate some different position.
+UCTNode::node_ptr_t UCTNode::find_new_root(Key prevroot_full_key, BoardHistory& new_bh) {
+    UCTNode::node_ptr_t new_root = nullptr;
+    std::vector<Move> moves;
+    for (auto pos : boost::adaptors::reverse(new_bh.positions)) {
+        if (pos.full_key() == prevroot_full_key) {
+            new_root = find_path(moves);
+            break;
+        }
+        moves.push_back(pos.get_move());
+    }
+    return new_root;
+}
+
+// Take the moves found by find_new_root and try to find the new root node.
+// May not find it if the search didn't include that node.
+UCTNode::node_ptr_t UCTNode::find_path(std::vector<Move>& moves) {
+    if (moves.size() == 0) {
+        // TODO this means the current root is actually a match.
+        // This only happens if you e.g. undo a move.
+        // For now just ignore this case.
+        return nullptr;
+    }
+    auto move = moves.back();
+    moves.pop_back();
+    for (auto& node : m_children) {
+        if (node->get_move() == move) {
+            if (moves.size() > 0) {
+                // Keep going recursively through the move list.
+                return node->find_path(moves);
+            } else {
+                return std::move(node);
+            }
+        }
+    }
+    return nullptr;
 }
