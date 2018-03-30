@@ -248,7 +248,7 @@ func uploadGame(c *gin.Context) {
 		c.String(http.StatusBadRequest, "Invalid version")
 		return
 	}
-	if version < 3 {
+	if version < 4 {
 		log.Println("Rejecting old game from %s, version %d", user.Username, version)
 		c.String(http.StatusBadRequest, "\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 		return
