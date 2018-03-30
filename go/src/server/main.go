@@ -20,12 +20,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func checkUser(c *gin.Context) (*db.User, error) {
+func checkUser(c *gin.Context) (*db.User, uint64, error) {
 	if len(c.PostForm("user")) == 0 {
-		return nil, errors.New("No user supplied")
+		return nil, 0, errors.New("No user supplied")
 	}
 	if len(c.PostForm("user")) > 32 {
-		return nil, errors.New("Username too long")
+		return nil, 0, errors.New("Username too long")
 	}
 
 	user := &db.User{
@@ -33,19 +33,33 @@ func checkUser(c *gin.Context) (*db.User, error) {
 	}
 	err := db.GetDB().Where(db.User{Username: c.PostForm("user")}).FirstOrCreate(&user).Error
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Ensure passwords match
 	if user.Password != c.PostForm("password") {
-		return nil, errors.New("Incorrect password")
+		return nil, 0, errors.New("Incorrect password")
 	}
 
-	return user, nil
+	version, err := strconv.ParseUint(c.PostForm("version"), 10, 64)
+	if err != nil {
+		return nil, 0, errors.New("Invalid version")
+	}
+	if version < 4 {
+		log.Println("Rejecting old game from %s, version %d", user.Username, version)
+		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
+	}
+
+	return user, version, nil
 }
 
 func nextGame(c *gin.Context) {
-	user, err := checkUser(c)
+	user, _, err := checkUser(c)
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, err.Error())
+		return
+	}
 
 	training_run := db.TrainingRun{
 		Active: true,
@@ -235,22 +249,10 @@ func uploadNetwork(c *gin.Context) {
 }
 
 func uploadGame(c *gin.Context) {
-	user, err := checkUser(c)
+	user, version, err := checkUser(c)
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, err.Error())
-		return
-	}
-
-	version, err := strconv.ParseUint(c.PostForm("version"), 10, 64)
-	if err != nil {
-		log.Println(err.Error())
-		c.String(http.StatusBadRequest, "Invalid version")
-		return
-	}
-	if version < 4 {
-		log.Println("Rejecting old game from %s, version %d", user.Username, version)
-		c.String(http.StatusBadRequest, "\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 		return
 	}
 
@@ -387,7 +389,7 @@ func checkMatchFinished(match_id uint) error {
 }
 
 func matchResult(c *gin.Context) {
-	user, err := checkUser(c)
+	user, version, err := checkUser(c)
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, err.Error())
@@ -423,9 +425,10 @@ func matchResult(c *gin.Context) {
 	}
 
 	err = db.GetDB().Model(&match_game).Updates(db.MatchGame{
-		Result: int(result),
-		Done:   true,
-		Pgn:    c.PostForm("pgn"),
+		Version: uint(version),
+		Result:  int(result),
+		Done:    true,
+		Pgn:     c.PostForm("pgn"),
 	}).Error
 	if err != nil {
 		log.Println(err)
