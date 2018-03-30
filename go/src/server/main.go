@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"server/db"
+	"server/sprt"
 	"strconv"
 	"time"
 
@@ -221,9 +222,18 @@ func uploadNetwork(c *gin.Context) {
 		CandidateID:   network.ID,
 		CurrentBestID: training_run.BestNetworkID,
 		Done:          false,
-		GameCap:       400,
+		GameCap:       1000,
 		Parameters:    `["--noise"]`,
 	}
+
+	elo0 := -20.0
+	elo1 := 20.0
+
+	alpha := 0.05
+	beta := 0.05
+
+	match.Sprt = *sprt.NewSimpleSPRT(alpha, beta, elo0, elo1)
+
 	err = db.GetDB().Create(&match).Error
 	if err != nil {
 		log.Println(err)
@@ -363,14 +373,16 @@ func checkMatchFinished(match_id uint) error {
 		return nil
 	}
 
-	if match.Wins+match.Losses+match.Draws >= match.GameCap {
+	status := match.Sprt.GetStatus()
+
+	if status != sprt.Continue || match.Wins+match.Losses+match.Draws >= match.GameCap {
+
 		err = db.GetDB().Model(&match).Update("done", true).Error
 		if err != nil {
 			return err
 		}
-		// Update to our new best network
-		// TODO(SPRT)
-		passed := match.Wins > match.Losses
+
+		passed := status == sprt.H1
 		err = db.GetDB().Model(&match).Update("passed", passed).Error
 		if err != nil {
 			return err
@@ -432,6 +444,16 @@ func matchResult(c *gin.Context) {
 		c.String(500, "Internal error")
 		return
 	}
+
+	var match db.Match
+	err = db.GetDB().Where("id = ?", match_game.MatchID).First(&match).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	match.Sprt.AddRecord(int(result))
 
 	col := ""
 	if result == 0 {
