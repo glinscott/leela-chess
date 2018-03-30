@@ -370,7 +370,7 @@ func checkMatchFinished(match_id uint) error {
 		}
 		// Update to our new best network
 		// TODO(SPRT)
-		passed := match.Wins > match.Losses
+		passed := calcElo(match.Wins, match.Losses, match.Draws) > -50.0
 		err = db.GetDB().Model(&match).Update("passed", passed).Error
 		if err != nil {
 			return err
@@ -460,17 +460,12 @@ func matchResult(c *gin.Context) {
 }
 
 func getActiveUsers() (gin.H, error) {
-	rows, err := db.GetDB().Raw(`SELECT username, training_games.version, training_games.created_at, c.count FROM users
-LEFT JOIN training_games
+	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(training_games.created_at), count(*) FROM training_games
+LEFT JOIN users
 ON users.id = training_games.user_id
-  AND training_games.id = (SELECT MAX(training_games.id) FROM training_games WHERE training_games.user_id = users.id)
-LEFT JOIN (SELECT user_id, count(*)
-FROM training_games
-WHERE created_at >= now() - INTERVAL '1 day'
-GROUP BY user_id) as c
-ON c.user_id = training_games.user_id
-WHERE c.count > 0
-ORDER BY c.count DESC`).Rows()
+WHERE training_games.created_at >= now() - INTERVAL '1 day'
+GROUP BY user_id, username
+ORDER BY count DESC`).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -480,11 +475,12 @@ ORDER BY c.count DESC`).Rows()
 	games_played := 0
 	users_json := []gin.H{}
 	for rows.Next() {
+		var user_id uint
 		var username string
 		var version int
 		var created_at time.Time
 		var count uint64
-		rows.Scan(&username, &version, &created_at, &count)
+		rows.Scan(&user_id, &username, &version, &created_at, &count)
 
 		active_users += 1
 		games_played += int(count)
