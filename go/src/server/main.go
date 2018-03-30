@@ -219,7 +219,7 @@ func uploadNetwork(c *gin.Context) {
 		CandidateID:   network.ID,
 		CurrentBestID: training_run.BestNetworkID,
 		Done:          false,
-		GameCap:       400,
+		GameCap:       1000,
 		Parameters:    `["--noise"]`,
 	}
 

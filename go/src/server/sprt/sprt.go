@@ -117,11 +117,11 @@ func NewSimpleSPRT(alpha float64, beta float64, elo0 float64, elo1 float64) *Sim
 	return s
 }
 
-func (s SimpleSPRT) GetStatus() int {
+func (s *SimpleSPRT) GetStatus() int {
 	return s._status
 }
 
-func (s SimpleSPRT) AddRecord(result int) {
+func (s *SimpleSPRT) AddRecord(result int) {
 	var idx int
 
 	if result == loss {
