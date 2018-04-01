@@ -29,6 +29,7 @@ var USER = flag.String("user", "", "Username")
 var PASSWORD = flag.String("password", "", "Password")
 var GPU = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
 var DEBUG = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
+var CUR_LCZERO *CmdWrapper = nil
 
 type Settings struct {
 	User string
@@ -127,10 +128,12 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 }
 
 type CmdWrapper struct {
-	Cmd      *exec.Cmd
-	Pgn      string
-	Input    io.WriteCloser
-	BestMove chan string
+	Cmd       *exec.Cmd
+	Pgn       string
+	Input     io.WriteCloser
+	BestMove  chan string
+	UciOk     chan bool
+	IsRunning bool
 }
 
 func (c *CmdWrapper) openInput() {
@@ -141,7 +144,24 @@ func (c *CmdWrapper) openInput() {
 	}
 }
 
+/* Wait for a "uciok" from a lczero process, and panic if the process was aborted for any reason */
+func (c *CmdWrapper) askAndWaitForUciOk() {
+	io.WriteString(c.Input, "uci\n")
+	for {
+		select {
+		case <-c.UciOk: // A training run has finished
+			return
+		case <-time.After(5 * time.Second): // Every 5 seconds, check that lczero is still running, if it's not something went wrong.
+			if !c.IsRunning {
+				log.Fatal(fmt.Sprintf("LCZero unexpectedly crashed\n%v", c.Cmd.ProcessState))
+			}
+		}
+	}
+}
+
 func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
+	c.IsRunning = false
+	c.UciOk = make(chan bool)
 	c.BestMove = make(chan string)
 	weights := fmt.Sprintf("--weights=%s", networkPath)
 	dir, _ := os.Getwd()
@@ -179,6 +199,8 @@ func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 				c.Pgn += line + "\n"
 			} else if strings.HasPrefix(line, "bestmove ") {
 				c.BestMove <- strings.Split(line, " ")[1]
+			} else if strings.HasPrefix(line, "uciok") {
+				c.UciOk <- true
 			}
 		}
 	}()
@@ -195,6 +217,11 @@ func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 	}
 
 	err = c.Cmd.Start()
+	c.IsRunning = true
+	go func() {
+		c.Cmd.Wait()
+		c.IsRunning = false
+	}()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -272,7 +299,7 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	return result, game.String(), nil
 }
 
-func train(networkPath string, count int, params []string) (string, string) {
+func train(networkPath string, count int, params []string, restart bool) (string, string) {
 	// pid is intended for use in multi-threaded training
 	pid := os.Getpid()
 
@@ -284,28 +311,29 @@ func train(networkPath string, count int, params []string) (string, string) {
 		logfile := path.Join(logs_dir, fmt.Sprintf("%s.log", time.Now().Format("20060102150405")))
 		params = append(params, "-l"+logfile)
 	}
-
-	num_games := 1
-	train_cmd := fmt.Sprintf("--start=train %v-%v %v", pid, count, num_games)
-	params = append(params, train_cmd)
-
-	c := CmdWrapper{}
-	c.launch(networkPath, params, false)
-
-	err := c.Cmd.Wait()
-	if err != nil {
-		log.Fatal(err)
+	if restart || CUR_LCZERO == nil {
+		if CUR_LCZERO != nil { // Kill old process, since we're using a new network
+			CUR_LCZERO.Cmd.Process.Kill()
+		}
+		CUR_LCZERO = &CmdWrapper{}
+		CUR_LCZERO.launch(networkPath, params, true)
+		CUR_LCZERO.askAndWaitForUciOk()
 	}
+	num_games := 1
+	train_cmd := fmt.Sprintf("train %v-%v %v\n", pid, count, num_games)
 
-	return path.Join(train_dir, "training.0.gz"), c.Pgn
+	io.WriteString(CUR_LCZERO.Input, train_cmd)
+	CUR_LCZERO.askAndWaitForUciOk()
+
+	return path.Join(train_dir, "training.0.gz"), CUR_LCZERO.Pgn
 }
 
-func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, error) {
+func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, bool, error) {
 	// Sha already exists?
 	path := filepath.Join("networks", sha)
 	if stat, err := os.Stat(path); err == nil {
 		if stat.Size() != 0 {
-			return path, nil
+			return path, false, nil
 		}
 	}
 
@@ -319,9 +347,9 @@ func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, err
 	// Otherwise, let's download it
 	err := client.DownloadNetwork(httpClient, *HOSTNAME, path, sha)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
-	return path, nil
+	return path, true, nil
 }
 
 func nextGame(httpClient *http.Client, count int) error {
@@ -336,11 +364,11 @@ func nextGame(httpClient *http.Client, count int) error {
 	}
 
 	if nextGame.Type == "match" {
-		networkPath, err := getNetwork(httpClient, nextGame.Sha, false)
+		networkPath, _, err := getNetwork(httpClient, nextGame.Sha, false)
 		if err != nil {
 			return err
 		}
-		candidatePath, err := getNetwork(httpClient, nextGame.CandidateSha, false)
+		candidatePath, _, err := getNetwork(httpClient, nextGame.CandidateSha, false)
 		if err != nil {
 			return err
 		}
@@ -351,11 +379,12 @@ func nextGame(httpClient *http.Client, count int) error {
 		go client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
 		return nil
 	} else if nextGame.Type == "train" {
-		networkPath, err := getNetwork(httpClient, nextGame.Sha, true)
+		networkPath, isNewNetwork, err := getNetwork(httpClient, nextGame.Sha, true)
 		if err != nil {
 			return err
 		}
-		trainFile, pgn := train(networkPath, count, params)
+		// Restart lczero only if a new network is found
+		trainFile, pgn := train(networkPath, count, params, isNewNetwork)
 		go uploadGame(httpClient, trainFile, pgn, nextGame, 0)
 		return nil
 	}
@@ -388,6 +417,6 @@ func main() {
 			continue
 		}
 		elapsed := time.Since(start)
-		log.Printf("Completed %d games in %s time", i, elapsed)
+		log.Printf("Completed %d games in %s time", i+1, elapsed)
 	}
 }
