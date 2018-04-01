@@ -61,7 +61,7 @@ public:
     void randomize_first_proportionally();
     void update(float eval = std::numeric_limits<float>::quiet_NaN());
 
-    UCTNode* uct_select_child(Color color);
+    UCTNode* uct_select_child(Color color, bool is_root);
     UCTNode* get_first_child() const;
     const std::vector<node_ptr_t>& get_children() const;
 
