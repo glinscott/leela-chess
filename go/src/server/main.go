@@ -866,8 +866,7 @@ func viewMatch(c *gin.Context) {
 }
 
 func viewTrainingData(c *gin.Context) {
-	// rows, err := db.GetDB().Raw(`SELECT MAX(id) FROM training_games WHERE compacted = true`).Rows()
-	rows, err := db.GetDB().Raw(`SELECT MAX(id) FROM training_games`).Rows()
+	rows, err := db.GetDB().Raw(`SELECT MAX(id) FROM training_games WHERE compacted = true`).Rows()
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
