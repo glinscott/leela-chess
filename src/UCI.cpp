@@ -147,6 +147,7 @@ int play_one_game(BoardHistory& bh) {
     Limits.startTime = now();
     Move move = search->think(bh.shallow_clone());
 
+    myprintf_so("move played %s\n", UCI::move(move).c_str());
     bh.do_move(move);
   }
 
