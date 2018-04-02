@@ -151,12 +151,7 @@ func deleteCompactedGames() {
 	}
 }
 
-func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
-	db.Init(true)
-	defer db.Close()
-
+func compactGames() bool {
 	// Query for all the active games we haven't yet compacted.
 	games := []db.TrainingGame{}
 	numGames := 10000
@@ -165,7 +160,7 @@ func main() {
 		log.Fatal(err)
 	}
 	if len(games) != numGames {
-		log.Fatal("Not enough games")
+		return false
 	}
 
 	outputPath := tarGames(games)
@@ -185,6 +180,17 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+	return true
+}
+
+func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	db.Init(true)
+	defer db.Close()
+
+	for compactGames() {
 	}
 
 	deleteCompactedGames()
