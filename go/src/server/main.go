@@ -865,6 +865,36 @@ func viewMatch(c *gin.Context) {
 	})
 }
 
+func viewTrainingData(c *gin.Context) {
+	// rows, err := db.GetDB().Raw(`SELECT MAX(id) FROM training_games WHERE compacted = true`).Rows()
+	rows, err := db.GetDB().Raw(`SELECT MAX(id) FROM training_games`).Rows()
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+	defer rows.Close()
+
+	var id uint
+	for rows.Next() {
+		rows.Scan(&id)
+		break
+	}
+
+	files := []gin.H{}
+	game_id := uint(30000)
+	for game_id < id {
+		files = append([]gin.H{
+			gin.H{"url": fmt.Sprintf("https://s3.amazonaws.com/lczero/training/games%d.tar.gz", game_id)},
+		}, files...)
+		game_id += 10000
+	}
+
+	c.HTML(http.StatusOK, "training_data", gin.H{
+		"files": files,
+	})
+}
+
 func createTemplates() multitemplate.Render {
 	r := multitemplate.New()
 	r.AddFromFiles("index", "templates/base.tmpl", "templates/index.tmpl")
@@ -875,6 +905,7 @@ func createTemplates() multitemplate.Render {
 	r.AddFromFiles("stats", "templates/base.tmpl", "templates/stats.tmpl")
 	r.AddFromFiles("match", "templates/base.tmpl", "templates/match.tmpl")
 	r.AddFromFiles("matches", "templates/base.tmpl", "templates/matches.tmpl")
+	r.AddFromFiles("training_data", "templates/base.tmpl", "templates/training_data.tmpl")
 	return r
 }
 
@@ -896,6 +927,7 @@ func setupRouter() *gin.Engine {
 	router.GET("/match/:id", viewMatch)
 	router.GET("/matches", viewMatches)
 	router.GET("/match_game/:id", viewMatchGame)
+	router.GET("/training_data", viewTrainingData)
 	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
 	router.POST("/upload_network", uploadNetwork)
