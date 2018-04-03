@@ -26,6 +26,7 @@
 #include <thread>
 #include <algorithm>
 #include <type_traits>
+#include <boost/range/adaptor/reversed.hpp>
 
 #include "Position.h"
 #include "Movegen.h"
@@ -110,11 +111,12 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
         return;
     }
 
-    for (const auto& node : parent.get_children()) {
-        std::string tmp = UCI::move(node->get_move());
+    // Reverse sort because GUIs typically will reverse it again.
+    for (const auto& node : boost::adaptors::reverse(parent.get_children())) {
+        std::string tmp = state.cur().move_to_san(node->get_move());
         std::string pvstring(tmp);
 
-        myprintf("%4s -> %7d (V: %5.2f%%) (N: %5.2f%%) PV: ",
+        myprintf_so("info string %4s -> %7d (V: %5.2f%%) (N: %5.2f%%) PV: ",
                 tmp.c_str(),
                 node->get_visits(),
                 node->get_eval(color)*100.0f,
@@ -125,7 +127,7 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
         pvstring += " " + get_pv(state, *node);
         state.cur().undo_move(node->get_move());
 
-        myprintf("%s\n", pvstring.c_str());
+        myprintf_so("%s\n", pvstring.c_str());
     }
     myprintf("\n");
 }
@@ -172,7 +174,7 @@ std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent) {
 
     auto& best_child = parent.get_best_root_child(state.cur().side_to_move());
     auto best_move = best_child.get_move();
-    auto res = UCI::move(best_move);
+    auto res = state.cur().move_to_san(best_move);
 
     StateInfo st;
     state.cur().do_move(best_move, st);
