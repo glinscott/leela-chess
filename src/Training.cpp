@@ -102,22 +102,30 @@ void Training::clear_training() {
     Training::m_data.clear();
 }
 
+// Used by supervised learning
 void Training::record(const BoardHistory& state, Move move) {
     auto step = TimeStep{};
     step.to_move = state.cur().side_to_move();
     step.planes = Network::NNPlanes{};
-    Network::gather_features(state, step.planes);
+    // use_v1_oldflip=true so we record old history plane format
+    // TODO: Change to true based on V3 being parsed
+    // Or let Network decide based on the same.
+    Network::gather_features(state, step.planes, true);
 
     step.probabilities.resize(Network::NUM_OUTPUT_POLICY);
-    step.probabilities[Network::lookup(move)] = 1.0;
+    step.probabilities[Network::new_lookup(move)] = 1.0;
     m_data.emplace_back(step);
 }
 
+// Used by self play
 void Training::record(const BoardHistory& state, UCTNode& root) {
     auto step = TimeStep{};
     step.to_move = state.cur().side_to_move();
     step.planes = Network::NNPlanes{};
-    Network::gather_features(state, step.planes);
+    // use_v1_oldflip=true so we record old history plane format
+    // TODO: Change to true based on V3 being parsed
+    // Or let Network decide based on the same.
+    Network::gather_features(state, step.planes, true);
 
     auto result = Network::get_scored_moves(state);
     step.net_winrate = result.second;
@@ -147,7 +155,8 @@ void Training::record(const BoardHistory& state, UCTNode& root) {
     for (const auto& child : root.get_children()) {
         auto prob = static_cast<float>(child->get_visits() / sum_visits);
         auto move = child->get_move();
-        step.probabilities[Network::lookup(move)] = prob;
+        // TODO: Network should decide old/new
+        step.probabilities[Network::old_lookup(move)] = prob;
     }
 
     m_data.emplace_back(step);

@@ -33,8 +33,24 @@ import time
 import tensorflow as tf
 import unittest
 
-# binary version
-VERSION = struct.pack('i', 2)
+# VERSION of the training data file format
+#     1 - Text, oldflip
+#     2 - Binary, oldflip
+#     3 - Binary, newflip
+#     b'\1\0\0\0' - Invalid, see issue #119
+#
+# Note: VERSION1 does not include a version in the header, it starts with
+# text hex characters. This means any VERSION that is also a valid ASCII
+# hex string could potentially be a training file. Most of the time it
+# will be "00ff", but maybe games could get split and then there are more
+# "00??" possibilities.
+#
+# Also note "0002" is actually b'\0x30\0x30\0x30\0x32' (or maybe reversed?)
+# so it doesn't collide with VERSION2.
+#
+VERSION1 = struct.pack('i', 1)
+VERSION2 = struct.pack('i', 2)
+VERSION3 = struct.pack('i', 3)
 
 # 14*8 planes, 4 castling, 1 color, 1 50rule, 1 movecount, 1 unused
 DATA_ITEM_LINES = 121
@@ -95,7 +111,8 @@ class ChunkParser:
         # Start worker processes, leave 2 for TensorFlow
         if workers is None:
             workers = max(1, mp.cpu_count() - 2)
-        print("Using {} worker processes.".format(workers))
+        # TODO: This was messing up convert_to_v3.py --display since it goes to stdout
+        #print("Using {} worker processes.".format(workers))
 
         # Start the child workers running
         self.readers = []
@@ -114,16 +131,31 @@ class ChunkParser:
         # V2 Format (8604 bytes total)
         # int32 version (4 bytes)
         # 1924 float32 probabilities (7696 bytes)
-        # 112 packed bit planes (896 bytes)
+        # 112 (14*8) packed bit planes of 8 bytes each (896 bytes)
         # uint8 castling us_ooo (1 byte)
         # uint8 castling us_oo (1 byte)
         # uint8 castling them_ooo (1 byte)
         # uint8 castling them_oo (1 byte)
-        # uint8 side_to_move (1 byte)
+        # uint8 side_to_move (1 byte) aka us_black
         # uint8 rule50_count (1 byte)
         # uint8 move_count (1 byte)
         # int8 result (1 byte)
         self.v2_struct = struct.Struct('4s7696s896sBBBBBBBb')
+
+        # V3 Format (8280 bytes total)
+        # int32 version (4 bytes)
+        # 1858 float32 probabilities (7432 bytes)  (removed 66*4 = 264 bytes unused under-promotions)
+        # 104 (13*8) packed bit planes of 8 bytes each (832 bytes)   (no rep2 plane)
+        # float rule50_count (4 bytes)
+        # uint8 castling us_ooo (1 byte)
+        # uint8 castling us_oo (1 byte)
+        # uint8 castling them_ooo (1 byte)
+        # uint8 castling them_oo (1 byte)
+        # uint8 side_to_move (1 byte) aka us_black
+        # uint8 move_count (1 byte)
+        # int8 result (1 byte)
+        # uint8 unused (1 byte) padding to 4 byte boundaries
+        self.v3_struct = struct.Struct('4s7432s832sfBBBBBBbB')
 
     @staticmethod
     def parse_function(planes, probs, winner):
@@ -182,12 +214,12 @@ class ChunkParser:
         winner = int(text_item[120])
         assert winner == 1 or winner == -1 or winner == 0
 
-        return True, self.v2_struct.pack(VERSION, probs, planes, us_ooo, us_oo, them_ooo, them_oo, stm, rule50_count, move_count, winner)
+        return True, self.v2_struct.pack(VERSION2, probs, planes, us_ooo, us_oo, them_ooo, them_oo, stm, rule50_count, move_count, winner)
 
 
     def convert_v2_to_tuple(self, content):
         """
-            Convert v2 binary training data to packed tensors 
+            Convert v2 binary training data to packed tensors
 
             v2 struct format is
                 int32 version (4 bytes)
@@ -220,6 +252,35 @@ class ChunkParser:
 
         return (planes, probs, winner)
 
+    # TODO I took my best guess at what this should be.
+    def convert_v3_to_tuple(self, content):
+        """
+            Convert v3 binary training data to packed tensors
+        """
+        (ver, probs, planes, rule50_count, us_ooo, us_oo, them_ooo, them_oo, us_black, move_count, winner, unused) = self.v3_struct.unpack(content)
+        # Enforce move_count to 0
+        move_count = 0
+        # Unpack planes.
+        planes = np.unpackbits(np.frombuffer(planes, dtype=np.uint8))
+        rule50_count = np.unpackbits(np.frombuffer([rule50_count]*64, dtype=np.float))
+        # TODO: I moved rule50_count to make it 4 byte aligned.
+        # Not sure if that matters
+        # TODO: Why is there a plane of zeros at the end here?
+        # Is it required to match the C++ code of padding to an even number? x4?
+        # As long as we have these extra planes I think we should have a plane
+        # of all ones, so the NN can detect the edge of the board more easily.
+        planes = planes.tobytes() + rule50_count + self.flat_planes[us_ooo] + self.flat_planes[us_oo] + self.flat_planes[them_ooo] + self.flat_planes[them_oo] + self.flat_planes[stm] + self.flat_planes[move_count] + self.flat_planes[1] + self.flat_planes[0]
+        # history planes - 8 history * 13 planes * 1 byte each
+        # rule50_count - 1 plane of 4 byte floats
+        # binary inputs - 8 planes of 1 byte ints (zero or one) including two padding to be a multiple of 4.
+        # All multiplied by 8*8 = the chessboard size
+        assert len(planes) == ((8*13*1 + 1*1*4 + 7*1*1) * 8 * 8), len(planes)
+        winner = float(winner)
+        assert winner == 1.0 or winner == -1.0 or winner == 0.0, winner
+        winner = struct.pack('f', winner)
+
+        return (planes, probs, winner)
+
     def convert_chunkdata_to_v2(self, chunkdata):
         """
             Take chunk of unknown format, and return it as a list of
@@ -228,7 +289,7 @@ class ChunkParser:
         if chunkdata[0:4] == b'\1\0\0\0':
             # invalidated by bug see issue #119
             return
-        elif chunkdata[0:4] == VERSION:
+        elif chunkdata[0:4] == VERSION2:
             #print("V2 chunkdata")
             for i in range(0, len(chunkdata), self.v2_struct.size):
                 if self.sample > 1:
@@ -302,7 +363,7 @@ class ChunkParser:
             Take a generator producing v2 records and convert them to tuples.
             applying a random symmetry on the way.
         """
-        for r in gen: 
+        for r in gen:
             yield self.convert_v2_to_tuple(r)
 
     def batch_gen(self, gen):
@@ -348,7 +409,7 @@ class ChunkParserTest(unittest.TestCase):
         for i in range(5):
             integer.append(np.random.randint(2))
         integer.append(np.random.randint(100))
-        integer.append(np.random.randint(255))
+        integer.append(np.random.randint(1))   # move_count is zeroed now
 
         # 2. 1924 probs
         probs = np.random.randint(9, size=1924).tolist()
@@ -395,7 +456,6 @@ class ChunkParserTest(unittest.TestCase):
         # drain parser
         for _ in batchgen:
             pass
-
 
     def v1_gen(self):
         """

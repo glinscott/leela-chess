@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "Network.h"
+#include "UCI.h"
 
 #include <algorithm>
 #include <cassert>
@@ -67,7 +68,8 @@ constexpr int Network::INPUT_CHANNELS;
 constexpr int Network::NUM_OUTPUT_POLICY;
 constexpr int Network::NUM_VALUE_CHANNELS;
 
-std::unordered_map<Move, int, std::hash<int>> Network::move_lookup;
+std::unordered_map<Move, int, std::hash<int>> Network::old_move_lookup;
+std::unordered_map<Move, int, std::hash<int>> Network::new_move_lookup;
 
 // Input + residual block tower
 static std::vector<std::vector<float>> conv_weights;
@@ -456,12 +458,16 @@ void Network::initialize(void) {
 }
 
 void Network::init_move_map() {
-  std::vector<Move> moves;
+  // old includes underpromotions from 2nd to 1st rank
+  // new excludes those
+  std::vector<Move> old_moves;
+  std::vector<Move> new_moves;
   for (Square s = SQ_A1; s <= SQ_H8; ++s) {
     // Queen and knight moves
     Bitboard b = attacks_bb(QUEEN, s, 0) | attacks_bb(KNIGHT, s, 0);
     while (b) {
-      moves.push_back(make_move(s, pop_lsb(&b)));
+      old_moves.push_back(make_move(s, pop_lsb(&b)));
+      new_moves.push_back(old_moves.back());
     }
   }
 
@@ -474,25 +480,44 @@ void Network::init_move_map() {
         }
         Square from = make_square(File(c_from), c == WHITE? RANK_7 : RANK_2);
         Square to = make_square(File(c_to), c == WHITE ? RANK_8 : RANK_1);
-        moves.push_back(make<PROMOTION>(from, to, QUEEN));
-        moves.push_back(make<PROMOTION>(from, to, ROOK));
-        moves.push_back(make<PROMOTION>(from, to, BISHOP));
+        // push both kinds of underpromotions for old
+        old_moves.push_back(make<PROMOTION>(from, to, QUEEN));
+        old_moves.push_back(make<PROMOTION>(from, to, ROOK));
+        old_moves.push_back(make<PROMOTION>(from, to, BISHOP));
+        if (c == BLACK) {
+          // skip underpromotions from 2nd to 1st rank for old
+          continue;
+        }
+        new_moves.push_back(make<PROMOTION>(from, to, QUEEN));
+        new_moves.push_back(make<PROMOTION>(from, to, ROOK));
+        new_moves.push_back(make<PROMOTION>(from, to, BISHOP));
         // Don't need knight, as it's equivalent to pawn push to final rank.
       }
     }
   }
 
-  for (size_t i = 0; i < moves.size(); ++i) {
-    move_lookup[moves[i]] = i;
+  for (size_t i = 0; i < old_moves.size(); ++i) {
+    old_move_lookup[old_moves[i]] = i;
   }
-  myprintf("Generated %lu moves\n", moves.size());
+  for (size_t i = 0; i < new_moves.size(); ++i) {
+    new_move_lookup[new_moves[i]] = i;
+  }
+  myprintf("Generated %lu old moves\n", old_moves.size());
+  myprintf("Generated %lu new moves\n", new_moves.size());
 }
 
-int Network::lookup(Move move) {
+int Network::old_lookup(Move move) {
     if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
         move = Move(move & 0xfff);
     }
-    return move_lookup.at(move);
+    return old_move_lookup.at(move);
+}
+
+int Network::new_lookup(Move move) {
+    if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
+        move = Move(move & 0xfff);
+    }
+    return new_move_lookup.at(move);
 }
 
 #ifdef USE_BLAS
@@ -946,7 +971,9 @@ Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawDa
     }
 
     NNPlanes planes;
-    gather_features(pos, planes);
+    // Set use_v1_oldflip=true so the game is identical
+    // TODO: Set to false based on parsing V3 network weights.
+    gather_features(pos, planes, true);
     result = get_scored_moves_internal(pos, planes, debug_data);
 
     // Insert result into cache.
@@ -1031,7 +1058,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     MoveList<LEGAL> moves(pos.cur());
     std::vector<scored_node> result;
     for (Move move : moves) {
-        result.emplace_back(outputs[lookup(move)], move);
+        result.emplace_back(outputs[old_lookup(move)], move);
     }
 
     if (debug_data) {
@@ -1055,7 +1082,7 @@ void addPieces(const Position* pos, Color side, Network::NNPlanes& planes, int p
   }
 }
 
-void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
+void Network::gather_features(const BoardHistory& bh, NNPlanes& planes, bool use_v1_oldflip) {
     Color us = bh.cur().side_to_move();
     Color them = ~us;
     const Position* pos = &bh.cur();
@@ -1073,13 +1100,16 @@ void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
     planes.move_count = 0;
 
     int mc = bh.positions.size() - 1;
+    bool flip = us == BLACK;
     for (int i = 0; i < std::min(T_HISTORY, mc + 1); ++i) {
         pos = &bh.positions[mc - i];
 
-        us = pos->side_to_move();
-        them = ~us;
+        if (use_v1_oldflip) {
+            us = pos->side_to_move();
+            them = ~us;
 
-        bool flip = us == BLACK;
+            flip = us == BLACK;
+        }
 
         addPieces<PAWN  >(pos, us, planes, i * 14 + 0, flip);
         addPieces<KNIGHT>(pos, us, planes, i * 14 + 1, flip);

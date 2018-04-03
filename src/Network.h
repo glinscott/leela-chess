@@ -88,15 +88,17 @@ public:
                         std::vector<float>& output,
                         float temperature = 1.0f);
 
-    static int lookup(Move move);
-    static void gather_features(const BoardHistory& pos, NNPlanes& planes);
+    static int old_lookup(Move move);
+    static int new_lookup(Move move);
+    static void gather_features(const BoardHistory& pos, NNPlanes& planes, bool use_v1_oldflip);
 
 private:
     static std::pair<int, int> load_v1_network(std::ifstream& wtfile);
     static std::pair<int, int> load_network_file(std::string filename);
     static void process_bn_var(std::vector<float>& weights,
                                const float epsilon=1e-5f);
-    static std::unordered_map<Move, int, std::hash<int>> move_lookup;
+    static std::unordered_map<Move, int, std::hash<int>> old_move_lookup;
+    static std::unordered_map<Move, int, std::hash<int>> new_move_lookup;
 
     static std::vector<float> winograd_transform_f(const std::vector<float>& f,
         const int outputs, const int channels);
