@@ -319,6 +319,7 @@ func train(networkPath string, count int, params []string, restart bool) (string
 		CUR_LCZERO.launch(networkPath, params, true)
 		CUR_LCZERO.askAndWaitForUciOk()
 	}
+	CUR_LCZERO.Pgn = ""
 	num_games := 1
 	train_cmd := fmt.Sprintf("train %v-%v %v\n", pid, count, num_games)
 
