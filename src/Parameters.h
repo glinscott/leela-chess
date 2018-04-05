@@ -28,10 +28,11 @@ extern int cfg_max_threads;
 extern int cfg_num_threads;
 extern int cfg_max_playouts;
 extern int cfg_max_visits;
-extern int cfg_lagbuffer_cs;
+extern int cfg_lagbuffer_ms;
 extern int cfg_resignpct;
 extern int cfg_noise;
 extern int cfg_randomize;
+extern int cfg_timemanage;
 extern int cfg_min_resign_moves;
 extern uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
