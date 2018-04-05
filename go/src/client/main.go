@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -30,9 +31,40 @@ var PASSWORD = flag.String("password", "", "Password")
 var GPU = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
 var DEBUG = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
 
+var clientHash = ""
+var lczeroHash = ""
+
 type Settings struct {
 	User string
 	Pass string
+}
+
+func computeSha(filename string) (string, error) {
+	h := sha256.New()
+	file, err := os.Open(filename)
+	if err != nil {
+		file, err = os.Open(filename + ".exe")
+		if err != nil {
+			return "", err
+		}
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(h, file); err != nil {
+		return "", err
+	}
+	sha := fmt.Sprintf("%x", h.Sum(nil))
+	if len(sha) != 64 {
+		return "", errors.New("Hash length is not 64")
+	}
+	return sha, nil
+}
+
+func initHash() {
+	execPath, _ := os.Executable()
+	clientHash, _ = computeSha(execPath)
+	dir, _ := os.Getwd()
+	lczeroHash, _ = computeSha(path.Join(dir, "lczero"))
 }
 
 /*
@@ -79,6 +111,8 @@ func getExtraParams() map[string]string {
 		"user":     *USER,
 		"password": *PASSWORD,
 		"version":  "4",
+		"selfhash": clientHash,
+		"engineHash": lczeroHash,
 	}
 }
 
@@ -372,6 +406,7 @@ func nextGame(httpClient *http.Client, count int) error {
 }
 
 func main() {
+	initHash()
 	flag.Parse()
 
 	if len(*USER) == 0 || len(*PASSWORD) == 0 {
