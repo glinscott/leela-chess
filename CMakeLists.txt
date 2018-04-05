@@ -24,9 +24,9 @@ add_subdirectory(gtest EXCLUDE_FROM_ALL) # We don't want to install gtest, exclu
 option (ENABLE_POPCOUNT "Enable builtin popcount support" OFF) # Ideally we'd autodetect
 
 # Required Packages
-set (Boost_MIN_VERSION "1.58.0")
+set (Boost_MIN_VERSION "1.54.0")
 set (Boost_USE_MULTITHREADED ON)
-find_package (Boost 1.58.0 REQUIRED program_options filesystem)
+find_package (Boost 1.54.0 REQUIRED program_options filesystem)
 find_package (Threads REQUIRED)
 find_package (ZLIB REQUIRED)
 find_package (OpenCL REQUIRED)
