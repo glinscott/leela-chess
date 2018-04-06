@@ -199,6 +199,9 @@ static std::string parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("randomize")) {
         cfg_randomize = true;
+        // When cfg_randomize is on, we need an accurate estimate of
+        // how good/bad all moves are, so turn cfg_timemanage off.
+        cfg_timemanage = false;
     }
 
     if (vm.count("playouts")) {

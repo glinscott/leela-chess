@@ -197,7 +197,7 @@ func uploadTestNetwork(s *StoreSuite, contentString string, networkId int) {
 	s.w = httptest.NewRecorder()
 	content := []byte(contentString)
 	var buf bytes.Buffer
-	zw := gzip.NewWriter(&buf)
+	zw := gzip.NewWriterLevel(&buf, BestCompression)
 	zw.Write(content)
 	zw.Close()
 
