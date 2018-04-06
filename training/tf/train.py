@@ -162,6 +162,10 @@ def main(cmd):
         upload(cmd.upload, metadata, filename)
         print("[done]\n")
 
+    tfprocess.session.close()
+    train_parser.shutdown()
+    test_parser.shutdown()
+
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description=\
     'Tensorflow pipeline for training Leela Chess.')
