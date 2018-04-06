@@ -80,6 +80,8 @@ type MatchGame struct {
 	Result  int
 	Done    bool
 	Flip    bool
+	ClientSha string
+	EngineSha string
 }
 
 type TrainingGame struct {
@@ -97,4 +99,6 @@ type TrainingGame struct {
 	Path      string
 	Pgn       string
 	Compacted bool
+	ClientSha string
+	EngineSha string
 }
