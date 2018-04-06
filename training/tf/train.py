@@ -16,21 +16,14 @@
 #    You should have received a copy of the GNU General Public License
 #    along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 
-import binascii
 import argparse
 import os
 import yaml
-import requests
-import hashlib
 import sys
 import glob
 import gzip
 import random
-import math
 import multiprocessing as mp
-import numpy as np
-import os
-import time
 import tensorflow as tf
 from tfprocess import TFProcess
 from chunkparser import ChunkParser

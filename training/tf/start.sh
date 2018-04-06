@@ -2,9 +2,9 @@
 
 set -e
 
+CONFIG=$1
+ADDRESS=$2
 NET="/tmp/weights.txt"
-CONFIG="$(pwd)/configs/test.yaml"
-ADDRESS="http://162.217.248.187/upload_network"
 
 while true
 do
@@ -17,6 +17,6 @@ do
   FILE="$CHECKSUM.gz"
 
   # upload in the background and continue next training session
-  echo "Uploading '$FILE'"
-  curl -s -F "file=@${FILE}" -F "training_id=9" -F "layers=6" -F "filters=64" $ADDRESS &
+  echo "Uploading '$FILE' to $ADDRESS"
+  curl -s -F "file=@${FILE}" -F "training_id=1" -F "layers=6" -F "filters=64" $ADDRESS &
 done
