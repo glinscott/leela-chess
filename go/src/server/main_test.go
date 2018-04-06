@@ -166,6 +166,8 @@ func (s *StoreSuite) TestUploadGameNewUser() {
 		"training_id": "1",
 		"network_id":  "1",
 		"version":     "1",
+		"selfHash":    "01234567890123456789012345678901234567890123456790123456790123",
+		"engineHash":  "01234567890123456789012345678901234567890123456790123456790123",
 	}
 	tmpfile, _ := ioutil.TempFile("", "example")
 	defer os.Remove(tmpfile.Name())
@@ -300,6 +302,8 @@ func testMatchResult(s *StoreSuite, promote bool) {
 			"match_game_id": match_game_id,
 			"result":        fmt.Sprintf("%d", result),
 			"pgn":           "asdf",
+		    "selfHash":      "01234567890123456789012345678901234567890123456790123456790123",
+		    "engineHash":    "01234567890123456789012345678901234567890123456790123456790123",
 		}))
 		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 		s.router.ServeHTTP(s.w, req)

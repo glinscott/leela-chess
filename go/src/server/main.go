@@ -20,12 +20,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func checkUser(c *gin.Context) (*db.User, uint64, error) {
+func checkUser(c *gin.Context) (*db.User, uint64, string, string, error) {
 	if len(c.PostForm("user")) == 0 {
-		return nil, 0, errors.New("No user supplied")
+		return nil, 0, "", "", errors.New("No user supplied")
 	}
 	if len(c.PostForm("user")) > 32 {
-		return nil, 0, errors.New("Username too long")
+		return nil, 0, "", "", errors.New("Username too long")
 	}
 
 	user := &db.User{
@@ -33,28 +33,28 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 	}
 	err := db.GetDB().Where(db.User{Username: c.PostForm("user")}).FirstOrCreate(&user).Error
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, "", "", err
 	}
 
 	// Ensure passwords match
 	if user.Password != c.PostForm("password") {
-		return nil, 0, errors.New("Incorrect password")
+		return nil, 0, "", "", errors.New("Incorrect password")
 	}
 
 	version, err := strconv.ParseUint(c.PostForm("version"), 10, 64)
 	if err != nil {
-		return nil, 0, errors.New("Invalid version")
+		return nil, 0, "", "", errors.New("Invalid version")
 	}
 	if version < 4 {
 		log.Println("Rejecting old game from %s, version %d", user.Username, version)
-		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
+		return nil, 0, "", "", errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 	}
 
-	return user, version, nil
+	return user, version, c.PostForm("selfHash"), c.PostForm("engineHash"), nil
 }
 
 func nextGame(c *gin.Context) {
-	user, _, err := checkUser(c)
+	user, _, _, _, err := checkUser(c)
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, err.Error())
@@ -249,7 +249,7 @@ func uploadNetwork(c *gin.Context) {
 }
 
 func uploadGame(c *gin.Context) {
-	user, version, err := checkUser(c)
+	user, version, clientHash, engineHash, err := checkUser(c)
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, err.Error())
@@ -306,6 +306,8 @@ func uploadGame(c *gin.Context) {
 		NetworkID:     network.ID,
 		Version:       uint(version),
 		Pgn:           c.PostForm("pgn"),
+		ClientSha:     clientHash,
+		EngineSha:     engineHash,
 	}
 	db.GetDB().Create(&game)
 	db.GetDB().Model(&game).Update("path", filepath.Join("games", fmt.Sprintf("run%d/training.%d.gz", training_run.ID, game.ID)))
@@ -389,7 +391,7 @@ func checkMatchFinished(match_id uint) error {
 }
 
 func matchResult(c *gin.Context) {
-	user, version, err := checkUser(c)
+	user, version, clientHash, engineHash, err := checkUser(c)
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, err.Error())
@@ -425,10 +427,12 @@ func matchResult(c *gin.Context) {
 	}
 
 	err = db.GetDB().Model(&match_game).Updates(db.MatchGame{
-		Version: uint(version),
-		Result:  int(result),
-		Done:    true,
-		Pgn:     c.PostForm("pgn"),
+		Version:   uint(version),
+		Result:    int(result),
+		Done:      true,
+		Pgn:       c.PostForm("pgn"),
+		ClientSha: clientHash,
+		EngineSha: engineHash,
 	}).Error
 	if err != nil {
 		log.Println(err)
