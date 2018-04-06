@@ -45,11 +45,10 @@ int cfg_max_threads;
 int cfg_num_threads;
 int cfg_max_playouts;
 int cfg_max_visits;
-int cfg_lagbuffer_ms;
+int cfg_lagbuffer_cs;
 int cfg_resignpct;
 int cfg_noise;
 int cfg_randomize;
-int cfg_timemanage;
 int cfg_min_resign_moves;
 uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
@@ -74,20 +73,19 @@ void Parameters::setup_default_parameters() {
 
     cfg_max_playouts = MAXINT_DIV2;
     cfg_max_visits   = 800;
-    cfg_lagbuffer_ms = 50;
+    cfg_lagbuffer_cs = 100;
 #ifdef USE_OPENCL
     cfg_gpus = { };
     cfg_sgemm_exhaustive = false;
     cfg_tune_only = false;
 #endif
-    cfg_puct = 0.9f;
+    cfg_puct = 0.85f;
     cfg_softmax_temp = 1.0f;
     cfg_fpu_reduction = 0.0f;
     cfg_min_resign_moves = 20;
     cfg_resignpct = 10;
     cfg_noise = false;
     cfg_randomize = false;
-    cfg_timemanage = true;
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     cfg_rng_seed = 0;
