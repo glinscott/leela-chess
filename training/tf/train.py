@@ -150,8 +150,9 @@ def main(cmd):
         m.update(w)
         digest = m.hexdigest()
 
-    filename = '/tmp/{}.gz'.format(digest)
+    filename = os.path.join(root_dir, '{}.gz'.format(digest))
     with gzip.open(filename, 'wb') as f:
+        print("Written to `{}'".format(filename))
         f.write(w)
 
     if cmd.upload:
@@ -160,9 +161,6 @@ def main(cmd):
         print("\nUploading `{}'...".format(digest[:8]), end='')
         upload(cmd.upload, metadata, filename)
         print("[done]\n")
-    else:
-        print("\nStored `{}'\n".format(filename))
-
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description=\
