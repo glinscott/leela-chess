@@ -82,6 +82,8 @@ type MatchGame struct {
 	Flip    bool
 	
 	EngineVersion string
+	ClientSha     string
+	EngineSha     string
 }
 
 type TrainingGame struct {
@@ -101,4 +103,6 @@ type TrainingGame struct {
 	Compacted bool
 
 	EngineVersion string
+	ClientSha     string
+	EngineSha     string
 }
