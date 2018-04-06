@@ -57,7 +57,8 @@ func tarGame(game *db.TrainingGame, dir string, tw *tar.Writer) error {
 	defer gzFile.Close()
 	gzr, err := gzip.NewReader(gzFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Skipping %s: %v\n", path, err)
+		return nil
 	}
 	defer gzr.Close()
 
@@ -76,6 +77,12 @@ func tarGame(game *db.TrainingGame, dir string, tw *tar.Writer) error {
 		log.Fatal(err)
 	}
 
+	// Remove the temporary file
+	err = os.Remove(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return nil
 }
 
@@ -86,7 +93,7 @@ func tarGames(games []db.TrainingGame) string {
 	}
 	defer os.RemoveAll(dir)
 
-	outputPath := fmt.Sprintf("games%d.tar.gz", games[0].ID)
+	outputPath := fmt.Sprintf("games%d.tar.gz", games[0].ID / 10000 * 10000)
 	outputTar, err := os.Create(outputPath)
 	if err != nil {
 		log.Fatalln(err)
@@ -154,13 +161,20 @@ func deleteCompactedGames() {
 func compactGames() bool {
 	// Query for all the active games we haven't yet compacted.
 	games := []db.TrainingGame{}
-	numGames := 10000
+	var numGames int64 = 10000
 	err := db.GetDB().Order("id asc").Limit(numGames).Where("compacted = false AND id >= 40000").Find(&games).Error
 	if err != nil {
 		log.Fatal(err)
 	}
-	if len(games) != numGames {
+	if len(games) != int(numGames) {
 		return false
+	}
+	stop := int64(games[0].ID) / numGames * numGames + numGames
+	for idx, game := range games {
+		if int64(game.ID) >= stop {
+			games = games[0:idx]
+			break
+		}
 	}
 
 	outputPath := tarGames(games)
