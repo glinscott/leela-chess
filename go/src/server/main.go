@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"server/db"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/multitemplate"
@@ -370,6 +371,9 @@ func checkMatchFinished(match_id uint) error {
 		if err != nil {
 			return err
 		}
+		if match.TestOnly {
+			return nil
+		}
 		// Update to our new best network
 		// TODO(SPRT)
 		passed := calcElo(match.Wins, match.Losses, match.Draws) > -50.0
@@ -543,10 +547,13 @@ func getProgress() ([]gin.H, error) {
 	var elo float64 = 0.0
 	var matchIdx int = 0
 	for _, network := range networks {
-		count += counts[network.ID]
 		var sprt string = "???"
 		var best bool = false
-		for matchIdx < len(matches) && matches[matchIdx].CurrentBestID == network.ID {
+		for matchIdx < len(matches) && matches[matchIdx].CandidateID == network.ID {
+			if matches[matchIdx].TestOnly {
+				matchIdx += 1
+				continue
+			}
 			matchElo := calcElo(matches[matchIdx].Wins, matches[matchIdx].Losses, matches[matchIdx].Draws)
 			if matches[matchIdx].Done {
 				if matches[matchIdx].Passed {
@@ -570,7 +577,7 @@ func getProgress() ([]gin.H, error) {
 			matchIdx += 1
 		}
 		// TODO(gary): Hack for start...
-		if network.ID == 2 {
+		if network.ID == 3 {
 			result = append(result, gin.H{
 				"net":    count,
 				"rating": elo,
@@ -579,6 +586,7 @@ func getProgress() ([]gin.H, error) {
 				"hash":   network.Sha[0:8],
 			})
 		}
+		count += counts[network.ID]
 	}
 
 	return result, nil
@@ -684,7 +692,7 @@ func viewMatchGame(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "game", gin.H{
-		"pgn": game.Pgn,
+		"pgn": strings.Replace(game.Pgn, "e.p.", "", -1),
 	})
 }
 
@@ -865,6 +873,35 @@ func viewMatch(c *gin.Context) {
 	})
 }
 
+func viewTrainingData(c *gin.Context) {
+	rows, err := db.GetDB().Raw(`SELECT MAX(id) FROM training_games WHERE compacted = true`).Rows()
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+	defer rows.Close()
+
+	var id uint
+	for rows.Next() {
+		rows.Scan(&id)
+		break
+	}
+
+	files := []gin.H{}
+	game_id := uint(30000)
+	for game_id < id {
+		files = append([]gin.H{
+			gin.H{"url": fmt.Sprintf("https://s3.amazonaws.com/lczero/training/games%d.tar.gz", game_id)},
+		}, files...)
+		game_id += 10000
+	}
+
+	c.HTML(http.StatusOK, "training_data", gin.H{
+		"files": files,
+	})
+}
+
 func createTemplates() multitemplate.Render {
 	r := multitemplate.New()
 	r.AddFromFiles("index", "templates/base.tmpl", "templates/index.tmpl")
@@ -875,6 +912,7 @@ func createTemplates() multitemplate.Render {
 	r.AddFromFiles("stats", "templates/base.tmpl", "templates/stats.tmpl")
 	r.AddFromFiles("match", "templates/base.tmpl", "templates/match.tmpl")
 	r.AddFromFiles("matches", "templates/base.tmpl", "templates/matches.tmpl")
+	r.AddFromFiles("training_data", "templates/base.tmpl", "templates/training_data.tmpl")
 	return r
 }
 
@@ -896,6 +934,7 @@ func setupRouter() *gin.Engine {
 	router.GET("/match/:id", viewMatch)
 	router.GET("/matches", viewMatches)
 	router.GET("/match_game/:id", viewMatchGame)
+	router.GET("/training_data", viewTrainingData)
 	router.POST("/next_game", nextGame)
 	router.POST("/upload_game", uploadGame)
 	router.POST("/upload_network", uploadNetwork)
