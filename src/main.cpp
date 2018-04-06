@@ -134,12 +134,13 @@ static std::string parse_commandline(int argc, char *argv[]) {
 #ifdef USE_TUNER
     if (vm.count("puct")) {
         cfg_puct = vm["puct"].as<float>();
-    }
+    }    
+#endif
+  
     if (vm.count("softmax_temp")) {
         cfg_softmax_temp = vm["softmax_temp"].as<float>();
     }
-#endif
-
+  
     if (vm.count("logfile")) {
         cfg_logfile = vm["logfile"].as<std::string>();
         myprintf("Logging to %s.\n", cfg_logfile.c_str());
