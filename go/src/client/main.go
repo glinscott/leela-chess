@@ -74,9 +74,9 @@ func readSettings(path string) (string, string) {
 
 func getExtraParams() map[string]string {
 	return map[string]string{
-		"user":          *USER,
-		"password":      *PASSWORD,
-		"version":       "4",
+		"user":     *USER,
+		"password": *PASSWORD,
+		"version":  "4",
 	}
 }
 
