@@ -27,35 +27,40 @@ Of course, we also appreciate code reviews, pull requests and Windows testers!
 ## Requirements
 
 * GCC, Clang or MSVC, any C++14 compiler
-* boost 1.58.x or later (libboost-all-dev on Debian/Ubuntu)
+* boost 1.54.x or later (libboost-all-dev on Debian/Ubuntu)
 * BLAS Library: OpenBLAS (libopenblas-dev) or (optionally) Intel MKL
 * zlib library (zlib1g & zlib1g-dev on Debian/Ubuntu)
 * Standard OpenCL C headers (opencl-headers on Debian/Ubuntu, or at
   https://github.com/KhronosGroup/OpenCL-Headers/tree/master/opencl22/)
 * OpenCL ICD loader (ocl-icd-libopencl1 on Debian/Ubuntu, or reference implementation at https://github.com/KhronosGroup/OpenCL-ICD-Loader)
 * An OpenCL capable device, preferably a very, very fast GPU, with recent
-  drivers is strongly recommended (OpenCL 1.2 support should be enough, even
-  OpenCL 1.1 might work). If you do not have a GPU, modify config.h in the
-  source and remove the line that says `#define USE_OPENCL`.
+  drivers is strongly recommended but not required. (OpenCL 1.2 support should be enough, even
+  OpenCL 1.1 might work).
 * Tensorflow 1.4 or higher (for training)
 * The program has been tested on Linux.
+
 
 ## Example of compiling - Ubuntu 16.04
 
     # Install dependencies
-    sudo apt install libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
+    sudo apt install g++ git libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
 
     # Test for OpenCL support & compatibility
     sudo apt install clinfo && clinfo
 
-    # Clone github repo
-    git clone git@github.com:glinscott/leela-chess.git
+    # Clone git repo
+    git clone https://github.com/glinscott/leela-chess.git
     cd leela-chess
     git submodule update --init --recursive
     mkdir build && cd build
     
-    # Configure, build and run tests
+    # Configure
     cmake ..
+
+    # Or configure without GPU support
+    cmake -DFEATURE_USE_CPU_ONLY=1 ..
+
+    # Build and run tests
     make
     ./tests
 
