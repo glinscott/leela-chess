@@ -8,7 +8,7 @@ NET="/tmp/weights.txt"
 
 while true
 do
-  ./train.py --cfg=$CONFIG --output=$NET
+  ./train.py --cfg=$CONFIG --output=$NET | tee $HOME/logs/$(%Y%m%d-%H%M%S).log
 
   # prepare network for uploading
   CHECKSUM=$(sha256sum $NET | awk '{print $1}')
