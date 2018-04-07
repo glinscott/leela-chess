@@ -39,9 +39,9 @@ func makeRunActive() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	training_run.Active = true
-	training_run.Description = "Initial testing run"
-	training_run.TrainParameters = `["--randomize", "-n"]`
+	//training_run.Active = true
+	//training_run.Description = "Initial testing run"
+	training_run.TrainParameters = `["--randomize", "-n", "-v1600"]`
 	err = db.GetDB().Save(&training_run).Error
 	if err != nil {
 		log.Fatal(err)
@@ -99,7 +99,7 @@ func main() {
 	// newRun()
 	// makeRunActive()
 	// newMatch()
-	setTestOnly()
+	// setTestOnly()
 	// updateNetworkCounts()
 	// updateMatchPassed()
 
