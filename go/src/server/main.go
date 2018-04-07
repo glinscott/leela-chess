@@ -306,6 +306,7 @@ func uploadGame(c *gin.Context) {
 		NetworkID:     network.ID,
 		Version:       uint(version),
 		Pgn:           c.PostForm("pgn"),
+		EngineVersion: c.PostForm("engineVersion"),
 	}
 	db.GetDB().Create(&game)
 	db.GetDB().Model(&game).Update("path", filepath.Join("games", fmt.Sprintf("run%d/training.%d.gz", training_run.ID, game.ID)))
@@ -425,10 +426,11 @@ func matchResult(c *gin.Context) {
 	}
 
 	err = db.GetDB().Model(&match_game).Updates(db.MatchGame{
-		Version: uint(version),
-		Result:  int(result),
-		Done:    true,
-		Pgn:     c.PostForm("pgn"),
+		Version:       uint(version),
+		Result:        int(result),
+		Done:          true,
+		Pgn:           c.PostForm("pgn"),
+		EngineVersion: c.PostForm("engineVersion"),
 	}).Error
 	if err != nil {
 		log.Println(err)

@@ -77,6 +77,8 @@ type MatchGame struct {
 	Result  int
 	Done    bool
 	Flip    bool
+	
+	EngineVersion string
 }
 
 type TrainingGame struct {
@@ -94,4 +96,6 @@ type TrainingGame struct {
 	Path      string
 	Pgn       string
 	Compacted bool
+
+	EngineVersion string
 }
