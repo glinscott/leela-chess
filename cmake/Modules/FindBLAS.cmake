@@ -125,7 +125,7 @@ foreach(_library ${_list})
     endif ()
     find_library(${_prefix}_${_library}_LIBRARY
       NAMES ${_library}
-      PATHS ${_libdir}
+      PATHS ${_libdir} /opt/OpenBLAS/lib/
       )
     mark_as_advanced(${_prefix}_${_library}_LIBRARY)
     set(${LIBRARIES} ${${LIBRARIES}} ${${_prefix}_${_library}_LIBRARY})

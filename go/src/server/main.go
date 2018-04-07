@@ -376,7 +376,7 @@ func checkMatchFinished(match_id uint) error {
 		}
 		// Update to our new best network
 		// TODO(SPRT)
-		passed := calcElo(match.Wins, match.Losses, match.Draws) > -50.0
+		passed := calcElo(match.Wins, match.Losses, match.Draws) > -150.0
 		err = db.GetDB().Model(&match).Update("passed", passed).Error
 		if err != nil {
 			return err

@@ -27,7 +27,7 @@ Of course, we also appreciate code reviews, pull requests and Windows testers!
 ## Requirements
 
 * GCC, Clang or MSVC, any C++14 compiler
-* boost 1.58.x or later (libboost-all-dev on Debian/Ubuntu)
+* boost 1.54.x or later (libboost-all-dev on Debian/Ubuntu)
 * BLAS Library: OpenBLAS (libopenblas-dev) or (optionally) Intel MKL
 * zlib library (zlib1g & zlib1g-dev on Debian/Ubuntu)
 * Standard OpenCL C headers (opencl-headers on Debian/Ubuntu, or at
