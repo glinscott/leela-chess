@@ -295,7 +295,7 @@ void UCI::loop(const std::string& start) {
       */
 
       if (token == "uci") {
-          myprintf_so("id name lczero\nuciok\n");
+          myprintf_so("id name lczero " PROGRAM_VERSION "\nuciok\n");
       }
       else if (token == "setoption")  setoption(is);
       else if (token == "go")         go(*search, bh, is);
