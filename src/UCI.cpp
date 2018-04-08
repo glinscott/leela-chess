@@ -303,7 +303,7 @@ void UCI::loop(const std::string& start) {
       else if (token == "position")   position(bh, is);
       // else if (token == "ucinewgame") Search::clear();
       else if (token == "isready") {
-		  Network::initialize();
+          Network::initialize();
           myprintf_so("readyok\n");
       }
       // Additional custom non-UCI commands, mainly for debugging

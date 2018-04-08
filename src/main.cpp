@@ -348,9 +348,9 @@ int main(int argc, char* argv[]) {
   // Network::initialize();
 
   if (!cfg_supervise.empty()) {
-	Network::initialize();
-    generate_supervised_data(cfg_supervise);
-    return 0;
+      Network::initialize();
+      generate_supervised_data(cfg_supervise);
+      return 0;
   }
 
   UCI::loop(uci_start);
