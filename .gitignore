@@ -27,3 +27,4 @@ training/tf/leelalogs
 training/tf/models/
 .idea/
 /.vs
+*.exe
