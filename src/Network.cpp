@@ -61,13 +61,14 @@
 
 using namespace Utils;
 
-constexpr int Network::FORMAT_VERSION;
+constexpr int Network::MAX_FORMAT_VERSION;
 constexpr int Network::T_HISTORY;
-constexpr int Network::INPUT_CHANNELS;
+constexpr int Network::MAX_INPUT_CHANNELS;
 
 constexpr int Network::NUM_OUTPUT_POLICY;
 constexpr int Network::NUM_VALUE_CHANNELS;
 
+size_t Network::m_format_version{0};
 std::unordered_map<Move, int, std::hash<int>> Network::old_move_lookup;
 std::unordered_map<Move, int, std::hash<int>> Network::new_move_lookup;
 
@@ -99,6 +100,14 @@ static std::array<float, Network::NUM_VALUE_CHANNELS> ip2_val_w;
 static std::array<float, 1> ip2_val_b;
 
 //void Network::benchmark(Position* pos, int iterations) //--temporarily (?) killed.
+
+size_t Network::get_input_channels() {
+    return m_format_version == 1 ? V1_INPUT_CHANNELS : V2_INPUT_CHANNELS;
+}
+
+size_t Network::get_hist_planes() {
+    return m_format_version == 1 ? V1_HIST_PLANES : V2_HIST_PLANES;
+}
 
 void Network::process_bn_var(std::vector<float>& weights, const float epsilon) {
     for(auto&& w : weights) {
@@ -178,11 +187,10 @@ std::vector<float> Network::zeropad_U(const std::vector<float>& U,
 
 extern "C" void openblas_set_num_threads(int num_threads);
 
-std::pair<int, int>  Network::load_v1_network(std::ifstream& wtfile) {
+std::pair<int, int> Network::load_network(std::ifstream& wtfile) {
     // Count size of the network
     myprintf("Detecting residual layers...");
-    // We are version 1
-    myprintf("v%d...", 1);
+    myprintf("v%d...", m_format_version);
     // First line was the version number
     auto linecount = size_t{1};
     auto channels = 0;
@@ -200,15 +208,16 @@ std::pair<int, int>  Network::load_v1_network(std::ifstream& wtfile) {
         }
         linecount++;
     }
-    // 1 format id, 1 input layer (4 x weights), 14 ending weights,
+    // 1 format id, 1 input layer (4 x weights), 13 or 14 ending weights,
     // the rest are residuals, every residual has 8 x weight lines
-    auto residual_blocks = linecount - (1 + 4 + 14);
+    auto residual_blocks = linecount - (1 + 4 + get_hist_planes());
     if (residual_blocks % 8 != 0) {
         myprintf("\nInconsistent number of weights in the file.\n");
         return {0, 0};
     }
     residual_blocks /= 8;
     myprintf("%d blocks.\n", residual_blocks);
+    //myprintf("debug %d %d %d %d %d\n", m_format_version, linecount, residual_blocks, get_input_channels(), get_hist_planes());
 
     // Re-read file and process
     wtfile.clear();
@@ -236,7 +245,7 @@ std::pair<int, int>  Network::load_v1_network(std::ifstream& wtfile) {
         if (!ok) {
             myprintf("\nFailed to parse weight file. Error on line %d.\n",
                     linecount + 2); //+1 from version line, +1 from 0-indexing
-            return {0,0};
+            return {0, 0};
         }
         if (linecount < plain_conv_wts) {
             if (linecount % 4 == 0) {
@@ -302,13 +311,15 @@ std::pair<int, int> Network::load_network_file(std::string filename) {
     if (std::getline(wtfile, line)) {
         auto iss = std::stringstream{line};
         // First line is the file format version id
-        iss >> format_version;
-        if (iss.fail() || format_version != FORMAT_VERSION) {
+        iss >> m_format_version;
+        if (iss.fail()
+            || m_format_version > MAX_FORMAT_VERSION
+            || m_format_version < 1) {
             myprintf("Weights file is the wrong version.\n");
             return {0, 0};
         } else {
-            assert(format_version == FORMAT_VERSION);
-            return load_v1_network(wtfile);
+            assert(m_format_version <= MAX_FORMAT_VERSION);
+            return load_network(wtfile);
         }
     }
 
@@ -330,7 +341,7 @@ void Network::initialize(void) {
     // Winograd transform convolution weights
     conv_weights[weight_index] =
         winograd_transform_f(conv_weights[weight_index],
-                             channels, INPUT_CHANNELS);
+                             channels, get_input_channels());
     weight_index++;
 
     // Residual block convolutions
@@ -382,14 +393,14 @@ void Network::initialize(void) {
         weight_index = 0;
 
         size_t m_ceil = ceilMultiple(ceilMultiple(channels, mwg), vwm);
-        size_t k_ceil = ceilMultiple(ceilMultiple(INPUT_CHANNELS, kwg), vwm);
+        size_t k_ceil = ceilMultiple(ceilMultiple(get_input_channels(), kwg), vwm);
 
         auto Upad = zeropad_U(conv_weights[weight_index],
-                              channels, INPUT_CHANNELS,
+                              channels, get_input_channels(),
                               m_ceil, k_ceil);
 
         // Winograd filter transformation changes filter size to 4x4
-        opencl_net->push_input_convolution(WINOGRAD_ALPHA, INPUT_CHANNELS, channels,
+        opencl_net->push_input_convolution(WINOGRAD_ALPHA, get_input_channels(), channels,
                 Upad, batchnorm_means[weight_index], batchnorm_stddivs[weight_index]);
         weight_index++;
 
@@ -458,7 +469,7 @@ void Network::initialize(void) {
 }
 
 void Network::init_move_map() {
-  // old includes underpromotions from 2nd to 1st rank
+  // old includes black promotions from 2nd to 1st rank
   // new excludes those
   std::vector<Move> old_moves;
   std::vector<Move> new_moves;
@@ -480,18 +491,17 @@ void Network::init_move_map() {
         }
         Square from = make_square(File(c_from), c == WHITE? RANK_7 : RANK_2);
         Square to = make_square(File(c_to), c == WHITE ? RANK_8 : RANK_1);
-        // push both kinds of underpromotions for old
+        // push both black and white promotions for old
         old_moves.push_back(make<PROMOTION>(from, to, QUEEN));
         old_moves.push_back(make<PROMOTION>(from, to, ROOK));
         old_moves.push_back(make<PROMOTION>(from, to, BISHOP));
-        if (c == BLACK) {
-          // skip underpromotions from 2nd to 1st rank for old
-          continue;
-        }
-        new_moves.push_back(make<PROMOTION>(from, to, QUEEN));
-        new_moves.push_back(make<PROMOTION>(from, to, ROOK));
-        new_moves.push_back(make<PROMOTION>(from, to, BISHOP));
         // Don't need knight, as it's equivalent to pawn push to final rank.
+        if (c == WHITE) {
+          // only push white promotions (7th to 8th rank) for new
+          new_moves.push_back(make<PROMOTION>(from, to, QUEEN));
+          new_moves.push_back(make<PROMOTION>(from, to, ROOK));
+          new_moves.push_back(make<PROMOTION>(from, to, BISHOP));
+        }
       }
     }
   }
@@ -502,8 +512,6 @@ void Network::init_move_map() {
   for (size_t i = 0; i < new_moves.size(); ++i) {
     new_move_lookup[new_moves[i]] = i;
   }
-  myprintf("Generated %lu old moves\n", old_moves.size());
-  myprintf("Generated %lu new moves\n", new_moves.size());
 }
 
 int Network::old_lookup(Move move) {
@@ -827,7 +835,7 @@ void Network::forward_cpu(std::vector<float>& input,
     //when the network has very few filters
     const auto input_channels = std::max(
             static_cast<size_t>(output_channels),
-            static_cast<size_t>(INPUT_CHANNELS));
+            static_cast<size_t>(get_input_channels()));
     auto conv_out = std::vector<float>(output_channels * width * height);
 
     auto V = std::vector<float>(WINOGRAD_TILE * input_channels * tiles);
@@ -971,9 +979,7 @@ Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawDa
     }
 
     NNPlanes planes;
-    // Set use_v1_oldflip=true so the game is identical
-    // TODO: Set to false based on parsing V3 network weights.
-    gather_features(pos, planes, true);
+    gather_features(pos, planes);
     result = get_scored_moves_internal(pos, planes, debug_data);
 
     // Insert result into cache.
@@ -983,20 +989,21 @@ Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawDa
 }
 
 Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, NNPlanes& planes, DebugRawData* debug_data) {
-    assert(INPUT_CHANNELS == planes.bit.size()+3);
+    assert(MAX_INPUT_CHANNELS == planes.bit.size()+3);
     constexpr int width = 8;
     constexpr int height = 8;
     const auto convolve_channels = conv_pol_w.size() / conv_pol_b.size();
     std::vector<net_t> input_data;
     std::vector<net_t> output_data(convolve_channels * width * height);
     std::vector<float> value_data(Network::NUM_VALUE_INPUT_PLANES * width * height);
+    // TODO: Modify policy_data for m_format_version 2
     std::vector<float> policy_data(Network::NUM_OUTPUT_POLICY);
     std::vector<float> softmax_data(Network::NUM_OUTPUT_POLICY);
     std::vector<float> winrate_data(Network::NUM_VALUE_CHANNELS);
     std::vector<float> winrate_out(1);
     // Data layout is input_data[(c * height + h) * width + w]
-    input_data.reserve(INPUT_CHANNELS * width * height);
-    for (int c = 0; c < INPUT_CHANNELS - 3; ++c) {
+    input_data.reserve(MAX_INPUT_CHANNELS * width * height);
+    for (int c = 0; c < MAX_INPUT_CHANNELS - 3; ++c) {
         for (int i = 0; i < 64; ++i) {
             input_data.emplace_back(net_t(planes.bit[c][i]));
         }
@@ -1007,10 +1014,12 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     for (int i = 0; i < 64; ++i) {
         input_data.emplace_back(net_t(planes.move_count));
     }
+    // TODO: I changed this to a plane of ones for V2.
+    // To help see the edge of the board
     for (int i = 0; i < 64; ++i) {
-        input_data.emplace_back(net_t(0.0));
+        input_data.emplace_back(net_t(m_format_version == 1 ? 0.0 : 1.0));
     }
-    assert(input_data.size() == INPUT_CHANNELS * width * height);
+    assert(input_data.size() == MAX_INPUT_CHANNELS * width * height);
 #ifdef USE_OPENCL
     opencl.forward(input_data, policy_data, value_data);
 #elif defined(USE_BLAS) && !defined(USE_OPENCL)
@@ -1057,6 +1066,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
 
     MoveList<LEGAL> moves(pos.cur());
     std::vector<scored_node> result;
+    // TODO: Modify new/old lookup for m_format_version 2
     for (Move move : moves) {
         result.emplace_back(outputs[old_lookup(move)], move);
     }
@@ -1082,18 +1092,23 @@ void addPieces(const Position* pos, Color side, Network::NNPlanes& planes, int p
   }
 }
 
-void Network::gather_features(const BoardHistory& bh, NNPlanes& planes, bool use_v1_oldflip) {
+void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
     Color us = bh.cur().side_to_move();
     Color them = ~us;
     const Position* pos = &bh.cur();
 
-    int kFeatureBase = T_HISTORY * 14;
+    int kFeatureBase = T_HISTORY * get_hist_planes();
     if (pos->can_castle(BLACK_OOO)) planes.bit[kFeatureBase+(us==BLACK?0:2)+0].set();
     if (pos->can_castle(BLACK_OO)) planes.bit[kFeatureBase+(us==BLACK?0:2)+1].set();
     if (pos->can_castle(WHITE_OOO)) planes.bit[kFeatureBase+(us==WHITE?0:2)+0].set();
     if (pos->can_castle(WHITE_OO)) planes.bit[kFeatureBase+(us==WHITE?0:2)+1].set();
     if (us == BLACK) planes.bit[kFeatureBase+4].set();
-    planes.rule50_count = pos->rule50_count();
+    if (m_format_version == 1) {
+        planes.rule50_count = pos->rule50_count();
+    } else {
+        // Normalize rule50_count to [0,1] range.
+        planes.rule50_count = pos->rule50_count() / 100.0f;
+    }
     // Move count is redundant in chess and was clamped to uint8_t. We disabled
     // in training and so we should disable the move_count plane as input to
     // the NN here.
@@ -1104,30 +1119,32 @@ void Network::gather_features(const BoardHistory& bh, NNPlanes& planes, bool use
     for (int i = 0; i < std::min(T_HISTORY, mc + 1); ++i) {
         pos = &bh.positions[mc - i];
 
-        if (use_v1_oldflip) {
+        if (m_format_version == 1) {
             us = pos->side_to_move();
             them = ~us;
 
             flip = us == BLACK;
         }
 
-        addPieces<PAWN  >(pos, us, planes, i * 14 + 0, flip);
-        addPieces<KNIGHT>(pos, us, planes, i * 14 + 1, flip);
-        addPieces<BISHOP>(pos, us, planes, i * 14 + 2, flip);
-        addPieces<ROOK  >(pos, us, planes, i * 14 + 3, flip);
-        addPieces<QUEEN >(pos, us, planes, i * 14 + 4, flip);
-        addPieces<KING  >(pos, us, planes, i * 14 + 5, flip);
+        addPieces<PAWN  >(pos, us, planes, i * get_hist_planes() + 0, flip);
+        addPieces<KNIGHT>(pos, us, planes, i * get_hist_planes() + 1, flip);
+        addPieces<BISHOP>(pos, us, planes, i * get_hist_planes() + 2, flip);
+        addPieces<ROOK  >(pos, us, planes, i * get_hist_planes() + 3, flip);
+        addPieces<QUEEN >(pos, us, planes, i * get_hist_planes() + 4, flip);
+        addPieces<KING  >(pos, us, planes, i * get_hist_planes() + 5, flip);
 
-        addPieces<PAWN  >(pos, them, planes, i * 14 + 6, flip);
-        addPieces<KNIGHT>(pos, them, planes, i * 14 + 7, flip);
-        addPieces<BISHOP>(pos, them, planes, i * 14 + 8, flip);
-        addPieces<ROOK  >(pos, them, planes, i * 14 + 9, flip);
-        addPieces<QUEEN >(pos, them, planes, i * 14 + 10, flip);
-        addPieces<KING  >(pos, them, planes, i * 14 + 11, flip);
+        addPieces<PAWN  >(pos, them, planes, i * get_hist_planes() + 6, flip);
+        addPieces<KNIGHT>(pos, them, planes, i * get_hist_planes() + 7, flip);
+        addPieces<BISHOP>(pos, them, planes, i * get_hist_planes() + 8, flip);
+        addPieces<ROOK  >(pos, them, planes, i * get_hist_planes() + 9, flip);
+        addPieces<QUEEN >(pos, them, planes, i * get_hist_planes() + 10, flip);
+        addPieces<KING  >(pos, them, planes, i * get_hist_planes() + 11, flip);
 
         int repetitions = pos->repetitions_count();
-        if (repetitions >= 1) planes.bit[i * 14 + 12].set();
-        if (repetitions >= 2) planes.bit[i * 14 + 13].set();
+        if (repetitions >= 1) planes.bit[i * get_hist_planes() + 12].set();
+        if (m_format_version == 1) {
+            if (repetitions >= 2) planes.bit[i * get_hist_planes() + 13].set();
+        }
     }
 }
 

@@ -257,19 +257,21 @@ class ChunkParser:
         """
             Convert v3 binary training data to packed tensors
         """
-        (ver, probs, planes, rule50_count, us_ooo, us_oo, them_ooo, them_oo, us_black, move_count, winner, unused) = self.v3_struct.unpack(content)
+        (ver, probs, planes, rule50_count, us_ooo, us_oo, them_ooo, them_oo, stm, move_count, winner, unused) = self.v3_struct.unpack(content)
         # Enforce move_count to 0
         move_count = 0
         # Unpack planes.
         planes = np.unpackbits(np.frombuffer(planes, dtype=np.uint8))
         rule50_count = np.unpackbits(np.frombuffer([rule50_count]*64, dtype=np.float))
         # TODO: I moved rule50_count to make it 4 byte aligned.
-        # Not sure if that matters
-        # TODO: Why is there a plane of zeros at the end here?
-        # Is it required to match the C++ code of padding to an even number? x4?
-        # As long as we have these extra planes I think we should have a plane
-        # of all ones, so the NN can detect the edge of the board more easily.
-        planes = planes.tobytes() + rule50_count + self.flat_planes[us_ooo] + self.flat_planes[us_oo] + self.flat_planes[them_ooo] + self.flat_planes[them_oo] + self.flat_planes[stm] + self.flat_planes[move_count] + self.flat_planes[1] + self.flat_planes[0]
+        # That only matters for doing the python struct.unpack here, should
+        # have no effect on the remaining TF flow.
+        #
+        # I think the extra plane here is to make it an even number,
+        # a requirement of the C++ code.
+        # TODO: As long as we have this extra plane I think it should be
+        # all ones, so the NN can detect the edge of the board more easily.
+        planes = planes.tobytes() + rule50_count + self.flat_planes[us_ooo] + self.flat_planes[us_oo] + self.flat_planes[them_ooo] + self.flat_planes[them_oo] + self.flat_planes[stm] + self.flat_planes[move_count] + self.flat_planes[1]
         # history planes - 8 history * 13 planes * 1 byte each
         # rule50_count - 1 plane of 4 byte floats
         # binary inputs - 8 planes of 1 byte ints (zero or one) including two padding to be a multiple of 4.
