@@ -26,3 +26,4 @@ training/tf/leelaz-model-*
 training/tf/leelalogs
 training/tf/models/
 .idea/
+/.vs

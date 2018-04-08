@@ -345,9 +345,10 @@ int main(int argc, char* argv[]) {
 #endif
   thread_pool.initialize(cfg_num_threads);
   // Random::GetRng().seedrandom(cfg_rng_seed);
-  Network::initialize();
+  // Network::initialize();
 
   if (!cfg_supervise.empty()) {
+	Network::initialize();
     generate_supervised_data(cfg_supervise);
     return 0;
   }

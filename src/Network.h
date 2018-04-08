@@ -92,6 +92,7 @@ public:
     static void gather_features(const BoardHistory& pos, NNPlanes& planes);
 
 private:
+	static bool initialized;
     static std::pair<int, int> load_v1_network(std::ifstream& wtfile);
     static std::pair<int, int> load_network_file(std::string filename);
     static void process_bn_var(std::vector<float>& weights,
