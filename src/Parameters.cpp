@@ -45,11 +45,13 @@ int cfg_max_threads;
 int cfg_num_threads;
 int cfg_max_playouts;
 int cfg_max_visits;
-int cfg_lagbuffer_cs;
+int cfg_lagbuffer_ms;
 int cfg_resignpct;
 int cfg_noise;
 int cfg_randomize;
+int cfg_timemanage;
 int cfg_min_resign_moves;
+int cfg_root_temp_decay;
 uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
 std::vector<int> cfg_gpus;
@@ -59,6 +61,7 @@ bool cfg_tune_only;
 float cfg_puct;
 float cfg_softmax_temp;
 float cfg_fpu_reduction;
+float cfg_root_temp;
 std::string cfg_weightsfile;
 std::string cfg_logfile;
 std::string cfg_supervise;
@@ -73,7 +76,7 @@ void Parameters::setup_default_parameters() {
 
     cfg_max_playouts = MAXINT_DIV2;
     cfg_max_visits   = 800;
-    cfg_lagbuffer_cs = 100;
+    cfg_lagbuffer_ms = 50;
 #ifdef USE_OPENCL
     cfg_gpus = { };
     cfg_sgemm_exhaustive = false;
@@ -82,10 +85,13 @@ void Parameters::setup_default_parameters() {
     cfg_puct = 0.85f;
     cfg_softmax_temp = 1.0f;
     cfg_fpu_reduction = 0.0f;
+    cfg_root_temp = 1.0f;
+    cfg_root_temp_decay = 0;
     cfg_min_resign_moves = 20;
     cfg_resignpct = 10;
     cfg_noise = false;
     cfg_randomize = false;
+    cfg_timemanage = true;
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     cfg_rng_seed = 0;

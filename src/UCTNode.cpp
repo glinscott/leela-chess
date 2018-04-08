@@ -168,18 +168,21 @@ void UCTNode::dirichlet_noise(float epsilon, float alpha) {
     }
 }
 
-void UCTNode::randomize_first_proportionally() {
-    auto accum = uint32{0};
-    auto accum_vector = std::vector<uint32>{};
+void UCTNode::randomize_first_proportionally(float tau) {
+    auto accum = 0.0f;
+    auto accum_vector = std::vector<float>{};
     for (const auto& child : m_children) {
-        accum += child->get_visits();
+        accum += std::pow(child->get_visits(),1/tau);
         accum_vector.emplace_back(accum);
+	myprintf("Visits: %d Exponentiated visits: %8.2f Cumulative visits: %8.2f\n",child->get_visits(), std::pow(float(child->get_visits()),1.0f/tau), accum);
     }
-
-    auto pick = Random::GetRng().RandInt<std::uint32_t>(accum);
+    auto int_limit = std::numeric_limits<int>::max();
+    auto pick = Random::GetRng().RandInt<std::uint32_t>(int_limit);
+    auto pick_scaled = pick*accum/int_limit;
+    myprintf("pick, pick_scaled: %d, %8.2f\n",pick,pick_scaled);
     auto index = size_t{0};
     for (size_t i = 0; i < accum_vector.size(); i++) {
-        if (pick < accum_vector[i]) {
+        if (pick_scaled < accum_vector[i]) {
             index = i;
             break;
         }
@@ -388,6 +391,7 @@ UCTNode::node_ptr_t UCTNode::find_new_root(Key prevroot_full_key, BoardHistory& 
     UCTNode::node_ptr_t new_root = nullptr;
     std::vector<Move> moves;
     for (auto pos : boost::adaptors::reverse(new_bh.positions)) {
+        auto move = pos.get_move();
         if (pos.full_key() == prevroot_full_key) {
             new_root = find_path(moves);
             break;
