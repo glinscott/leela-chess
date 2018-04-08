@@ -110,16 +110,38 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
         return;
     }
 
+    auto root_temperature = 1.0f;
+    auto accum = 0.0f;
+    if (cfg_randomize) {
+        if (cfg_root_temp_decay > 0) {
+            root_temperature = get_root_temperature();
+        }
+        for (const auto& node : boost::adaptors::reverse(parent.get_children())) {
+            accum += std::pow(node->get_visits(),1/root_temperature);
+        }
+    }
+
     // Reverse sort because GUIs typically will reverse it again.
     for (const auto& node : boost::adaptors::reverse(parent.get_children())) {
         std::string tmp = state.cur().move_to_san(node->get_move());
         std::string pvstring(tmp);
 
-        myprintf_so("info string %4s -> %7d (V: %5.2f%%) (N: %5.2f%%) PV: ",
+        auto move_probability = 0.0f;
+        if (cfg_randomize) {
+            move_probability = std::pow(node->get_visits(),1/root_temperature)/accum;
+            myprintf_so("info string %4s -> %7d (%8.5f%%) (V: %5.2f%%) (N: %5.2f%%) PV: ",
+                tmp.c_str(),
+                node->get_visits(),
+                move_probability*100.0f,
+                node->get_eval(color)*100.0f,
+                node->get_score() * 100.0f);
+        } else {
+            myprintf_so("info string %4s -> %7d (V: %5.2f%%) (N: %5.2f%%) PV: ",
                 tmp.c_str(),
                 node->get_visits(),
                 node->get_eval(color)*100.0f,
                 node->get_score() * 100.0f);
+        }
 
         StateInfo si;
         state.cur().do_move(node->get_move(), si);
@@ -129,6 +151,15 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
         myprintf_so("%s\n", pvstring.c_str());
     }
     myprintf("\n");
+}
+
+float UCTSearch::get_root_temperature() {
+    auto adjusted_ply = 1.0f + bh_.cur().game_ply() * cfg_root_temp_decay / 50.0f;
+    auto root_temp = 1.0f / (1.0f + std::log(adjusted_ply));
+    if (root_temp < 0.1f) {
+        root_temp = 0.1f;
+    }
+    return root_temp;
 }
 
 Move UCTSearch::get_best_move() {
@@ -141,15 +172,11 @@ Move UCTSearch::get_best_move() {
     // to the (exponentiated) visit counts.
    
     if (cfg_randomize) {
-        auto root_temperature = cfg_root_temp;
+        auto root_temperature = 1.0f;
         // If a temperature decay schedule is set, calculate root temperature from
         // ply count and decay constant. Set default value for too small root temperature. 
         if (cfg_root_temp_decay > 0) {
-            auto adjusted_ply = 1.0f + bh_.cur().game_ply() * cfg_root_temp_decay / 50.0f;
-            root_temperature = cfg_root_temp / (1.0f + std::log(adjusted_ply));
-            if (root_temperature < 0.1f) {
-                root_temperature = 0.1f;
-            }
+            root_temperature = get_root_temperature();
             myprintf("Game ply: %d, root temperature: %5.2f \n",bh_.cur().game_ply(), root_temperature);
         } 
         m_root->randomize_first_proportionally(root_temperature);
