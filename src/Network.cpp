@@ -67,6 +67,7 @@ constexpr int Network::INPUT_CHANNELS;
 constexpr int Network::NUM_OUTPUT_POLICY;
 constexpr int Network::NUM_VALUE_CHANNELS;
 
+bool Network::initialized = false;
 std::unordered_map<Move, int, std::hash<int>> Network::move_lookup;
 
 // Input + residual block tower
@@ -314,6 +315,8 @@ std::pair<int, int> Network::load_network_file(std::string filename) {
 }
 
 void Network::initialize(void) {
+	if (initialized) return;
+	initialized = true;
     init_move_map();
 
     // Load network from file
