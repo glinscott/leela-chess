@@ -174,12 +174,13 @@ void UCTNode::randomize_first_proportionally(float tau) {
     for (const auto& child : m_children) {
         accum += std::pow(child->get_visits(),1/tau);
         accum_vector.emplace_back(accum);
-	myprintf("Visits: %d Exponentiated visits: %8.2f Cumulative visits: %8.2f\n",child->get_visits(), std::pow(float(child->get_visits()),1.0f/tau), accum);
     }
+
+    // For the root move selection, a random number between 0 and the integer numerical
+    // limit (~2.1e9) is scaled to the cumulative exponentiated visit count
     auto int_limit = std::numeric_limits<int>::max();
     auto pick = Random::GetRng().RandInt<std::uint32_t>(int_limit);
     auto pick_scaled = pick*accum/int_limit;
-    myprintf("pick, pick_scaled: %d, %8.2f\n",pick,pick_scaled);
     auto index = size_t{0};
     for (size_t i = 0; i < accum_vector.size(); i++) {
         if (pick_scaled < accum_vector[i]) {

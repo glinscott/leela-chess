@@ -138,15 +138,20 @@ Move UCTSearch::get_best_move() {
     m_root->sort_root_children(color);
 
     // Check whether to randomize the best move proportional
-    // to the playout counts.
+    // to the (exponentiated) visit counts.
    
     if (cfg_randomize) {
-	auto root_temperature = cfg_root_temp;
-	if (cfg_root_temp_decay > 0) {
-	    auto adjusted_ply = 1.0f + bh_.cur().game_ply() * cfg_root_temp_decay / 10.0f;
-	    root_temperature = cfg_root_temp / (1.0f + std::log(adjusted_ply));
-	    myprintf("Game ply: %d, root temperature: %5.2f \n",bh_.cur().game_ply(), root_temperature);
-	} 
+        auto root_temperature = cfg_root_temp;
+        // If a temperature decay schedule is set, calculate root temperature from
+        // ply count and decay constant. Set default value for too small root temperature. 
+        if (cfg_root_temp_decay > 0) {
+            auto adjusted_ply = 1.0f + bh_.cur().game_ply() * cfg_root_temp_decay / 50.0f;
+            root_temperature = cfg_root_temp / (1.0f + std::log(adjusted_ply));
+            if (root_temperature < 0.1f) {
+                root_temperature = 0.1f;
+            }
+            myprintf("Game ply: %d, root temperature: %5.2f \n",bh_.cur().game_ply(), root_temperature);
+        } 
         m_root->randomize_first_proportionally(root_temperature);
     }
 
