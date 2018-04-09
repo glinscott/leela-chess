@@ -230,7 +230,7 @@ void UCTWorker::operator()() {
         if (result.valid()) {
             m_search->increment_playouts();
         }
-    } while (m_search->is_running() && !m_search->halt_search());
+    } while (m_search->is_running() && !m_search->should_halt_search());
 }
 
 void UCTSearch::increment_playouts() {
@@ -241,6 +241,8 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 #ifndef NDEBUG
     auto start_nodes = m_root->count_nodes();
 #endif
+
+    uci_stop = false;
 
     // See if the position is in our previous search tree.
     // If not, construct a new m_root.
@@ -305,9 +307,9 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
         // check if we should still search
         keeprunning = is_running();
-        keeprunning &= !halt_search();
+        keeprunning &= !should_halt_search();
 
-    } while(keeprunning);
+    } while(keeprunning || Limits.infinite);
 
     // stop the search
     m_run = false;
@@ -366,8 +368,15 @@ int UCTSearch::get_search_time() {
 }
 
 // Used to check if we've run out of time or reached out playout limit
-bool UCTSearch::halt_search() {
+bool UCTSearch::should_halt_search() {
+    if (uci_stop) return true;
     return m_target_time < 0 ? pv_limit_reached() : m_target_time - 50 < now() - m_start_time;
+}
+
+// Asks the search to stop politely
+void UCTSearch::please_stop()
+{
+    uci_stop = true;
 }
 
 void UCTSearch::set_playout_limit(int playouts) {

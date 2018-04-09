@@ -76,7 +76,8 @@ public:
     bool is_running() const;
     bool pv_limit_reached() const;
     void increment_playouts();
-    bool halt_search();
+    bool should_halt_search();
+    void please_stop();
     SearchResult play_simulation(BoardHistory& bh, UCTNode* const node);
     
 private:
@@ -97,6 +98,7 @@ private:
     int m_maxvisits;
 
     bool quiet_ = true;
+    bool uci_stop = false;
 
     int get_search_time();
 };

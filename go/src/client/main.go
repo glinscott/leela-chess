@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"client/http"
+	"./http"
 
 	"github.com/notnil/chess"
 )
