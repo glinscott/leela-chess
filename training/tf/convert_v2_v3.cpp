@@ -69,7 +69,6 @@ int main(int argc, char **argv) {
   v3_t v3;
   v3.version = 3;
   v3.cnt = 0;
-  int count = 0;
 
   while (gzread(infile, reinterpret_cast<char*>(&v2), sizeof(v2)) > 0) {
     if (v2.version != 2) {
@@ -78,15 +77,17 @@ int main(int argc, char **argv) {
 
     // probabilities
 
-    // planes
-    for (int i = 0; i < NUM_HIST; i++) {
-      for (int j = 0; j < NUM_PIECE_TYPES; j++) {
-        if (i&1) {
-          v3.planes[i*13+j] = reverse(v2.planes[i*14+j]);
-        }
-        else {
-          v3.planes[i*13+j] = v2.planes[i*14+j];
-        }
+    // planes us
+    for (int i = 0; i < NUM_HIST; i+=2) {
+      for (int j = 0; j < NUM_PIECE_TYPES*2+1; j++) {
+        v3.planes[i*13+j] = v2.planes[i*14+j];
+      }
+    }
+
+    // planes them (need flipping)
+    for (int i = 1; i < NUM_HIST; i+=2) {
+      for (int j = 0; j < NUM_PIECE_TYPES*2+1; j++) {
+        v3.planes[i*13+j] = reverse(v2.planes[i*14+j]);
       }
     }
 
@@ -98,7 +99,6 @@ int main(int argc, char **argv) {
     v3.r50 = v2.r50;
     v3.result = v2.result;
     gzwrite(outfile, reinterpret_cast<char*>(&v3), sizeof(v3));
-    count++;
   };
 
   gzclose(infile);
