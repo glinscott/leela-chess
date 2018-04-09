@@ -109,8 +109,13 @@ void Training::record(const BoardHistory& state, Move move) {
     step.planes = Network::NNPlanes{};
     Network::gather_features(state, step.planes);
 
-    step.probabilities.resize(Network::NUM_OUTPUT_POLICY);
-    step.probabilities[Network::new_lookup(move)] = 1.0;
+    // TODO: Does the SL flow require you to load a network file?
+    // Because now Network parses the file and stores m_format_version.
+    // Probably we will need a setter function
+    // e.g. Network::set_format_version(2)
+    throw std::runtime_error("Need to update SL flow");
+    step.probabilities.resize(Network::get_num_output_policy());
+    step.probabilities[Network::lookup(move)] = 1.0;
     m_data.emplace_back(step);
 }
 
@@ -129,7 +134,7 @@ void Training::record(const BoardHistory& state, UCTNode& root) {
     step.child_uct_winrate = best_node.get_eval(step.to_move);
     step.bestmove_visits = best_node.get_visits();
 
-    step.probabilities.resize(Network::NUM_OUTPUT_POLICY);
+    step.probabilities.resize(Network::get_num_output_policy());
 
     // Get total visit amount. We count rather
     // than trust the root to avoid ttable issues.
@@ -149,8 +154,7 @@ void Training::record(const BoardHistory& state, UCTNode& root) {
     for (const auto& child : root.get_children()) {
         auto prob = static_cast<float>(child->get_visits() / sum_visits);
         auto move = child->get_move();
-        // TODO: Network should decide old/new
-        step.probabilities[Network::old_lookup(move)] = prob;
+        step.probabilities[Network::lookup(move)] = prob;
     }
 
     m_data.emplace_back(step);

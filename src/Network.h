@@ -66,7 +66,8 @@ public:
     static constexpr int V2_INPUT_CHANNELS = 8 + V2_HIST_PLANES * T_HISTORY;
     static constexpr int MAX_INPUT_CHANNELS = std::max(V1_INPUT_CHANNELS, V2_INPUT_CHANNELS);
 
-    static constexpr int NUM_OUTPUT_POLICY = 1924;
+    static constexpr int V1_NUM_OUTPUT_POLICY = 1924;
+    static constexpr int V2_NUM_OUTPUT_POLICY = 1858;
     static constexpr int NUM_OUTPUT_VALUE = 1;
     static constexpr int NUM_VALUE_CHANNELS = 128;
     static constexpr int NUM_VALUE_INPUT_PLANES = 32;
@@ -106,9 +107,11 @@ public:
                         std::vector<float>& output,
                         float temperature = 1.0f);
 
-    static int old_lookup(Move move);
-    static int new_lookup(Move move);
+    static int lookup(Move move);
     static void gather_features(const BoardHistory& pos, NNPlanes& planes);
+    static size_t get_input_channels();
+    static size_t get_hist_planes();
+    static size_t get_num_output_policy();
 
 private:
     static std::pair<int, int> load_network(std::ifstream& wtfile);
@@ -145,8 +148,6 @@ private:
     static void forward_cpu(std::vector<float>& input,
                             std::vector<float>& output_pol,
                             std::vector<float>& output_val);
-    static size_t get_input_channels();
-    static size_t get_hist_planes();
 
 #endif
 };

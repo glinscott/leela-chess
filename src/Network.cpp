@@ -61,13 +61,6 @@
 
 using namespace Utils;
 
-constexpr int Network::MAX_FORMAT_VERSION;
-constexpr int Network::T_HISTORY;
-constexpr int Network::MAX_INPUT_CHANNELS;
-
-constexpr int Network::NUM_OUTPUT_POLICY;
-constexpr int Network::NUM_VALUE_CHANNELS;
-
 size_t Network::m_format_version{0};
 std::unordered_map<Move, int, std::hash<int>> Network::old_move_lookup;
 std::unordered_map<Move, int, std::hash<int>> Network::new_move_lookup;
@@ -84,8 +77,14 @@ static std::vector<float> conv_pol_b;
 static std::array<float, Network::NUM_POLICY_INPUT_PLANES> bn_pol_w1;
 static std::array<float, Network::NUM_POLICY_INPUT_PLANES> bn_pol_w2;
 
-static std::array<float, Network::NUM_OUTPUT_POLICY*8*8*Network::NUM_POLICY_INPUT_PLANES> ip_pol_w;
-static std::array<float, Network::NUM_OUTPUT_POLICY> ip_pol_b;
+// TODO: These are compile time sized,
+// It would be nicer to dynamically size.
+// Just a little memory optimization.
+// But maybe there is a reason they must be array not vector?
+static std::array<float, Network::V1_NUM_OUTPUT_POLICY*8*8*Network::NUM_POLICY_INPUT_PLANES> v1_ip_pol_w;
+static std::array<float, Network::V1_NUM_OUTPUT_POLICY> v1_ip_pol_b;
+static std::array<float, Network::V2_NUM_OUTPUT_POLICY*8*8*Network::NUM_POLICY_INPUT_PLANES> v2_ip_pol_w;
+static std::array<float, Network::V2_NUM_OUTPUT_POLICY> v2_ip_pol_b;
 
 // Value head
 static std::vector<float> conv_val_w;
@@ -107,6 +106,10 @@ size_t Network::get_input_channels() {
 
 size_t Network::get_hist_planes() {
     return m_format_version == 1 ? V1_HIST_PLANES : V2_HIST_PLANES;
+}
+
+size_t Network::get_num_output_policy() {
+    return m_format_version == 1 ? V1_NUM_OUTPUT_POLICY : V2_NUM_OUTPUT_POLICY;
 }
 
 void Network::process_bn_var(std::vector<float>& weights, const float epsilon) {
@@ -217,7 +220,6 @@ std::pair<int, int> Network::load_network(std::ifstream& wtfile) {
     }
     residual_blocks /= 8;
     myprintf("%d blocks.\n", residual_blocks);
-    //myprintf("debug %d %d %d %d %d\n", m_format_version, linecount, residual_blocks, get_input_channels(), get_hist_planes());
 
     // Re-read file and process
     wtfile.clear();
@@ -270,9 +272,17 @@ std::pair<int, int> Network::load_network(std::ifstream& wtfile) {
             process_bn_var(weights);
             std::copy(begin(weights), end(weights), begin(bn_pol_w2));
         } else if (linecount == plain_conv_wts + 4) {
-            std::copy(begin(weights), end(weights), begin(ip_pol_w));
+            if (m_format_version == 1) {
+                std::copy(begin(weights), end(weights), begin(v1_ip_pol_w));
+            } else {
+                std::copy(begin(weights), end(weights), begin(v2_ip_pol_w));
+            }
         } else if (linecount == plain_conv_wts + 5) {
-            std::copy(begin(weights), end(weights), begin(ip_pol_b));
+            if (m_format_version == 1) {
+                std::copy(begin(weights), end(weights), begin(v1_ip_pol_b));
+            } else {
+                std::copy(begin(weights), end(weights), begin(v2_ip_pol_b));
+            }
         } else if (linecount == plain_conv_wts + 6) {
             conv_val_w = std::move(weights);
         } else if (linecount == plain_conv_wts + 7) {
@@ -307,7 +317,6 @@ std::pair<int, int> Network::load_network_file(std::string filename) {
 
     // Read format version
     auto line = std::string{};
-    auto format_version = -1;
     if (std::getline(wtfile, line)) {
         auto iss = std::stringstream{line};
         // First line is the file format version id
@@ -331,7 +340,9 @@ void Network::initialize(void) {
 
     // Load network from file
     size_t channels, residual_blocks;
+    assert(m_format_version == 0);
     std::tie(channels, residual_blocks) = load_network_file(cfg_weightsfile);
+    assert(m_format_version > 0);
     if (channels == 0) {
         exit(EXIT_FAILURE);
     }
@@ -429,8 +440,15 @@ void Network::initialize(void) {
         std::vector<float> bn_val_means(bn_val_w1.begin(), bn_val_w1.end());
         std::vector<float> bn_val_stddivs(bn_val_w2.begin(), bn_val_w2.end());
 
-        std::vector<float> ip_pol_w_vec(ip_pol_w.begin(), ip_pol_w.end());
-        std::vector<float> ip_pol_b_vec(ip_pol_b.begin(), ip_pol_b.end());
+        std::vector<float> ip_pol_w_vec;
+        std::vector<float> ip_pol_b_vec;
+        if (m_format_version == 1) {
+            ip_pol_w_vec = std::vector<float>(v1_ip_pol_w.begin(), v1_ip_pol_w.end());
+            ip_pol_b_vec = std::vector<float>(v1_ip_pol_b.begin(), v1_ip_pol_b.end());
+        } else {
+            ip_pol_w_vec = std::vector<float>(v2_ip_pol_w.begin(), v2_ip_pol_w.end());
+            ip_pol_b_vec = std::vector<float>(v2_ip_pol_b.begin(), v2_ip_pol_b.end());
+        }
 
         std::vector<float> ip_val_w_vec(ip1_val_w.begin(), ip1_val_w.end());
         std::vector<float> ip_val_b_vec(ip1_val_b.begin(), ip1_val_b.end());
@@ -439,7 +457,7 @@ void Network::initialize(void) {
         constexpr unsigned int height = 8;
 
         opencl_net->push_policy(channels, NUM_POLICY_INPUT_PLANES,
-                NUM_POLICY_INPUT_PLANES*width*height, NUM_OUTPUT_POLICY,
+                NUM_POLICY_INPUT_PLANES*width*height, get_num_output_policy(),
                 conv_pol_w,
                 bn_pol_means, bn_pol_stddivs,
                 ip_pol_w_vec, ip_pol_b_vec);
@@ -514,18 +532,16 @@ void Network::init_move_map() {
   }
 }
 
-int Network::old_lookup(Move move) {
+int Network::lookup(Move move) {
     if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
         move = Move(move & 0xfff);
     }
-    return old_move_lookup.at(move);
-}
-
-int Network::new_lookup(Move move) {
-    if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
-        move = Move(move & 0xfff);
+    if (m_format_version == 1) {
+        return old_move_lookup.at(move);
+    } else {
+        // TODO flip for black
+        return new_move_lookup.at(move);
     }
-    return new_move_lookup.at(move);
 }
 
 #ifdef USE_BLAS
@@ -877,7 +893,11 @@ void Network::forward_cpu(std::vector<float>& input,
 
     batchnorm<width*height>(NUM_VALUE_INPUT_PLANES, value_data, bn_val_w1.data(), bn_val_w2.data());
 
-    innerproduct<NUM_POLICY_INPUT_PLANES*width*height, NUM_OUTPUT_POLICY>(policy_data, ip_pol_w, ip_pol_b, output_pol);
+    if (m_format_version == 1) {
+        innerproduct<NUM_POLICY_INPUT_PLANES*width*height, V1_NUM_OUTPUT_POLICY>(policy_data, v1_ip_pol_w, v1_ip_pol_b, output_pol);
+    } else {
+        innerproduct<NUM_POLICY_INPUT_PLANES*width*height, V2_NUM_OUTPUT_POLICY>(policy_data, v2_ip_pol_w, v2_ip_pol_b, output_pol);
+    }
     innerproduct<NUM_VALUE_INPUT_PLANES*width*height, NUM_VALUE_CHANNELS>(value_data, ip1_val_w, ip1_val_b, output_val);
 }
 
@@ -996,9 +1016,8 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     std::vector<net_t> input_data;
     std::vector<net_t> output_data(convolve_channels * width * height);
     std::vector<float> value_data(Network::NUM_VALUE_INPUT_PLANES * width * height);
-    // TODO: Modify policy_data for m_format_version 2
-    std::vector<float> policy_data(Network::NUM_OUTPUT_POLICY);
-    std::vector<float> softmax_data(Network::NUM_OUTPUT_POLICY);
+    std::vector<float> policy_data(get_num_output_policy());
+    std::vector<float> softmax_data(get_num_output_policy());
     std::vector<float> winrate_data(Network::NUM_VALUE_CHANNELS);
     std::vector<float> winrate_out(1);
     // Data layout is input_data[(c * height + h) * width + w]
@@ -1041,7 +1060,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
             compare_net_outputs(value_data, cpu_value_data, true, "orig value");
             // Call opencl.forward again to see if the error is reproduceable.
             std::vector<float> value_data_retry(Network::NUM_VALUE_INPUT_PLANES * width * height);
-            std::vector<float> policy_data_retry(Network::NUM_OUTPUT_POLICY);
+            std::vector<float> policy_data_retry(get_num_output_policy());
             opencl.forward(input_data, policy_data_retry, value_data_retry);
             auto almost_equal_retry = compare_net_outputs(policy_data_retry, policy_data, true, "retry policy");
             almost_equal_retry &= compare_net_outputs(value_data_retry, value_data, true, "retry value");
@@ -1066,9 +1085,8 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
 
     MoveList<LEGAL> moves(pos.cur());
     std::vector<scored_node> result;
-    // TODO: Modify new/old lookup for m_format_version 2
     for (Move move : moves) {
-        result.emplace_back(outputs[old_lookup(move)], move);
+        result.emplace_back(outputs[lookup(move)], move);
     }
 
     if (debug_data) {
