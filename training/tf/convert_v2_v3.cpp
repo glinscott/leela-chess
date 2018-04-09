@@ -19,9 +19,10 @@ struct v2_t {
   uint8_t them_ooo;
   uint8_t them_oo;
   uint8_t stm;
+  uint8_t r50;
   uint8_t cnt;
   int8_t result;
-} __attribute__((packed, aligned(4)));
+} __attribute__((packed));
 
 struct v3_t {
   int32_t version;
@@ -32,19 +33,20 @@ struct v3_t {
   uint8_t them_ooo;
   uint8_t them_oo;
   uint8_t stm;
+  uint8_t r50;
   uint8_t cnt;
   int8_t result;
-} __attribute__((packed, aligned(4)));
+} __attribute__((packed));
 
 
 uint64_t reverse(uint64_t x) {
-  auto a = reinterpret_cast<char*>(&x);
   uint64_t r;
+  auto a = reinterpret_cast<char*>(&x);
   auto b = reinterpret_cast<char*>(&r);
+
   for (int i = 0; i < 4; i++) {
-    char tmp = a[i];
-    a[i] = b[7-i];
-    b[7-i] = tmp;
+    b[i] = a[7-i];
+    b[7-i] = a[i];
   }
 
   return r;
@@ -52,6 +54,9 @@ uint64_t reverse(uint64_t x) {
 
 
 int main(int argc, char **argv) {
+  static_assert(sizeof(v2_t) == 8604, "invalid v2");
+  static_assert(sizeof(v3_t) == 8276, "invalid v3");
+
   if (argc != 3) {
     std::cout << "usage: " << argv[0] << " in.gz out.gz" << std::endl;
     return 1;
@@ -63,6 +68,7 @@ int main(int argc, char **argv) {
   v2_t v2;
   v3_t v3;
   v3.version = 3;
+  v3.cnt = 0;
   int count = 0;
 
   while (gzread(infile, reinterpret_cast<char*>(&v2), sizeof(v2)) > 0) {
@@ -89,7 +95,7 @@ int main(int argc, char **argv) {
     v3.them_ooo = v2.them_ooo;
     v3.them_oo = v2.them_oo;
     v3.stm = v2.stm;
-    v3.cnt = v2.cnt;
+    v3.r50 = v2.r50;
     v3.result = v2.result;
     gzwrite(outfile, reinterpret_cast<char*>(&v3), sizeof(v3));
     count++;
