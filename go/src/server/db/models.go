@@ -61,6 +61,9 @@ type Match struct {
 	GameCap int
 	Done    bool
 	Passed  bool
+
+	// If true, this is not a promotion match
+	TestOnly bool
 }
 
 type MatchGame struct {

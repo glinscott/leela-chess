@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"server/db"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/multitemplate"
@@ -370,9 +371,12 @@ func checkMatchFinished(match_id uint) error {
 		if err != nil {
 			return err
 		}
+		if match.TestOnly {
+			return nil
+		}
 		// Update to our new best network
 		// TODO(SPRT)
-		passed := calcElo(match.Wins, match.Losses, match.Draws) > -50.0
+		passed := calcElo(match.Wins, match.Losses, match.Draws) > -150.0
 		err = db.GetDB().Model(&match).Update("passed", passed).Error
 		if err != nil {
 			return err
@@ -543,10 +547,13 @@ func getProgress() ([]gin.H, error) {
 	var elo float64 = 0.0
 	var matchIdx int = 0
 	for _, network := range networks {
-		count += counts[network.ID]
 		var sprt string = "???"
 		var best bool = false
-		for matchIdx < len(matches) && matches[matchIdx].CurrentBestID == network.ID {
+		for matchIdx < len(matches) && matches[matchIdx].CandidateID == network.ID {
+			if matches[matchIdx].TestOnly {
+				matchIdx += 1
+				continue
+			}
 			matchElo := calcElo(matches[matchIdx].Wins, matches[matchIdx].Losses, matches[matchIdx].Draws)
 			if matches[matchIdx].Done {
 				if matches[matchIdx].Passed {
@@ -570,7 +577,7 @@ func getProgress() ([]gin.H, error) {
 			matchIdx += 1
 		}
 		// TODO(gary): Hack for start...
-		if network.ID == 2 {
+		if network.ID == 3 {
 			result = append(result, gin.H{
 				"net":    count,
 				"rating": elo,
@@ -579,6 +586,7 @@ func getProgress() ([]gin.H, error) {
 				"hash":   network.Sha[0:8],
 			})
 		}
+		count += counts[network.ID]
 	}
 
 	return result, nil
@@ -684,7 +692,7 @@ func viewMatchGame(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "game", gin.H{
-		"pgn": game.Pgn,
+		"pgn": strings.Replace(game.Pgn, "e.p.", "", -1),
 	})
 }
 
