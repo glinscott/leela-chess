@@ -532,15 +532,23 @@ void Network::init_move_map() {
   }
 }
 
-int Network::lookup(Move move) {
+int Network::lookup(Move move, Color c) {
     if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
+        // Mask off the special move flags,
+        // in particular en passant and castling
         move = Move(move & 0xfff);
     }
     if (m_format_version == 1) {
         return old_move_lookup.at(move);
     } else {
-        // TODO flip for black
-        return new_move_lookup.at(move);
+        if (c == WHITE) {
+            return new_move_lookup.at(move);
+        } else {
+            // The NN plays BLACK with the board flipped vertically,
+            // And outputs the moves as if BLACK is moving up.
+            // Flip the policy so the moves are normal.
+            return new_move_lookup.at(make_move(~from_sq(move), ~to_sq(move)));
+        }
     }
 }
 
@@ -1086,7 +1094,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     MoveList<LEGAL> moves(pos.cur());
     std::vector<scored_node> result;
     for (Move move : moves) {
-        result.emplace_back(outputs[lookup(move)], move);
+        result.emplace_back(outputs[lookup(move, pos.cur().side_to_move())], move);
     }
 
     if (debug_data) {
