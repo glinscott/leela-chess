@@ -67,9 +67,11 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("visits,v", po::value<int>(),
                        "Weaken engine by limiting the number of visits.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
-                        "Resign when winrate is less than x%.")
+                       "Resign when winrate is less than x%.")
         ("noise,n", "Apply dirichlet noise to root.")
-        ("randomize", "Randomize move selection at root (only useful for training).")
+        ("randomize,m", "Randomize move selection at root.")
+        ("tempdecay,d", po::value<int>(),
+                       "Use decay schedule for move selection temperature.")
         ("seed,s", po::value<std::uint64_t>(),
                    "Random number generation seed.")
         ("weights,w", po::value<std::string>(), "File with network weights.")
@@ -202,6 +204,17 @@ static std::string parse_commandline(int argc, char *argv[]) {
         // When cfg_randomize is on, we need an accurate estimate of
         // how good/bad all moves are, so turn cfg_timemanage off.
         cfg_timemanage = false;
+    }
+
+    if (vm.count("tempdecay")) {
+        cfg_root_temp_decay = vm["tempdecay"].as<int>();
+        if (cfg_root_temp_decay < 0) {
+            myprintf("Nonsensical options: The temperature decay constant cannot be assigned a negative value, since that would turn the search useless in later game.\n");
+            exit(EXIT_FAILURE);
+        }
+        cfg_randomize = true;
+        // Setting a value for temperature decay constant also activates --randomize.
+        // However, time management is not deactivated by --tempdecay
     }
 
     if (vm.count("playouts")) {

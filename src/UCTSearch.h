@@ -87,6 +87,7 @@ private:
     std::string get_pv(BoardHistory& pos, UCTNode& parent);
     void dump_analysis(int64_t elapsed, bool force_output);
     Move get_best_move();
+    float get_root_temperature();
 
     BoardHistory bh_;
     Key m_prevroot_full_key{0};
