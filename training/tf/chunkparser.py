@@ -142,25 +142,24 @@ class ChunkParser:
         # int8 result (1 byte)
         self.v2_struct = struct.Struct('4s7696s896sBBBBBBBb')
 
-        # V3 Format (8280 bytes total)
+        # V3 Format (8276 bytes total)
         # int32 version (4 bytes)
         # 1858 float32 probabilities (7432 bytes)  (removed 66*4 = 264 bytes unused under-promotions)
         # 104 (13*8) packed bit planes of 8 bytes each (832 bytes)   (no rep2 plane)
-        # float rule50_count (4 bytes)
         # uint8 castling us_ooo (1 byte)
         # uint8 castling us_oo (1 byte)
         # uint8 castling them_ooo (1 byte)
         # uint8 castling them_oo (1 byte)
         # uint8 side_to_move (1 byte) aka us_black
+        # uint8 rule50_count (1 byte)
         # uint8 move_count (1 byte)
         # int8 result (1 byte)
-        # uint8 unused (1 byte) padding to 4 byte boundaries
-        self.v3_struct = struct.Struct('4s7432s832sfBBBBBBbB')
+        self.v3_struct = struct.Struct('4s7432s832sBBBBBBBb')
 
     @staticmethod
     def parse_function(planes, probs, winner):
         """
-        Convert v2 to tensors
+        Convert v3 to tensors
         """
         planes = tf.decode_raw(planes, tf.uint8)
         probs = tf.decode_raw(probs, tf.float32)
@@ -252,36 +251,43 @@ class ChunkParser:
 
         return (planes, probs, winner)
 
-    # TODO I took my best guess at what this should be.
+
     def convert_v3_to_tuple(self, content):
         """
             Convert v3 binary training data to packed tensors
+
+            v3 struct format is (8276 bytes total)
+                int32 version (4 bytes)
+                1858 float32 probabilities (7432 bytes)  (removed 66*4 = 264 bytes unused under-promotions)
+                104 (13*8) packed bit planes of 8 bytes each (832 bytes)   (no rep2 plane)
+                uint8 castling us_ooo (1 byte)
+                uint8 castling us_oo (1 byte)
+                uint8 castling them_ooo (1 byte)
+                uint8 castling them_oo (1 byte)
+                uint8 side_to_move (1 byte) aka us_black
+                uint8 rule50_count (1 byte)
+                uint8 move_count (1 byte)
+                int8 result (1 byte)
         """
-        (ver, probs, planes, rule50_count, us_ooo, us_oo, them_ooo, them_oo, stm, move_count, winner, unused) = self.v3_struct.unpack(content)
+        (ver, probs, planes, us_ooo, us_oo, them_ooo, them_oo, stm, rule50_count, move_count, winner) = self.v3_struct.unpack(content)
         # Enforce move_count to 0
         move_count = 0
+
         # Unpack planes.
         planes = np.unpackbits(np.frombuffer(planes, dtype=np.uint8))
-        rule50_count = np.unpackbits(np.frombuffer([rule50_count]*64, dtype=np.float))
-        # TODO: I moved rule50_count to make it 4 byte aligned.
-        # That only matters for doing the python struct.unpack here, should
-        # have no effect on the remaining TF flow.
-        #
-        # I think the extra plane here is to make it an even number,
-        # a requirement of the C++ code.
+
         # TODO: As long as we have this extra plane I think it should be
         # all ones, so the NN can detect the edge of the board more easily.
-        planes = planes.tobytes() + rule50_count + self.flat_planes[us_ooo] + self.flat_planes[us_oo] + self.flat_planes[them_ooo] + self.flat_planes[them_oo] + self.flat_planes[stm] + self.flat_planes[move_count] + self.flat_planes[1]
-        # history planes - 8 history * 13 planes * 1 byte each
-        # rule50_count - 1 plane of 4 byte floats
-        # binary inputs - 8 planes of 1 byte ints (zero or one) including two padding to be a multiple of 4.
-        # All multiplied by 8*8 = the chessboard size
-        assert len(planes) == ((8*13*1 + 1*1*4 + 7*1*1) * 8 * 8), len(planes)
+        planes = planes.tobytes() + self.flat_planes[us_ooo] + self.flat_planes[us_oo] + self.flat_planes[them_ooo] + self.flat_planes[them_oo] + self.flat_planes[stm] + self.flat_planes[rule50_count] + self.flat_planes[move_count] + self.flat_planes[1]
+
+        assert ver == VERSION3
+        assert len(planes) == ((8*13*1 + 8*1*1) * 8 * 8), len(planes)
         winner = float(winner)
         assert winner == 1.0 or winner == -1.0 or winner == 0.0, winner
         winner = struct.pack('f', winner)
 
         return (planes, probs, winner)
+
 
     def convert_chunkdata_to_v2(self, chunkdata):
         """
@@ -292,13 +298,19 @@ class ChunkParser:
             # invalidated by bug see issue #119
             return
         elif chunkdata[0:4] == VERSION2:
-            #print("V2 chunkdata")
             for i in range(0, len(chunkdata), self.v2_struct.size):
                 if self.sample > 1:
                     # Downsample, using only 1/Nth of the items.
                     if random.randint(0, self.sample-1) != 0:
                         continue  # Skip this record.
                 yield chunkdata[i:i+self.v2_struct.size]
+        elif chunkdata[0:4] == VERSION3:
+            for i in range(0, len(chunkdata), self.v3_struct.size):
+                if self.sample > 1:
+                    # Downsample, using only 1/Nth of the items.
+                    if random.randint(0, self.sample-1) != 0:
+                        continue  # Skip this record.
+                yield chunkdata[i:i+self.v3_struct.size]
         else:
             #print("V1 chunkdata")
             file_chunkdata = chunkdata.splitlines()
@@ -360,13 +372,38 @@ class ChunkParser:
                 return
             yield s
 
+    def v3_gen(self):
+        """
+            Read v3 records from child workers, shuffle, and yield
+            records.
+        """
+        sbuff = sb.ShuffleBuffer(self.v3_struct.size, self.shuffle_size)
+        while len(self.readers):
+            #for r in mp.connection.wait(self.readers):
+            for r in self.readers:
+                try:
+                    s = r.recv_bytes()
+                    s = sbuff.insert_or_replace(s)
+                    if s is None:
+                        continue  # shuffle buffer not yet full
+                    yield s
+                except EOFError:
+                    print("Reader EOF")
+                    self.readers.remove(r)
+        # drain the shuffle buffer.
+        while True:
+            s = sbuff.extract()
+            if s is None:
+                return
+            yield s
+
     def tuple_gen(self, gen):
         """
-            Take a generator producing v2 records and convert them to tuples.
+            Take a generator producing v3 records and convert them to tuples.
             applying a random symmetry on the way.
         """
         for r in gen:
-            yield self.convert_v2_to_tuple(r)
+            yield self.convert_v3_to_tuple(r)
 
     def batch_gen(self, gen):
         """
@@ -387,8 +424,8 @@ class ChunkParser:
             Read data from child workers and yield batches
             of raw tensors
         """
-        gen = self.v2_gen()        # read from workers
-        gen = self.tuple_gen(gen)  # convert v2->tuple
+        gen = self.v3_gen()        # read from workers
+        gen = self.tuple_gen(gen)  # convert v3->tuple
         gen = self.batch_gen(gen)  # assemble into batches
         for b in gen:
             yield b
