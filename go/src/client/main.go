@@ -388,6 +388,6 @@ func main() {
 			continue
 		}
 		elapsed := time.Since(start)
-		log.Printf("Completed %d games in %s time", i, elapsed)
+		log.Printf("Completed %d games in %s time", i + 1, elapsed)
 	}
 }
