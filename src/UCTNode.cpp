@@ -219,8 +219,43 @@ void UCTNode::virtual_loss_undo() {
     m_virtual_loss -= VIRTUAL_LOSS_COUNT;
 }
 
-void UCTNode::update(float eval) {
-    m_visits++;
+void UCTNode::update(Color tomove, float eval, bool certain) {
+    if (certain && cfg_use_certain && !get_certain()) {
+        // If no children, then eval is for this node.
+        if (!has_children()) {
+            set_certain(true, eval);
+        }
+        else {
+            // A certain was seen at some depth away from here, may need to update certain depending on certainty of children.
+            LOCK(m_nodemutex, lock);
+            // Either all must be certain and take largest, or a value must be certain and 1.0. The following code sets best_certain_eval to 2.0 if the conditions are not met.
+            float best_certain_eval = -1.0f;
+            for (const auto& child : m_children) {
+                if (!child->get_certain()) {
+                    best_certain_eval = 2.0f;
+                }
+                else {
+                    auto eval = child->get_eval(tomove);
+                    if (eval == 1.0f) {
+                        best_certain_eval = eval;
+                        break;
+                    }
+                    else if (best_certain_eval < eval) {
+                        best_certain_eval = eval;
+                    }
+                }
+            }
+            if (best_certain_eval >= 0.0f && best_certain_eval <= 1.0f) {
+                if (tomove == BLACK) {
+                    best_certain_eval = 1.0f - best_certain_eval;
+                }
+                set_certain(true, best_certain_eval);
+            }
+
+        }
+
+    }
+	m_visits++;
     accumulate_eval(eval);
 }
 
@@ -245,7 +280,14 @@ int UCTNode::get_visits() const {
 }
 
 float UCTNode::get_eval(int tomove) const {
-    // Due to the use of atomic updates and virtual losses, it is
+    if (get_certain()) {
+        auto score = float{ m_certaineval };
+        if (tomove == BLACK) {
+            score = 1.0f - score;
+        }
+        return score;
+    }
+	// Due to the use of atomic updates and virtual losses, it is
     // possible for the visit count to change underneath us. Make sure
     // to return a consistent result to the caller by caching the values.
     auto virtual_loss = int{m_virtual_loss};
@@ -268,6 +310,16 @@ float UCTNode::get_eval(int tomove) const {
         }
         return eval;
     }
+}
+
+bool UCTNode::get_certain() const {
+    return m_certain;
+}
+
+void UCTNode::set_certain(bool value, float eval) {
+    // Set eval first so conditional logic on certain sees the eval value.
+    m_certaineval = eval;
+    m_certain = value;
 }
 
 double UCTNode::get_whiteevals() const {
@@ -326,8 +378,12 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
             winrate = child->get_eval(color);
         }
         auto psa = child->get_score();
+        auto certain = child->get_certain();
         auto denom = 1.0f + child->get_visits();
         auto puct = cfg_puct * psa * (numerator / denom);
+        if (certain) {
+            winrate = (winrate - 0.5f)*(1.0f + cfg_certain_bonus) + 0.5f;
+        }
         auto value = winrate + puct;
         assert(value > std::numeric_limits<double>::lowest());
 
