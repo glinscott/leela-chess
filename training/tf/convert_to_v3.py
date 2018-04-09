@@ -47,6 +47,7 @@ import math
 import numpy as np
 import random
 import re
+import os
 import shutil
 import struct
 import sys
@@ -351,52 +352,56 @@ class TrainingStep:
         fout.write(new_content)
 
 def main(args):
+    convert = len(args.output) > 0
+    if convert and not os.path.exists(args.output):
+        os.makedirs(args.output)
+        print("Created '{}'".format(args.output))
+
     for filename in args.files:
-        foutname = "v3bin_" + re.sub("\.gz", "", filename)
-        fout = open(foutname, "wb")
-        #print("Parsing {}".format(filename))
-        with gzip.open(filename, 'rb') as f:
-            chunkdata = f.read()
-            if chunkdata[0:4] == b'\1\0\0\0':
-                print("Invalid version")
-            elif chunkdata[0:4] == VERSION2:
-                #print("debug Version2")
-                for i in range(0, len(chunkdata), V2_BYTES):
-                    ts = TrainingStep(2)
-                    if args.display:
-                        ts.display_v2_or_v3(i//V2_BYTES, chunkdata[i:i+V2_BYTES])
-                    if args.convert:
-                        ts.convert_v2_to_v3(chunkdata[i:i+V2_BYTES], fout)
-            elif chunkdata[0:4] == VERSION3:
-                #print("debug Version3")
-                for i in range(0, len(chunkdata), V3_BYTES):
-                    ts = TrainingStep(3)
-                    if args.display:
-                        ts.display_v2_or_v3(i//V3_BYTES, chunkdata[i:i+V3_BYTES])
-                    if args.convert:
-                        raise Exception("Convert from V3 to V3?")
-            else:
-                parser = chunkparser.ChunkParser(chunkparser.ChunkDataSrc([chunkdata]), workers=1)
-                gen1 = parser.convert_chunkdata_to_v2(chunkdata)
-                ply = 1
-                for t1 in gen1:
-                    ts = TrainingStep(2)
-                    if args.display:
-                        ts.display_v2_or_v3(ply, t1)
-                    if args.convert:
-                        ts.convert_v2_to_v3(t1, fout)
-                    ply += 1
-                    # TODO maybe detect new games and reset ply count
-                    # It's informational only
-                for _ in parser.parse():
-                    # TODO: What is happening here?
-                    #print("debug drain", len(_))
-                    pass
-        if args.convert:
-            fout.close()
-            with open(foutname, "rb") as fin:
-                with gzip.open(foutname+".gz", "wb") as fout:
-                    shutil.copyfileobj(fin, fout)
+        foutname = os.path.basename(filename)[:-3] + "-v3.gz"
+        with gzip.open(foutname, 'wb') as fout:
+            #print("Parsing {}".format(filename))
+            with gzip.open(filename, 'rb') as f:
+                chunkdata = f.read()
+                if chunkdata[0:4] == b'\1\0\0\0':
+                    print("Invalid version")
+                elif chunkdata[0:4] == VERSION2:
+                    #print("debug Version2")
+                    for i in range(0, len(chunkdata), V2_BYTES):
+                        ts = TrainingStep(2)
+                        if args.display:
+                            ts.display_v2_or_v3(i//V2_BYTES, chunkdata[i:i+V2_BYTES])
+                        if convert:
+                            ts.convert_v2_to_v3(chunkdata[i:i+V2_BYTES], fout)
+                elif chunkdata[0:4] == VERSION3:
+                    #print("debug Version3")
+                    for i in range(0, len(chunkdata), V3_BYTES):
+                        ts = TrainingStep(3)
+                        if args.display:
+                            ts.display_v2_or_v3(i//V3_BYTES, chunkdata[i:i+V3_BYTES])
+                        if convert:
+                            raise Exception("Convert from V3 to V3?")
+                else:
+                    parser = chunkparser.ChunkParser(chunkparser.ChunkDataSrc([chunkdata]), workers=1)
+                    gen1 = parser.convert_chunkdata_to_v2(chunkdata)
+                    ply = 1
+                    for t1 in gen1:
+                        ts = TrainingStep(2)
+                        if args.display:
+                            ts.display_v2_or_v3(ply, t1)
+                        if convert:
+                            ts.convert_v2_to_v3(t1, fout)
+                        ply += 1
+                        # TODO maybe detect new games and reset ply count
+                        # It's informational only
+                    for _ in parser.parse():
+                        # TODO: What is happening here?
+                        #print("debug drain", len(_))
+                        pass
+        if convert:
+            shutil.move(foutname, os.path.join(args.output, foutname))
+        else:
+            os.remove(foutname)
 
 if __name__ == '__main__':
     usage_str = """
@@ -406,18 +411,15 @@ or convert them to another format."""
     parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
             description=usage_str)
-    parser.add_argument(
-            "--display", action="store_true",
+    parser.add_argument("--display", action="store_true",
             help="Display a visualization of the training data")
-    parser.add_argument(
-            "--convert", action="store_true",
-            help="Convert training data to V3")
-    parser.add_argument(
-            "files", type=str, nargs="+",
+    parser.add_argument("--output", type=str, default="",
+            help="Directory to store V3 data")
+    parser.add_argument("files", type=str, nargs="+",
             help="Debug data files (training*.gz)")
     args = parser.parse_args()
 
-    if not args.display and not args.convert:
+    if not args.display and not args.output:
         args.display = True
 
     main(args)
