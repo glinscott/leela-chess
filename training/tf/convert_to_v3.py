@@ -18,16 +18,14 @@
 #    along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
 
 # TODO:
-# - The chunkparser convert_v3_to_tuple is untested.
-#     I just took a guess at it.
 # - Modify lczero code to detect version in weights and switch
 #     to V3 automatically
+# - The chunkparser convert_v3_to_tuple needs testing.
 #
 # Done:
 # - output binary for V3, not text
 # - display/flip policy output
 # - remove rep2 plane
-# - normalize rule50_count to be in [0,1].
 # - refactor to use chunckparser.py where appropriate.
 #     Still more can be done here but it's closer now.
 #
@@ -77,7 +75,7 @@ VERSION2 = chunkparser.VERSION2
 VERSION3 = chunkparser.VERSION3
 
 V2_BYTES = 8604
-V3_BYTES = 8280
+V3_BYTES = 8276
 
 # Us   -- uppercase
 # Them -- lowercase
@@ -262,10 +260,7 @@ class TrainingStep:
         return "".join([plane[x:x+2] for x in reversed(range(0, len(plane), 2))])
 
     def display_v2_or_v3(self, ply, content):
-        if self.version <= 2:
-            (ver, probs, planes, us_ooo, us_oo, them_ooo, them_oo, us_black, rule50_count, move_count, winner) = self.this_struct.unpack(content)
-        else:
-            (ver, probs, planes, rule50_count, us_ooo, us_oo, them_ooo, them_oo, us_black, move_count, winner, unused) = self.this_struct.unpack(content)
+        (ver, probs, planes, us_ooo, us_oo, them_ooo, them_oo, us_black, rule50_count, move_count, winner) = self.this_struct.unpack(content)
         assert self.version == int.from_bytes(ver, byteorder="little")
         # Enforce move_count to 0
         move_count = 0
@@ -288,10 +283,7 @@ class TrainingStep:
         self.them_ooo = them_ooo
         self.them_oo = them_oo
         self.us_black = us_black
-        if self.version == 2:
-            self.rule50_count = rule50_count
-        else:
-            self.rule50_count = int(round(rule50_count*100))
+        self.rule50_count = rule50_count
         for idx in range(0, len(probs), 4):
             self.probs.append(struct.unpack("f", probs[idx:idx+4])[0])
         print("ply {} move {} (Not actually part of training data)".format(
@@ -345,10 +337,8 @@ class TrainingStep:
             # new_content += content[idx+hist*self.NUM_PLANES*8+13*8:idx+hist*self.NUM_PLANES*8+13*8+8] # reps=2
         idx += self.NUM_HIST*self.NUM_PLANES*8
 
-        new_content += struct.pack("f", rule50_count/100)
-        new_content += content[idx:idx+5]   # us_ooo, us_oo, them_ooo, them_oo, us_black
-        new_content += content[idx+6:idx+8] # move_count, winner
-        new_content += struct.pack("B", 0)  # unused
+        new_content += content[idx:idx+8] # us_ooo, us_oo, them_ooo, them_oo, us_black, rule50_count, move_count, winner
+        assert(len(new_content) == V3_BYTES)
         fout.write(new_content)
 
 def main(args):
