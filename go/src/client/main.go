@@ -225,7 +225,7 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	move_history := ""
 	turn := 0
 	for {
-		if turn >= 450 || game.Outcome() != chess.NoOutcome {
+		if turn >= 450 || game.Outcome() != chess.NoOutcome || len(game.EligibleDraws()) > 1 {
 			if game.Outcome() == chess.WhiteWon {
 				result = 1
 			} else if game.Outcome() == chess.BlackWon {
