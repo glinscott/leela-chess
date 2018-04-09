@@ -167,8 +167,8 @@ class ChunkParser:
 
         planes = tf.to_float(planes)
 
-        planes = tf.reshape(planes, (ChunkParser.BATCH_SIZE, 120, 8*8))
-        probs = tf.reshape(probs, (ChunkParser.BATCH_SIZE, 1924))
+        planes = tf.reshape(planes, (ChunkParser.BATCH_SIZE, 112, 8*8))
+        probs = tf.reshape(probs, (ChunkParser.BATCH_SIZE, 1858))
         winner = tf.reshape(winner, (ChunkParser.BATCH_SIZE, 1))
 
         return (planes, probs, winner)
