@@ -116,13 +116,22 @@ class ChunkParser:
 
         # Start the child workers running
         self.readers = []
+        self.writers = []
+        self.processes = []
         for _ in range(workers):
             read, write = mp.Pipe(duplex=False)
-            mp.Process(target=self.task,
-                    args=(chunkdatasrc, write)).start()
+            p = mp.Process(target=self.task, args=(chunkdatasrc, write))
+            self.processes.append(p)
+            p.start()
             self.readers.append(read)
-            write.close()
+            self.writers.append(write)
         self.init_structs()
+
+    def shutdown(self):
+        for i in range(len(self.readers)):
+            self.processes[i].terminate()
+            self.readers[i].close()
+            self.writers[i].close()
 
     def init_structs(self):
         # struct.Struct doesn't pickle, so it needs to be separately
