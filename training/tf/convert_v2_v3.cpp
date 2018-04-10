@@ -71,6 +71,11 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  if (argv[1] == argv[2]) {
+    std::cout << "input must not equal output" << std::endl;
+    return 1;
+  }
+
   gzFile infile = gzopen(argv[1], "rb");
   gzFile outfile = gzopen(argv[2], "wb");
 
@@ -81,7 +86,8 @@ int main(int argc, char **argv) {
 
   while (gzread(infile, reinterpret_cast<char*>(&v2), sizeof(v2)) > 0) {
     if (v2.version != 2) {
-      throw std::runtime_error("Invalid version");
+      std::cerr << "invalid version, expecting 2 got " << v2.version << std::endl;
+      break;
     }
 
     // probabilities
