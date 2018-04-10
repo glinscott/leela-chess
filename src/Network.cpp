@@ -100,6 +100,10 @@ static std::array<float, 1> ip2_val_b;
 
 //void Network::benchmark(Position* pos, int iterations) //--temporarily (?) killed.
 
+size_t Network::get_format_version() {
+    return m_format_version;
+}
+
 size_t Network::get_input_channels() {
     return m_format_version == 1 ? V1_INPUT_CHANNELS : V2_INPUT_CHANNELS;
 }
