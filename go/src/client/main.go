@@ -45,6 +45,8 @@ func readSettings(path string) (string, string) {
 	if err != nil {
 		// File was not found
 		fmt.Printf("Please enter your username and password, an account will be automatically created.\n")
+		fmt.Printf("Note that this password will be stored in plain text, so avoid a password that is\n")
+		fmt.Printf("also used for sensitive applications. It also cannot be recovered.\n")
 		fmt.Printf("Enter username : ")
 		fmt.Scanf("%s\n", &settings.User)
 		fmt.Printf("Enter password : ")
@@ -388,6 +390,6 @@ func main() {
 			continue
 		}
 		elapsed := time.Since(start)
-		log.Printf("Completed %d games in %s time", i + 1, elapsed)
+		log.Printf("Completed %d games in %s time", i, elapsed)
 	}
 }
