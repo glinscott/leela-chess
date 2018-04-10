@@ -111,13 +111,14 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
     }
 
     auto root_temperature = 1.0f;
+    auto normfactor = float(m_root->get_first_child()->get_visits());
     auto accum = 0.0f;
     if (cfg_randomize) {
         if (cfg_root_temp_decay > 0) {
             root_temperature = get_root_temperature();
         }
         for (const auto& node : boost::adaptors::reverse(parent.get_children())) {
-            accum += std::pow(node->get_visits(),1/root_temperature);
+            accum += std::pow(node->get_visits()/normfactor,1/root_temperature);
         }
     }
 
@@ -125,23 +126,28 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
     for (const auto& node : boost::adaptors::reverse(parent.get_children())) {
         std::string tmp = state.cur().move_to_san(node->get_move());
         std::string pvstring(tmp);
+        std::string moveprob(10, '\0');
 
         auto move_probability = 0.0f;
         if (cfg_randomize) {
-            move_probability = std::pow(node->get_visits(),1/root_temperature)/accum;
-            myprintf_so("info string %4s -> %7d (%8.5f%%) (V: %5.2f%%) (N: %5.2f%%) PV: ",
-                tmp.c_str(),
-                node->get_visits(),
-                move_probability*100.0f,
-                node->get_eval(color)*100.0f,
-                node->get_score() * 100.0f);
+            move_probability = std::pow(node->get_visits()/normfactor,1/root_temperature)/accum*100.0f;
+            if (move_probability > 0.01f) {
+                std::snprintf(&moveprob[0], moveprob.size(), "(%6.2f%%)", move_probability);
+            } else if (move_probability > 0.00001f) {
+                std::snprintf(&moveprob[0], moveprob.size(), "%s", "(> 0.00%)");
+            } else {
+                std::snprintf(&moveprob[0], moveprob.size(), "%s", "(  0.00%)");
+            }
         } else {
-            myprintf_so("info string %4s -> %7d (V: %5.2f%%) (N: %5.2f%%) PV: ",
+            auto needed = std::snprintf(&moveprob[0], moveprob.size(), "%s", " ");
+            moveprob.resize(needed+1);
+        }
+        myprintf_so("info string %5s -> %7d %s (V: %5.2f%%) (N: %5.2f%%) PV: ",
                 tmp.c_str(),
                 node->get_visits(),
+                moveprob.c_str(),
                 node->get_eval(color)*100.0f,
                 node->get_score() * 100.0f);
-        }
 
         StateInfo si;
         state.cur().do_move(node->get_move(), si);
@@ -154,10 +160,10 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
 }
 
 float UCTSearch::get_root_temperature() {
-    auto adjusted_ply = 1.0f + bh_.cur().game_ply() * cfg_root_temp_decay / 50.0f;
+    auto adjusted_ply = 1.0f + (bh_.cur().game_ply()+1.0f) * cfg_root_temp_decay / 50.0f;
     auto root_temp = 1.0f / (1.0f + std::log(adjusted_ply));
-    if (root_temp < 0.1f) {
-        root_temp = 0.1f;
+    if (root_temp < 0.05f) {
+        root_temp = 0.05f;
     }
     return root_temp;
 }
@@ -177,7 +183,7 @@ Move UCTSearch::get_best_move() {
         // ply count and decay constant. Set default value for too small root temperature. 
         if (cfg_root_temp_decay > 0) {
             root_temperature = get_root_temperature();
-            myprintf("Game ply: %d, root temperature: %5.2f \n",bh_.cur().game_ply(), root_temperature);
+            myprintf("Game ply: %d, root temperature: %5.2f \n",bh_.cur().game_ply()+1, root_temperature);
         } 
         m_root->randomize_first_proportionally(root_temperature);
     }
