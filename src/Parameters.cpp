@@ -51,6 +51,7 @@ int cfg_noise;
 int cfg_randomize;
 int cfg_timemanage;
 int cfg_min_resign_moves;
+int cfg_root_temp_decay;
 uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
 std::vector<int> cfg_gpus;
@@ -83,6 +84,7 @@ void Parameters::setup_default_parameters() {
     cfg_puct = 0.85f;
     cfg_softmax_temp = 1.0f;
     cfg_fpu_reduction = 0.0f;
+    cfg_root_temp_decay = 0;
     cfg_min_resign_moves = 20;
     cfg_resignpct = 10;
     cfg_noise = false;

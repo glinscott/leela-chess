@@ -944,11 +944,12 @@ T relative_difference(T a, T b) {
 
 bool compare_net_outputs(std::vector<float>& data,
                          std::vector<float>& ref,
+                         bool& fatal,
                          bool display_only = false,
                          std::string info = "") {
     auto almost_equal = true;
-    // The idea is to allow an OpenCL error > 5% every SELFCHECK_MIN_EXPANSIONS
-    // correct expansions. As the num_expansions increases between errors > 5%,
+    // The idea is to allow an OpenCL error > 10% every SELFCHECK_MIN_EXPANSIONS
+    // correct expansions. As the num_expansions increases between errors > 10%,
     // we'll allow more errors to occur (max 3) before crashing. As if it
     // builds up credit.
     constexpr int64 min_correct_expansions = SELFCHECK_MIN_EXPANSIONS / SELFCHECK_PROBABILITY / 2;
@@ -969,9 +970,7 @@ bool compare_net_outputs(std::vector<float>& data,
             myprintf("Error in OpenCL calculation: expected %f got %f (%lli"
                        "(error=%f%%)\n", ref[idx], data[idx], num_expansions.load(), err * 100.0);
             if (num_expansions < min_correct_expansions) {
-                myprintf_so("Update your GPU drivers or reduce the amount of games "
-                           "played simultaneously.\n");
-                throw std::runtime_error("OpenCL self-check mismatch.");
+                fatal = true;
             }
             else {
                 num_expansions -= min_correct_expansions;
@@ -1066,24 +1065,30 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     if (Random::GetRng().RandInt(SELFCHECK_PROBABILITY) == 0) {
         auto cpu_policy_data = std::vector<float>(policy_data.size());
         auto cpu_value_data = std::vector<float>(value_data.size());
+        auto fatal = false;
         forward_cpu(input_data, cpu_policy_data, cpu_value_data);
-        auto almost_equal = compare_net_outputs(policy_data, cpu_policy_data);
-        almost_equal &= compare_net_outputs(value_data, cpu_value_data);
+        auto almost_equal = compare_net_outputs(policy_data, cpu_policy_data, fatal);
+        almost_equal &= compare_net_outputs(value_data, cpu_value_data, fatal);
         if (!almost_equal) {
             myprintf("PGN\n%s\nEND\n", pos.pgn().c_str());
             // Compare again but with debug info
-            compare_net_outputs(policy_data, cpu_policy_data, true, "orig policy");
-            compare_net_outputs(value_data, cpu_value_data, true, "orig value");
+            compare_net_outputs(policy_data, cpu_policy_data, fatal, true, "orig policy");
+            compare_net_outputs(value_data, cpu_value_data, fatal, true, "orig value");
             // Call opencl.forward again to see if the error is reproduceable.
             std::vector<float> value_data_retry(Network::NUM_VALUE_INPUT_PLANES * width * height);
             std::vector<float> policy_data_retry(get_num_output_policy());
             opencl.forward(input_data, policy_data_retry, value_data_retry);
-            auto almost_equal_retry = compare_net_outputs(policy_data_retry, policy_data, true, "retry policy");
-            almost_equal_retry &= compare_net_outputs(value_data_retry, value_data, true, "retry value");
+            auto almost_equal_retry = compare_net_outputs(policy_data_retry, policy_data, fatal, true, "retry policy");
+            almost_equal_retry &= compare_net_outputs(value_data_retry, value_data, fatal, true, "retry value");
             if (!almost_equal_retry) {
                 throw std::runtime_error("OpenCL retry self-check mismatch.");
             } else {
                 myprintf("compare_net_outputs retry was ok\n");
+            }
+            if (fatal) {
+                myprintf_so("Update your GPU drivers or reduce the amount of games "
+                           "played simultaneously.\n");
+                throw std::runtime_error("OpenCL self-check mismatch.");
             }
         }
     }

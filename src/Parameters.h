@@ -34,6 +34,7 @@ extern int cfg_noise;
 extern int cfg_randomize;
 extern int cfg_timemanage;
 extern int cfg_min_resign_moves;
+extern int cfg_root_temp_decay;
 extern uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
 extern std::vector<int> cfg_gpus;

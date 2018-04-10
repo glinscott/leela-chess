@@ -168,18 +168,22 @@ void UCTNode::dirichlet_noise(float epsilon, float alpha) {
     }
 }
 
-void UCTNode::randomize_first_proportionally() {
-    auto accum = uint32{0};
-    auto accum_vector = std::vector<uint32>{};
+void UCTNode::randomize_first_proportionally(float tau) {
+    auto accum = 0.0f;
+    auto accum_vector = std::vector<float>{};
     for (const auto& child : m_children) {
-        accum += child->get_visits();
+        accum += std::pow(child->get_visits(),1/tau);
         accum_vector.emplace_back(accum);
     }
 
-    auto pick = Random::GetRng().RandInt<std::uint32_t>(accum);
+    // For the root move selection, a random number between 0 and the integer numerical
+    // limit (~2.1e9) is scaled to the cumulative exponentiated visit count
+    auto int_limit = std::numeric_limits<int>::max();
+    auto pick = Random::GetRng().RandInt<std::uint32_t>(int_limit);
+    auto pick_scaled = pick*accum/int_limit;
     auto index = size_t{0};
     for (size_t i = 0; i < accum_vector.size(); i++) {
-        if (pick < accum_vector[i]) {
+        if (pick_scaled < accum_vector[i]) {
             index = i;
             break;
         }
