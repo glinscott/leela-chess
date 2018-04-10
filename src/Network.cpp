@@ -211,11 +211,15 @@ std::pair<int, int> Network::load_network(std::ifstream& wtfile) {
         }
         linecount++;
     }
-    // 1 format id, 1 input layer (4 x weights), 13 or 14 ending weights,
+    // 1 format id, 1 input layer (4 x weights), 14 ending weights,
     // the rest are residuals, every residual has 8 x weight lines
-    auto residual_blocks = linecount - (1 + 4 + get_hist_planes());
+    // Note: 14 ending weights is for value/policy head.
+    //     It's a coincidence it's the same number of input features
+    //     for V1 networks.
+    auto residual_blocks = linecount - (1 + 4 + 14);
     if (residual_blocks % 8 != 0) {
         myprintf("\nInconsistent number of weights in the file.\n");
+        myprintf("%d %d %d %d\n", m_format_version, residual_blocks, linecount, get_hist_planes());
         return {0, 0};
     }
     residual_blocks /= 8;
@@ -1129,12 +1133,7 @@ void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
     if (pos->can_castle(WHITE_OOO)) planes.bit[kFeatureBase+(us==WHITE?0:2)+0].set();
     if (pos->can_castle(WHITE_OO)) planes.bit[kFeatureBase+(us==WHITE?0:2)+1].set();
     if (us == BLACK) planes.bit[kFeatureBase+4].set();
-    if (m_format_version == 1) {
-        planes.rule50_count = pos->rule50_count();
-    } else {
-        // Normalize rule50_count to [0,1] range.
-        planes.rule50_count = pos->rule50_count() / 100.0f;
-    }
+    planes.rule50_count = pos->rule50_count();
     // Move count is redundant in chess and was clamped to uint8_t. We disabled
     // in training and so we should disable the move_count plane as input to
     // the NN here.
