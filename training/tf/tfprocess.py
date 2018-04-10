@@ -263,11 +263,12 @@ class TFProcess:
             self.test_writer.add_summary(test_summaries, steps)
             print("step {}, policy={:g} training accuracy={:g}%, mse={:g}".\
                 format(steps, sum_policy, sum_accuracy, sum_mse))
-
-        if steps % self.cfg['training']['total_steps'] == 0:
             path = os.path.join(self.root_dir, self.cfg['name'])
             save_path = self.saver.save(self.session, path, global_step=steps)
             print("Model saved in file: {}".format(save_path))
+            leela_path = path + "-" + str(steps) + ".txt"
+            self.save_leelaz_weights(leela_path) 
+            print("Weights saved in file: {}".format(leela_path))
 
     def save_leelaz_weights(self, filename):
         with open(filename, "w") as file:
