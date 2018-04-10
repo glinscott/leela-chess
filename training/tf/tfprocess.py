@@ -25,6 +25,7 @@ import bisect
 
 NUM_STEP_TRAIN = 200
 NUM_STEP_TEST = 2000
+VERSION = 2
 
 def weight_variable(shape):
     """Xavier initialization"""
@@ -82,8 +83,8 @@ class TFProcess:
         self.init_net(self.next_batch)
 
     def init_net(self, next_batch):
-        self.x = next_batch[0]  # tf.placeholder(tf.float32, [None, 120, 8*8])
-        self.y_ = next_batch[1] # tf.placeholder(tf.float32, [None, 1924])
+        self.x = next_batch[0]  # tf.placeholder(tf.float32, [None, 112, 8*8])
+        self.y_ = next_batch[1] # tf.placeholder(tf.float32, [None, 1858])
         self.z_ = next_batch[2] # tf.placeholder(tf.float32, [None, 1])
         self.batch_norm_count = 0
         self.y_conv, self.z_conv = self.construct_net(self.x)
@@ -271,7 +272,7 @@ class TFProcess:
     def save_leelaz_weights(self, filename):
         with open(filename, "w") as file:
             # Version tag
-            file.write("1")
+            file.write("{}".format(VERSION))
             for weights in self.weights:
                 # Newline unless last line (single bias)
                 file.write("\n")
@@ -369,12 +370,12 @@ class TFProcess:
 
     def construct_net(self, planes):
         # NCHW format
-        # batch, 120 input channels, 8 x 8
-        x_planes = tf.reshape(planes, [-1, 120, 8, 8])
+        # batch, 112 input channels, 8 x 8
+        x_planes = tf.reshape(planes, [-1, 112, 8, 8])
 
         # Input convolution
         flow = self.conv_block(x_planes, filter_size=3,
-                               input_channels=120,
+                               input_channels=112,
                                output_channels=self.RESIDUAL_FILTERS)
         # Residual tower
         for _ in range(0, self.RESIDUAL_BLOCKS):
@@ -385,8 +386,8 @@ class TFProcess:
                                    input_channels=self.RESIDUAL_FILTERS,
                                    output_channels=32)
         h_conv_pol_flat = tf.reshape(conv_pol, [-1, 32*8*8])
-        W_fc1 = weight_variable([32*8*8, 1924])
-        b_fc1 = bias_variable([1924])
+        W_fc1 = weight_variable([32*8*8, 1858])
+        b_fc1 = bias_variable([1858])
         self.weights.append(W_fc1)
         self.weights.append(b_fc1)
         h_fc1 = tf.add(tf.matmul(h_conv_pol_flat, W_fc1), b_fc1, name='policy_head')
