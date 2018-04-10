@@ -68,8 +68,8 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
 
     if (!node->has_children()) {
         bool drawn = cur.is_draw();
-        if (drawn || !MoveList<LEGAL>(cur).size()) {
-            float score = (drawn || !cur.checkers()) ? 0.0 : (color == Color::WHITE ? -1.0 : 1.0);
+        if (drawn || cur.has_no_moves()) {
+            float score = (drawn || !cur.checkers()) ? 0.0f : (color == Color::WHITE ? -1.0f : 1.0f);
             result = SearchResult::from_score(score);
         } else if (m_nodes < MAX_TREE_SIZE) {
             float eval;
@@ -111,7 +111,7 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
     }
 
     for (const auto& node : parent.get_children()) {
-        std::string tmp = UCI::move(node->get_move());
+        std::string tmp = UCI::to_string(node->get_move());
         std::string pvstring(tmp);
 
         myprintf("%4s -> %7d (V: %5.2f%%) (N: %5.2f%%) PV: ",
@@ -172,7 +172,7 @@ std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent) {
 
     auto& best_child = parent.get_best_root_child(state.cur().side_to_move());
     auto best_move = best_child.get_move();
-    auto res = UCI::move(best_move);
+    auto res = UCI::to_string(best_move);
 
     StateInfo st;
     state.cur().do_move(best_move, st);
@@ -199,7 +199,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // UCI-like output wants a depth and a cp.
     // convert winrate to a cp estimate ... assume winrate = 1 / (1 + exp(-cp / 91))
     // (91 can be tuned to have an output more or less matching e.g. SF, once both have similar strength)
-    int   cp = -91 * log(1 / feval - 1);
+    int   cp = int(-91 * log(1 / feval - 1));
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
     int   depth = log(float(m_nodes)) / log(1.8);
     // To report nodes, use visits.
@@ -289,7 +289,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
     bool keeprunning = true;
     int last_update = 0;
-    do {
+    while (keeprunning) {
         auto currstate = bh_.shallow_clone();
         auto result = play_simulation(currstate, m_root.get());
         if (result.valid()) {
@@ -297,7 +297,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         }
 
         // assume nodes = 1.8 ^ depth.
-        int depth = log(float(m_nodes)) / log(1.8);
+        int depth = int(log(float(m_nodes)) / log(1.8));
         if (depth != last_update) {
             last_update = depth;
             dump_analysis(Time.elapsed(), false);
@@ -306,8 +306,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         // check if we should still search
         keeprunning = is_running();
         keeprunning &= !halt_search();
-
-    } while(keeprunning);
+    }
 
     // stop the search
     m_run = false;
@@ -325,6 +324,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         dump_analysis(milliseconds_elapsed, true);
     }
     Move bestmove = get_best_move();
+    myprintf("selected %s [%s]\n", UCI::to_string(bestmove).c_str(), bh_.cur().move_to_san(bestmove).c_str());
     return bestmove;
 }
 

@@ -60,6 +60,7 @@ bool UCTNode::first_visit() const {
     return m_visits == 0;
 }
 
+/// returns true only if the children were created in this thread and the eval is populated
 bool UCTNode::create_children(std::atomic<int>& nodecount, const BoardHistory& state, float& eval) {
     // check whether somebody beat us to it (atomic)
     if (has_children()) {
@@ -134,7 +135,7 @@ void UCTNode::link_nodelist(std::atomic<int>& nodecount, std::vector<Network::sc
         );
     }
 
-    nodecount += m_children.size();
+    nodecount += (int)m_children.size();
     m_has_children = true;
 }
 
@@ -281,7 +282,7 @@ UCTNode* UCTNode::uct_select_child(Color color) {
     for (const auto& child : m_children) {
         parentvisits += child->get_visits();
     }
-    float numerator = std::sqrt((double)parentvisits);
+    float numerator = (float)std::sqrt((double)parentvisits);
 
     for (const auto& child : m_children) {
         // get_eval() will automatically set first-play-urgency

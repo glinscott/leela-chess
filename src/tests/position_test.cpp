@@ -19,82 +19,82 @@ void mock_shallow_repetitions(BoardHistory&& bh, int rep_cnt) {
 TEST_F(PositionTest, IsDrawStartPosition) {
   Position pos;
   StateInfo si;
-  pos.set(Position::StartFEN, &si);
+  pos.init(Position::StartFEN, &si);
   EXPECT_FALSE(pos.is_draw());
 }
 
 TEST_F(PositionTest, IsDrawBareKings) {
   Position pos;
   StateInfo si;
-  pos.set("8/8/8/4k3/8/8/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/4k3/8/8/2K5/8 w - - 0 1", &si);
   EXPECT_TRUE(pos.is_draw());
 }
 
 TEST_F(PositionTest, IsDrawSingleMinorPiece) {
   Position pos;
   StateInfo si;
-  pos.set("8/8/8/4k3/1N6/8/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/4k3/1N6/8/2K5/8 w - - 0 1", &si);
   EXPECT_TRUE(pos.is_draw());
-  pos.set("8/8/8/4k3/7b/8/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/4k3/7b/8/2K5/8 w - - 0 1", &si);
   EXPECT_TRUE(pos.is_draw());
 }
 
 TEST_F(PositionTest, IsDrawSingleMajorPieceOrPawn) {
   Position pos;
   StateInfo si;
-  pos.set("8/8/8/4k3/8/5R2/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/4k3/8/5R2/2K5/8 w - - 0 1", &si);
   EXPECT_FALSE(pos.is_draw());
-  pos.set("8/8/8/4k3/8/5q2/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/4k3/8/5q2/2K5/8 w - - 0 1", &si);
   EXPECT_FALSE(pos.is_draw());
-  pos.set("8/8/8/4k3/8/5P2/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/4k3/8/5P2/2K5/8 w - - 0 1", &si);
   EXPECT_FALSE(pos.is_draw());
 }
 
 TEST_F(PositionTest, IsDrawTwoKnights) {
   Position pos;
   StateInfo si;
-  pos.set("8/8/8/3nk3/8/5N2/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/3nk3/8/5N2/2K5/8 w - - 0 1", &si);
   EXPECT_FALSE(pos.is_draw());
-  pos.set("8/8/8/3nk3/8/5n2/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/3nk3/8/5n2/2K5/8 w - - 0 1", &si);
   EXPECT_FALSE(pos.is_draw());
 }
 
 TEST_F(PositionTest, IsDrawBishopAndKnight) {
   Position pos;
   StateInfo si;
-  pos.set("8/8/8/3bk3/8/5N2/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/3bk3/8/5N2/2K5/8 w - - 0 1", &si);
   EXPECT_FALSE(pos.is_draw());
-  pos.set("8/8/8/3Bk3/8/5N2/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/3Bk3/8/5N2/2K5/8 w - - 0 1", &si);
   EXPECT_FALSE(pos.is_draw());
 }
 
 TEST_F(PositionTest, IsDrawMultipleBishopsSameColor) {
   Position pos;
   StateInfo si;
-  pos.set("8/8/8/3Bk3/8/5B2/2K5/8 w - - 0 1", &si);
+  pos.init("8/8/8/3Bk3/8/5B2/2K5/8 w - - 0 1", &si);
   EXPECT_TRUE(pos.is_draw());
-  pos.set("8/8/8/4kb2/8/2K2B2/8/8 w - - 0 1", &si);
+  pos.init("8/8/8/4kb2/8/2K2B2/8/8 w - - 0 1", &si);
   EXPECT_TRUE(pos.is_draw());
-  pos.set("B7/1B3b2/2B3b1/4k2b/8/8/2K5/8 w - - 0 1", &si);
+  pos.init("B7/1B3b2/2B3b1/4k2b/8/8/2K5/8 w - - 0 1", &si);
   EXPECT_TRUE(pos.is_draw());
-  pos.set("B7/1B6/2B5/4k3/8/8/2K5/8 w - - 0 1", &si);
+  pos.init("B7/1B6/2B5/4k3/8/8/2K5/8 w - - 0 1", &si);
   EXPECT_TRUE(pos.is_draw());
 }
 
 TEST_F(PositionTest, IsDrawMultipleBishopsNotSameColor) {
   Position pos;
   StateInfo si;
-  pos.set("8/8/8/4k3/8/2K1bb2/8/8 w - - 0 1", &si);
+  pos.init("8/8/8/4k3/8/2K1bb2/8/8 w - - 0 1", &si);
   EXPECT_FALSE(pos.is_draw());
-  pos.set("8/8/8/4k3/8/2K1Bb2/8/8 w - - 0 1", &si);
+  pos.init("8/8/8/4k3/8/2K1Bb2/8/8 w - - 0 1", &si);
   EXPECT_FALSE(pos.is_draw());
-  pos.set("B7/1B3b2/2B3b1/4k2b/7B/8/2K5/8 w - - 0 1", &si);
+  pos.init("B7/1B3b2/2B3b1/4k2b/7B/8/2K5/8 w - - 0 1", &si);
   EXPECT_FALSE(pos.is_draw());
 }
 
 TEST_F(PositionTest, KeyTest) {
   BoardHistory bh_;
-  bh_.set(Position::StartFEN);
+  bh_.init(Position::StartFEN);
   bh_.do_move(UCI::to_move(bh_.cur(), "d2d4"));
   bh_.do_move(UCI::to_move(bh_.cur(), "d7d5"));
   bh_.do_move(UCI::to_move(bh_.cur(), "e2e4"));
@@ -102,7 +102,7 @@ TEST_F(PositionTest, KeyTest) {
   auto full_key = bh_.cur().full_key();
 
   // Normal transposition, both keys match
-  bh_.set(Position::StartFEN);
+  bh_.init(Position::StartFEN);
   bh_.do_move(UCI::to_move(bh_.cur(), "e2e4"));
   bh_.do_move(UCI::to_move(bh_.cur(), "d7d5"));
   bh_.do_move(UCI::to_move(bh_.cur(), "d2d4"));
@@ -111,7 +111,7 @@ TEST_F(PositionTest, KeyTest) {
 
   // Shuffle knights, key matches but
   // full_key doesn't because of rule50 mismatch
-  bh_.set(Position::StartFEN);
+  bh_.init(Position::StartFEN);
   bh_.do_move(UCI::to_move(bh_.cur(), "e2e4"));
   bh_.do_move(UCI::to_move(bh_.cur(), "d7d5"));
   bh_.do_move(UCI::to_move(bh_.cur(), "d2d4"));
@@ -123,7 +123,7 @@ TEST_F(PositionTest, KeyTest) {
   EXPECT_FALSE(full_key == bh_.cur().full_key());
 
   // Different setup
-  bh_.set(Position::StartFEN);
+  bh_.init(Position::StartFEN);
   bh_.do_move(UCI::to_move(bh_.cur(), "d2d4"));
   bh_.do_move(UCI::to_move(bh_.cur(), "d7d5"));
   bh_.do_move(UCI::to_move(bh_.cur(), "c1d2"));
@@ -141,7 +141,7 @@ TEST_F(PositionTest, KeyTest) {
   full_key = bh_.cur().full_key();
 
   // rule50 matches but repetitions_count doesn't
-  bh_.set(Position::StartFEN);
+  bh_.init(Position::StartFEN);
   bh_.do_move(UCI::to_move(bh_.cur(), "d2d4"));
   bh_.do_move(UCI::to_move(bh_.cur(), "d7d5"));
   bh_.do_move(UCI::to_move(bh_.cur(), "c1d2"));
@@ -158,7 +158,7 @@ TEST_F(PositionTest, KeyTest) {
   EXPECT_FALSE(full_key == bh_.cur().full_key());
 
   // Longer repetition test with shallow_clone
-  bh_.set(Position::StartFEN);
+  bh_.init(Position::StartFEN);
   bh_.do_move(UCI::to_move(bh_.cur(), "a2a4")); bh_.do_move(UCI::to_move(bh_.cur(), "h7h5"));
   bh_.do_move(UCI::to_move(bh_.cur(), "a1a2")); bh_.do_move(UCI::to_move(bh_.cur(), "h8h6"));
   bh_.do_move(UCI::to_move(bh_.cur(), "a2a3")); bh_.do_move(UCI::to_move(bh_.cur(), "h6a6"));
@@ -184,7 +184,7 @@ TEST_F(PositionTest, KeyTest) {
 
 TEST_F(PositionTest, PGNTest) {
   BoardHistory bh_;
-  bh_.set(Position::StartFEN);
+  bh_.init(Position::StartFEN);
   bh_.do_move(UCI::to_move(bh_.cur(), "f2f4"));
   bh_.do_move(UCI::to_move(bh_.cur(), "a7a6"));
   bh_.do_move(UCI::to_move(bh_.cur(), "f4f5"));
@@ -192,7 +192,7 @@ TEST_F(PositionTest, PGNTest) {
   bh_.do_move(UCI::to_move(bh_.cur(), "f5e6"));
   EXPECT_EQ(bh_.pgn(), "1. f4 a6 2. f5 e6 3. fxe6 ");
 
-  bh_.set(Position::StartFEN);
+  bh_.init(Position::StartFEN);
   bh_.do_move(UCI::to_move(bh_.cur(), "f2f4"));
   bh_.do_move(UCI::to_move(bh_.cur(), "a7a6"));
   bh_.do_move(UCI::to_move(bh_.cur(), "f4f5"));

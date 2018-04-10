@@ -112,11 +112,11 @@ bool Tuner::valid_config_sgemm(TuneParameters p, bool exhaustive) {
 TuneParameters Tuner::get_parameters_by_int(const std::vector<Configurations>& opts,
                                         const int n) {
     TuneParameters param;
-    std::vector<size_t> choices(opts.size());
+    std::vector<int> choices(opts.size());
 
     auto cfgs = 1;
     for (auto c = size_t{0}; c < opts.size(); c++) {
-        choices[c] = opts[c].second.size();
+        choices[c] = (int)opts[c].second.size();
         cfgs *= choices[c];
     }
     auto j = n;
@@ -273,7 +273,7 @@ std::string Tuner::tune_sgemm(const int m, const int n, const int k,
     auto valid_params = std::vector<int>{};
     auto cfgs = 1;
     for (auto c = size_t{0}; c < opts.size(); c++) {
-        cfgs *= opts[c].second.size();
+        cfgs *= (int)opts[c].second.size();
     }
 
     auto rng = Random{0};
@@ -393,7 +393,7 @@ std::string Tuner::tune_sgemm(const int m, const int n, const int k,
             myprintf("(%u/%u) %s %.4f ms (%.1f GFLOPS)\n",
                param_counter, valid_params.size(), param_str.c_str(),
                kernel_ms, kernel_gflops);
-            best_time = sum;
+            best_time = (unsigned int)sum;
             best_params = defines;
         }
     }

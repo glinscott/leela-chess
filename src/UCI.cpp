@@ -32,9 +32,11 @@
 #include "UCI.h"
 #include "UCTSearch.h"
 #include "Utils.h"
+#include "NNCache.h"
+#include "Random.h"
 
-using namespace std;
-using namespace Utils;
+using Utils::myprintf_so;
+using Utils::myprintf;
 
 namespace {
 
@@ -43,10 +45,10 @@ namespace {
   // or the starting position ("startpos") and then makes the moves given in the
   // following move list ("moves").
 
-  void position(BoardHistory& bh, istringstream& is) {
+  void position(BoardHistory& bh, std::istringstream& is) {
 
     Move m;
-    string token, fen;
+    std::string token, fen;
 
     is >> token;
 
@@ -61,7 +63,7 @@ namespace {
     else
         return;
 
-    bh.set(fen);
+    bh.init(fen);
 
     // Parse move list (if any)
     while (is >> token && (m = UCI::to_move(bh.cur(), token)) != MOVE_NONE)
@@ -72,19 +74,19 @@ namespace {
   // setoption() is called when engine receives the "setoption" UCI command. The
   // function updates the UCI option ("name") to the given value ("value").
 
-  void setoption(istringstream& is) {
+  void setoption(std::istringstream& is) {
 
-    string token, name, value;
+    std::string token, name, value;
 
     is >> token; // Consume "name" token
 
     // Read option name (can contain spaces)
     while (is >> token && token != "value")
-        name += string(" ", name.empty() ? 0 : 1) + token;
+        name += std::string(" ", name.empty() ? 0 : 1) + token;
 
     // Read option value (can contain spaces)
     while (is >> token)
-        value += string(" ", value.empty() ? 0 : 1) + token;
+        value += std::string(" ", value.empty() ? 0 : 1) + token;
 
     myprintf_so("No such option: %s\n", name.c_str());
   }
@@ -94,10 +96,10 @@ namespace {
   // the thinking time and other parameters from the input string, then starts
   // the search.
 
-  void go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
+  void go(UCTSearch& search, BoardHistory& bh, std::istringstream& is) {
 
     Limits = LimitsType();
-    string token;
+    std::string token;
 
     while (is >> token)
         if (token == "wtime")     is >> Limits.time[WHITE];
@@ -112,13 +114,23 @@ namespace {
 
     // TODO(gary): This just does the search on the UI thread...
     Move move = search.think(bh.shallow_clone());
-    bh.do_move(move);
-    myprintf_so("bestmove %s\n", UCI::move(move).c_str());
+    if (move != MOVE_NONE) {
+        bh.do_move(move);
+        myprintf_so("bestmove %s\n", UCI::to_string(move).c_str());
+    }
+    else {
+        myprintf_so("info string no move found\n");
+    }
+    bool isCheck = bh.cur().checkers();
+    bool noMoves = bh.cur().has_no_moves();
+    if (noMoves) myprintf_so(isCheck ? "info string checkmate\n" : "info string stalemate\n");
+    else if (bh.cur().is_draw()) myprintf_so("info string draw\n");
+    else if (isCheck) myprintf_so("info string check\n");
   }
 
   // called when receiving the 'perft Depth' command
-  void uci_perft(BoardHistory& bh, istringstream& is) {
-       int d;
+  void uci_perft(BoardHistory& bh, std::istringstream& is) {
+       int d = 4;
        is >> d;
 
        Depth depth = Depth(d);
@@ -134,8 +146,7 @@ int play_one_game(BoardHistory& bh) {
     if (bh.cur().is_draw()) {
       return 0;
     }
-    MoveList<LEGAL> moves(bh.cur());
-    if (moves.size() == 0) {
+    if (bh.cur().has_no_moves()) {
       if (bh.cur().checkers()) {
         // Checkmate
         return bh.cur().side_to_move() == WHITE ? -1 : 1;
@@ -156,7 +167,7 @@ int play_one_game(BoardHistory& bh) {
 
 int play_one_game() {
   BoardHistory bh;
-  bh.set(Position::StartFEN);
+  bh.init(Position::StartFEN);
 
   Training::clear_training();
   int game_score = play_one_game(bh);
@@ -167,7 +178,7 @@ int play_one_game() {
   return game_score;
 }
 
-void generate_training_games(istringstream& is) {
+void generate_training_games(std::istringstream& is) {
   namespace fs = boost::filesystem;
   std::string suffix;
   if (!(is >> suffix)) {
@@ -250,10 +261,25 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
           bh.cur().undo_move(m);
       }
       if (Root) {
-          myprintf_so("%s: %lld\n", UCI::move(m).c_str(), cnt);
+          myprintf_so("%s: %lld\n", UCI::to_string(m).c_str(), cnt);
       }
   }
   return nodes;
+}
+
+/// convert a board history into a command that recreates that position. pass a shallow_clone to minimise it.
+std::string showgame(const BoardHistory &bh)
+{
+    auto it = bh.positions.begin(), it_end = bh.positions.end();
+    std::string fen = it->fen();
+    std::string result = (fen == Position::StartFEN) ? std::string("position startpos") : std::string("position fen ") + fen;
+    if (++it != it_end) {
+        result += " moves";
+        for (; it != it_end; ++it) {
+            result += std::string(" ") + UCI::to_string(it->get_move());
+        }
+    }
+    return result;
 }
 
 
@@ -264,21 +290,21 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
 /// In addition to the UCI ones, also some additional debug commands are supported.
 
 void UCI::loop(const std::string& start) {
-  string token, cmd = start;
+  std::string token, cmd = start;
   BoardHistory bh;
-  bh.set(Position::StartFEN);
+  bh.init(Position::StartFEN);
   auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
 
   do {
-      if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF
+      if (start.empty() && !getline(std::cin, cmd)) // Block here waiting for input or EOF
           cmd = "quit";
 
-      log_input(cmd);
-      istringstream is(cmd);
+      Utils::log_input(cmd);
+      std::istringstream is(cmd);
       token.clear(); // Avoid a stale if getline() returns empty or blank line
-      is >> skipws >> token;
+      is >> std::skipws >> token;
 
-	  if (token == "quit" || token == "exit") break;
+      if (token == "quit" || token == "exit") break;
 
       /*
       // The GUI sends 'ponderhit' to tell us the user has played the expected move.
@@ -309,65 +335,82 @@ void UCI::loop(const std::string& start) {
       else if (token == "train")   generate_training_games(is);
       else if (token == "bench")   bench();
       else if (token == "d" || token == "showboard") {
-		  std::stringstream ss;
-		  ss << bh.cur();
-		  myprintf_so("%s\n", ss.str().c_str());
-	  }
-	  else if (token == "showfen") {
-	      std::stringstream ss;
-		  ss << bh.cur().fen();
-		  myprintf_so("%s\n", ss.str().c_str());
-	  }
-	  else if (token == "showgame") {
-		  std::string result;
-		  for (const auto &p : bh.positions) {
-			  if (result == "") {
-			      result = " "; // first position has no move
-			  } else {
-				  result += UCI::move(p.get_move()) + " ";
-			  }
-		  }
-		  myprintf_so("position startpos%s\n", result.c_str());
-	  }
-	  else if (token == "showpgn") myprintf_so("%s\n", bh.pgn().c_str());
-	  else if (token == "undo") myprintf_so(bh.undo_move() ? "Undone\n" : "At first move\n");
-	  else if (token == "usermove" || token == "play") {
-		  std::string ms; is >> ms;
-		  Move m = UCI::to_move(bh.cur(), ms);
-		  if (m == MOVE_NONE) m = bh.cur().san_to_move(ms);
-		  if (m != MOVE_NONE) {
-			  bh.do_move(m);
-			  myprintf_so("usermove %s\n", UCI::move(m).c_str());
-		  }
-		  else {
-			  myprintf_so("Illegal move: %s\n", ms.c_str());
-		  }
-	  }
-	  else if (UCI::to_move(bh.cur(), token) != MOVE_NONE) {
-		  Move m = UCI::to_move(bh.cur(), token);
-		  bh.do_move(m);
-		  myprintf_so("usermove %s\n", UCI::move(m).c_str());
-	  }
-		  //else if (token == "eval")  sync_cout << Eval::trace(pos) << sync_endl;
-		  else if (token != "quit") {
-		  myprintf_so("Unknown command: %s\n", cmd.c_str());
-	  }
+          std::stringstream ss;
+          ss << bh.cur();
+          myprintf("%s\n", ss.str().c_str());
+      }
+      else if (token == "testgo") {
+          // compare the result with "no history"
+          NNCache::get_NNCache().resize(0);
+          BoardHistory b;
+          b.positions.push_back(bh.cur());
+          go(*search, b, is);
+          bh.do_move(b.cur().get_move());
+          NNCache::get_NNCache().resize(0);
+      }
+      else if (token == "reset") {
+          bh.init(Position::StartFEN);
+          NNCache::get_NNCache().resize(0);
+          myprintf("reset board and emptied cache\n");
+      }
+      else if (token == "showfen")  myprintf("%s\n", bh.cur().fen().c_str());
+      else if (token == "showgame")  myprintf("%s\n", showgame(bh.shallow_clone()).c_str());
+      else if (token == "showpgn")  myprintf("%s\n", bh.pgn().c_str());
+      else if (token == "undo") myprintf(bh.undo_move() ? "Undone\n" : "At first move\n");
+      else if (token == "usermove" || token == "play") {
+          std::string ms;
+          while (is >> ms)
+          {
+              Move m = UCI::to_move(bh.cur(), ms);
+              if (m == MOVE_NONE) m = bh.cur().san_to_move(ms);
+              if (m != MOVE_NONE) {
+                  bh.do_move(m);
+                  myprintf_so("usermove %s\n", UCI::to_string(m).c_str());
+              }
+              else if (ms == std::to_string(((bh.cur().game_ply() / 2) + 1)) + std::string(".")) {
+                  continue; // ok to put the move number
+              }
+              else {
+                  myprintf_so("Illegal move: %s\n", ms.c_str());
+              }
+          }
+      }
+      else if (UCI::to_move(bh.cur(), token) != MOVE_NONE) {
+          Move m = UCI::to_move(bh.cur(), token);
+          bh.do_move(m);
+          myprintf_so("usermove %s\n", UCI::to_string(m).c_str());
+      }
 
+      else if (token == "eval") {
+          auto r = Network::get_scored_moves(bh);
+          auto &moves = r.first;
+          std::sort(moves.begin(), moves.end());
+          for (auto &m : moves) myprintf("%s : %f\n", bh.cur().move_to_san(m.second).c_str(), m.first);
+          myprintf("winrate %f\n", r.second);
+      }
+      else if (token == "testgame") {
+          int result = play_one_game(bh);
+          myprintf("%s\n%d\n", bh.pgn().c_str(), result);
+      }
+      else if (token != "quit") {
+          myprintf_so("Unknown command: %s\n", cmd.c_str());
+      }
   } while (start.empty()); // Command line args are one-shot
 }
 
-/// UCI::square() converts a Square to a string in algebraic notation (g1, a7, etc.)
+/// UCI::to_string() converts a Square to a string in algebraic notation (g1, a7, etc.)
 
-std::string UCI::square(Square s) {
+std::string UCI::to_string(Square s) {
+    assert(is_ok(s));
     return std::string{ char('a' + file_of(s)), char('1' + rank_of(s)) };
 }
 
-/// UCI::move() converts a Move to a string in coordinate notation (g1f3, a7a8q).
+/// UCI::to_string() converts a Move to a string in coordinate notation (g1f3, a7a8q).
 /// The only special case is castling, where we print in the e1g1 notation in
 /// normal chess mode, and in e1h1 notation in chess960 mode. Internally all
 /// castling moves are always encoded as 'king captures rook'.
 
-string UCI::move(Move m) {
+std::string UCI::to_string(Move m) {
     
     Square from = from_sq(m);
     Square to = to_sq(m);
@@ -381,7 +424,7 @@ string UCI::move(Move m) {
     if (type_of(m) == CASTLING)
         to = make_square(to > from ? FILE_G : FILE_C, rank_of(from));
     
-    string move = UCI::square(from) + UCI::square(to);
+    std::string move = UCI::to_string(from) + UCI::to_string(to);
     
     if (type_of(m) == PROMOTION)
         move += " pnbrqk"[promotion_type(m)];
@@ -393,9 +436,9 @@ string UCI::move(Move m) {
 /// UCI::to_move() converts a string representing a move in coordinate notation
 /// (g1f3, a7a8q) to the corresponding legal Move, if any.
 
-Move UCI::to_move(const Position& pos, string const& str) {
+Move UCI::to_move(const Position& pos, std::string const& str) {
     for (const auto& m : MoveList<LEGAL>(pos))
-        if (str == UCI::move(m))
+        if (str == UCI::to_string(m))
             return m;
     
     return MOVE_NONE;

@@ -51,7 +51,7 @@ struct StateInfo {
   Bitboard   blockersForKing[COLOR_NB];
   Bitboard   pinnersForKing[COLOR_NB];
   Bitboard   checkSquares[PIECE_TYPE_NB];
-  Move		   move;  //--added by me--helps with undoing moves.
+  Move       move;  //--added by me--helps with undoing moves.
 };
 
 /// A list to keep track of the position states along the setup moves (from the
@@ -75,8 +75,8 @@ public:
   Position() = default;
 
   // FEN string input/output
-  Position& set(const std::string& fenStr, StateInfo* si);
-  Position& set(const std::string& code, Color c, StateInfo* si);
+  Position& init(const std::string& fenStr, StateInfo* si);
+  Position& init(const std::string& code, Color c, StateInfo* si);
   const std::string fen() const;
   void set_st(StateInfo* si) { st = si; }
 
@@ -154,6 +154,7 @@ public:
   Color side_to_move() const;
   int game_ply() const;
   bool is_draw() const;
+  bool has_no_moves() const;
   int repetitions_count() const;
   int rule50_count() const;
 
@@ -187,7 +188,7 @@ private:
   Bitboard castlingPath[CASTLING_RIGHT_NB];
   int gamePly;
   Color sideToMove;
-	StateInfo* st;
+  StateInfo* st;
 };
 
 extern std::ostream& operator<<(std::ostream& os, const Position& pos);
@@ -406,7 +407,7 @@ struct BoardHistory {
     return positions.back();
   }
 
-  void set(const std::string& fen);
+  void init(const std::string& fen);
   BoardHistory shallow_clone() const;
   void do_move(Move m);
   bool undo_move();
