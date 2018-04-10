@@ -7,15 +7,15 @@ This is an adaptation of [GCP](https://github.com/gcp)'s [Leela Zero](https://gi
 
 The goal is to build a strong UCT chess AI following the same type of techniques as AlphaZero, as described in [Mastering Chess and Shogi by Self-Play with a General Reinforcement Learning Algorithm](https://arxiv.org/abs/1712.01815).
 
-We will need to do this with a distributed project, as it requires a huge amount of compute.
+We will need to do this with a distributed project, as it requires a huge amount of computations.
 
 Please visit the LCZero forum to discuss: https://groups.google.com/forum/#!forum/lczero, or the github issues.
 
 # Contributing
 
 For precompiled binaries, see:
-* [https://github.com/glinscott/leela-chess/wiki](wiki)
-* [https://github.com/glinscott/leela-chess/wiki/Getting-Started](wiki/Getting-Started)
+* [wiki](https://github.com/glinscott/leela-chess/wiki)
+* [wiki/Getting-Started](https://github.com/glinscott/leela-chess/wiki/Getting-Started)
 
 For live status: http://lczero.org
 
@@ -27,35 +27,40 @@ Of course, we also appreciate code reviews, pull requests and Windows testers!
 ## Requirements
 
 * GCC, Clang or MSVC, any C++14 compiler
-* boost 1.58.x or later (libboost-all-dev on Debian/Ubuntu)
+* boost 1.54.x or later (libboost-all-dev on Debian/Ubuntu)
 * BLAS Library: OpenBLAS (libopenblas-dev) or (optionally) Intel MKL
 * zlib library (zlib1g & zlib1g-dev on Debian/Ubuntu)
 * Standard OpenCL C headers (opencl-headers on Debian/Ubuntu, or at
   https://github.com/KhronosGroup/OpenCL-Headers/tree/master/opencl22/)
 * OpenCL ICD loader (ocl-icd-libopencl1 on Debian/Ubuntu, or reference implementation at https://github.com/KhronosGroup/OpenCL-ICD-Loader)
 * An OpenCL capable device, preferably a very, very fast GPU, with recent
-  drivers is strongly recommended (OpenCL 1.2 support should be enough, even
-  OpenCL 1.1 might work). If you do not have a GPU, modify config.h in the
-  source and remove the line that says `#define USE_OPENCL`.
+  drivers is strongly recommended but not required. (OpenCL 1.2 support should be enough, even
+  OpenCL 1.1 might work).
 * Tensorflow 1.4 or higher (for training)
 * The program has been tested on Linux.
+
 
 ## Example of compiling - Ubuntu 16.04
 
     # Install dependencies
-    sudo apt install libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
+    sudo apt install g++ git libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
 
     # Test for OpenCL support & compatibility
     sudo apt install clinfo && clinfo
 
-    # Clone github repo
-    git clone git@github.com:glinscott/leela-chess.git
+    # Clone git repo
+    git clone https://github.com/glinscott/leela-chess.git
     cd leela-chess
     git submodule update --init --recursive
     mkdir build && cd build
     
-    # Configure, build and run tests
+    # Configure
     cmake ..
+
+    # Or configure without GPU support
+    cmake -DFEATURE_USE_CPU_ONLY=1 ..
+
+    # Build and run tests
     make
     ./tests
 
@@ -63,18 +68,18 @@ Of course, we also appreciate code reviews, pull requests and Windows testers!
 
 See https://github.com/glinscott/leela-chess/tree/master/go/src/client/README.md.
 This client will produce self-play games and upload them to http://lczero.org. 
-A central server uses these self-play games as input to the training process.
+A central server uses these self-play game data as inputs for the training process.
 
 ## Weights
 
-The weights from the distributed training are downloadable from http://lczero.org/networks, the best one is the top network that has some Games played on it.
+The weights from the distributed training are downloadable from http://lczero.org/networks. The best one is the top network that has some games played on it.
 
 Weights that we trained to prove the engine was solid are here https://github.com/glinscott/lczero-weights. Currently, the best weights were obtained through supervised learning on a human dataset with elo ratings > 2000.
 
 # Training a new net using self-play
 
 Running the Training is not required to help the project, only the central server needs to do this.
-The distributed part is running the client to create self-play games. Those games are uploaded
+The distributed part is running the client to create self-play games. Those games are uploaded on
 http://lczero.org, and used as the input to the training process.
 
 After compiling lczero (see below), try the following:
@@ -94,14 +99,14 @@ into a virtual environment).  NOTE: You need a GPU accelerated version of
 Tensorflow to train, the CPU version doesn't support the input data format that
 is used.
 
-Then, make sure to set up your config, important fields to edit are the path the
+Then, make sure to set up your config. Important fields to edit are the path the
 network is stored in, and the path to the input data.
 ```
 cd training/tf
 ./parse.py configs/your-config.yaml
 ```
 
-That will bring up Tensorflow and start running training. You can look at the config file in `training/tf/configs/example.yaml` to get an idea of all the configurable parameters. This config file is meant to be a unified configuration for all the executable pythonscripts in the training directory.  After starting the above command you should see output like this:
+That will bring up Tensorflow and start running training. You can look at the config file in `training/tf/configs/example.yaml` to get an idea of all the configurable parameters. This config file is meant to be a unified configuration for all the executable pythonscripts in the training directory.  After starting the above command, you should see output like this:
 ```
 2018-01-12 09:57:00.089784: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1120] Creating TensorFlow device (/device:GPU:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0, compute capability: 5.2)
 2018-01-12 09:57:13.126277: I tensorflow/core/kernels/shuffle_dataset_op.cc:110] Filling up shuffle buffer (this may take a while): 43496 of 65536

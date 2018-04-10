@@ -39,9 +39,9 @@ func makeRunActive() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	training_run.Active = true
-	training_run.Description = "Initial testing run"
-	training_run.TrainParameters = `["--randomize", "-n"]`
+	//training_run.Active = true
+	//training_run.Description = "Initial testing run"
+	training_run.TrainParameters = `["--randomize", "-n", "-v1600"]`
 	err = db.GetDB().Save(&training_run).Error
 	if err != nil {
 		log.Fatal(err)
@@ -51,14 +51,27 @@ func makeRunActive() {
 func newMatch() {
 	match := db.Match{
 		TrainingRunID: 1,
-		CandidateID:   4,
-		CurrentBestID: 3,
-		Wins:          89,
-		Losses:        4,
-		Draws:         7,
-		Done:          true,
+		CandidateID:   92,
+		CurrentBestID: 83,
+		Done:          false,
+		GameCap:       400,
+		Parameters:    `["--noise"]`,
 	}
 	err := db.GetDB().Create(&match).Error
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func setTestOnly() {
+	match := db.Match{}
+	match.ID = 90
+	err := db.GetDB().Where(&match).First(&match).Error
+	if err != nil {
+		log.Fatal(err)
+	}
+	match.TestOnly = true
+	err = db.GetDB().Save(&match).Error
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -86,6 +99,7 @@ func main() {
 	// newRun()
 	// makeRunActive()
 	// newMatch()
+	// setTestOnly()
 	// updateNetworkCounts()
 	// updateMatchPassed()
 
