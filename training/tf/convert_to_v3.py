@@ -18,8 +18,6 @@
 #    along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
 
 # TODO:
-# - Modify lczero code to detect version in weights and switch
-#     to V3 automatically
 # - The chunkparser convert_v3_to_tuple needs testing.
 #
 # Done:
@@ -28,6 +26,9 @@
 # - remove rep2 plane
 # - refactor to use chunckparser.py where appropriate.
 #     Still more can be done here but it's closer now.
+# - Modify lczero code to detect version in weights and switch
+#     to V3 automatically
+# - c++ version (convert_v2_v3.cpp - much faster)
 #
 # Plan not to change:
 # - remove move_count?
@@ -175,8 +176,12 @@ class TrainingStep:
             self.old_rev_move_map[idx] = m
             self.old_move_map[m] = idx
 
+        # Output c++ code for convert_v2_v3.cpp
         #for m in moves:
-        #    print("debug", m, self.old_move_map[m], self.new_white_move_map[m], self.new_black_move_map[m])
+        #    # Skip -1 moves which are not included in the new map
+        #    if self.new_black_move_map[m] >= 0:
+        #        print("      v3.probs[{:4d}] = v2.probs[{:4d}]; // {:s}".format(self.new_black_move_map[m], self.old_move_map[m], m))
+        #sys.exit()
 
     def clear_hist(self):
         for hist in range(self.NUM_HIST):
@@ -207,11 +212,13 @@ class TrainingStep:
         rank_strings = [[]]
         for rank in reversed(range(8)):
             rank_strings[0].append("{}".format(rank+1))
+        rank_strings[0].append("  ")
         for hist in range(self.NUM_HIST):
             rank_strings.append(self.history[hist].describe())
-        for rank in range(8):
-            for hist in range(self.NUM_HIST):
-                s += rank_strings[hist][rank] + " "
+        for hist in range(self.NUM_HIST+1):
+            for rank in range(8+1):
+                #if hist == 8 and rank == 0: continue
+                s += rank_strings[rank][hist] + " "
             s += "\n"
         sum = 0.0
         top_moves = {}
@@ -270,9 +277,9 @@ class TrainingStep:
                 start = hist*self.NUM_PLANES*8+idx*8
                 end = start + 8
                 self.update_board(hist, piece, int.from_bytes(planes[start:end], byteorder="big"))
-            if planes[self.NUM_PLANES*8+12*8:self.NUM_PLANES*8+12*8+8] != struct.pack('II', 0, 0):
+            if planes[hist*self.NUM_PLANES*8+12*8:hist*self.NUM_PLANES*8+12*8+8] != struct.pack('II', 0, 0):
                 self.history[hist].reps = 1
-                assert planes[self.NUM_PLANES*8+12*8:self.NUM_PLANES*8+12*8+8] == struct.pack('II', 0xffffffff, 0xffffffff)
+                assert planes[hist*self.NUM_PLANES*8+12*8:hist*self.NUM_PLANES*8+12*8+8] == struct.pack('II', 0xffffffff, 0xffffffff)
             if self.version <= 2:
                 # It's impossible to have a position in training with reps=2
                 # Because that is already a draw.
