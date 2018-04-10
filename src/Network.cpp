@@ -61,6 +61,10 @@
 
 using namespace Utils;
 
+// Seems this is required for the Darwin compiler.
+// Not sure why only T_HISTORY and not all the others.
+constexpr int Network::T_HISTORY;
+
 size_t Network::m_format_version{0};
 std::unordered_map<Move, int, std::hash<int>> Network::old_move_lookup;
 std::unordered_map<Move, int, std::hash<int>> Network::new_move_lookup;
