@@ -58,6 +58,13 @@ void UCTSearch::set_quiet(bool quiet) {
     quiet_ = quiet;
 }
 
+void UCTSearch::go(BoardHistory& bh) {
+    // TODO(gary): This just does the search on the UI thread...
+    Move move = think(bh.shallow_clone());
+    bh.do_move(move);
+    myprintf_so("bestmove %s\n", UCI::move(move).c_str());
+}
+
 SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
     const auto& cur = bh.cur();
     const auto color = cur.side_to_move();

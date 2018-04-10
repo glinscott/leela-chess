@@ -110,10 +110,7 @@ namespace {
         else if (token == "movetime")  is >> Limits.movetime;
 
 
-    // TODO(gary): This just does the search on the UI thread...
-    Move move = search.think(bh.shallow_clone());
-    bh.do_move(move);
-    myprintf_so("bestmove %s\n", UCI::move(move).c_str());
+    search.go(bh);
   }
 
   // called when receiving the 'perft Depth' command

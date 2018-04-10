@@ -68,6 +68,7 @@ public:
 
     UCTSearch(BoardHistory&& bh);
     Move think(BoardHistory&& bh);
+    void go(BoardHistory& bh);
     void set_playout_limit(int playouts);
     void set_visit_limit(int visits);
     void set_analyzing(bool flag);
