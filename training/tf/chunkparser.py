@@ -178,10 +178,6 @@ class ChunkParser:
 
         planes = tf.reshape(planes, (ChunkParser.BATCH_SIZE, 112, 8*8))
 
-        # normalize the rule50_count plane
-        for i in range(ChunkParser.BATCH_SIZE):
-            planes[i][109] /= 100;
-
         probs = tf.reshape(probs, (ChunkParser.BATCH_SIZE, 1858))
         winner = tf.reshape(winner, (ChunkParser.BATCH_SIZE, 1))
 
