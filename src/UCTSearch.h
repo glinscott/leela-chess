@@ -74,29 +74,35 @@ public:
     void set_quiet(bool flag);
     void ponder();
     bool is_running() const;
+    int est_playouts_left() const;
+    size_t prune_noncontenders();
+    bool have_alternate_moves();
     bool pv_limit_reached() const;
     void increment_playouts();
-    bool halt_search();
+    bool should_halt_search();
+    void please_stop();
     SearchResult play_simulation(BoardHistory& bh, UCTNode* const node);
-    
+
 private:
     void dump_stats(BoardHistory& pos, UCTNode& parent);
     std::string get_pv(BoardHistory& pos, UCTNode& parent);
     void dump_analysis(int64_t elapsed, bool force_output);
     Move get_best_move();
+    float get_root_temperature();
 
     BoardHistory bh_;
     Key m_prevroot_full_key{0};
     std::unique_ptr<UCTNode> m_root;
     std::atomic<int> m_nodes{0};
     std::atomic<int> m_playouts{0};
-    std::atomic<int64_t> m_target_time{0};
-    std::atomic<int64_t> m_start_time{0};
+    int64_t m_target_time{0};
+    int64_t m_start_time{0};
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
     int m_maxvisits;
 
     bool quiet_ = true;
+    std::atomic<bool> uci_stop{false};
 
     int get_search_time();
 };

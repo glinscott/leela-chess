@@ -67,15 +67,18 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("visits,v", po::value<int>(),
                        "Weaken engine by limiting the number of visits.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
-                        "Resign when winrate is less than x%.")
+                       "Resign when winrate is less than x%.")
         ("noise,n", "Apply dirichlet noise to root.")
-        ("randomize", "Randomize move selection at root (only useful for training).")
+        ("randomize,m", "Randomize move selection at root.")
+        ("tempdecay,d", po::value<int>(),
+                       "Use decay schedule for move selection temperature.")
         ("seed,s", po::value<std::uint64_t>(),
                    "Random number generation seed.")
         ("weights,w", po::value<std::string>(), "File with network weights.")
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
         ("noponder", "Disable thinking on opponent's time.")
+        ("uci", "Don't initialize the engine until \"isready\" command is sent. Use this if your GUI is freezing on startup.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
         ("supervise", po::value<std::string>(), "Dump supervised learning data from the pgn.")
         ("gpu",  po::value<std::vector<int> >(),
@@ -153,8 +156,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
     if (vm.count("weights")) {
         cfg_weightsfile = vm["weights"].as<std::string>();
     } else if (cfg_supervise.empty()) {
-        myprintf("A network weights file is required to use the program.\n");
-        exit(EXIT_FAILURE);
+        cfg_weightsfile = "weights.txt";
     }
 
     if (vm.count("threads")) {
@@ -193,12 +195,30 @@ static std::string parse_commandline(int argc, char *argv[]) {
         cfg_allow_pondering = false;
     }
 
+    if (vm.count("uci")) {
+        cfg_noinitialize = true;
+    }
+
     if (vm.count("noise")) {
         cfg_noise = true;
     }
 
     if (vm.count("randomize")) {
         cfg_randomize = true;
+        // When cfg_randomize is on, we need an accurate estimate of
+        // how good/bad all moves are, so turn cfg_timemanage off.
+        cfg_timemanage = false;
+    }
+
+    if (vm.count("tempdecay")) {
+        cfg_root_temp_decay = vm["tempdecay"].as<int>();
+        if (cfg_root_temp_decay < 0) {
+            myprintf("Nonsensical options: The temperature decay constant cannot be assigned a negative value, since that would turn the search useless in later game.\n");
+            exit(EXIT_FAILURE);
+        }
+        cfg_randomize = true;
+        // Setting a value for temperature decay constant also activates --randomize.
+        // However, time management is not deactivated by --tempdecay
     }
 
     if (vm.count("playouts")) {
@@ -345,11 +365,13 @@ int main(int argc, char* argv[]) {
 #endif
   thread_pool.initialize(cfg_num_threads);
   // Random::GetRng().seedrandom(cfg_rng_seed);
-  Network::initialize();
+  if (!cfg_noinitialize) {
+      Network::initialize();
+  }
 
   if (!cfg_supervise.empty()) {
-    generate_supervised_data(cfg_supervise);
-    return 0;
+      generate_supervised_data(cfg_supervise);
+      return 0;
   }
 
   UCI::loop(uci_start);
