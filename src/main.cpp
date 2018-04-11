@@ -78,7 +78,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
         ("noponder", "Disable thinking on opponent's time.")
-        ("noinitialize", "Don't initialize the engine until \"isready\" command is sent. Use this if your GUI is freezing on startup.")
+        ("uci", "Don't initialize the engine until \"isready\" command is sent. Use this if your GUI is freezing on startup.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
         ("supervise", po::value<std::string>(), "Dump supervised learning data from the pgn.")
         ("gpu",  po::value<std::vector<int> >(),
@@ -156,8 +156,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
     if (vm.count("weights")) {
         cfg_weightsfile = vm["weights"].as<std::string>();
     } else if (cfg_supervise.empty()) {
-        myprintf("A network weights file is required to use the program.\n");
-        exit(EXIT_FAILURE);
+        cfg_weightsfile = "weights.txt";
     }
 
     if (vm.count("threads")) {
@@ -196,7 +195,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
         cfg_allow_pondering = false;
     }
 
-    if (vm.count("noinitialize")) {
+    if (vm.count("uci")) {
         cfg_noinitialize = true;
     }
 
