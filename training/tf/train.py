@@ -16,21 +16,14 @@
 #    You should have received a copy of the GNU General Public License
 #    along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 
-import binascii
 import argparse
 import os
 import yaml
-import requests
-import hashlib
 import sys
 import glob
 import gzip
 import random
-import math
 import multiprocessing as mp
-import numpy as np
-import os
-import time
 import tensorflow as tf
 from tfprocess import TFProcess
 from chunkparser import ChunkParser
@@ -66,11 +59,6 @@ def get_latest_chunks(path, num_chunks):
     return chunks
 
 
-def upload(url, data, filename):
-    files = {'file': open(filename, 'rb')}
-    r = requests.post(url, data=data, files=files)
-
-
 class FileDataSrc:
     """
         data source yielding chunkdata from chunk files.
@@ -92,7 +80,6 @@ class FileDataSrc:
                     return chunk_file.read()
             except:
                 print("failed to parse {}".format(filename))
-
 
 
 def main(cmd):
@@ -142,33 +129,19 @@ def main(cmd):
     for _ in range(cfg['training']['total_steps']):
         tfprocess.process(ChunkParser.BATCH_SIZE, num_evals)
 
-    tfprocess.save_leelaz_weights('/tmp/weights.txt')
+    tfprocess.save_leelaz_weights(cmd.output)
 
-    with open('/tmp/weights.txt', 'rb') as f:
-        m = hashlib.sha256()
-        w = f.read()
-        m.update(w)
-        digest = m.hexdigest()
-
-    filename = os.path.join(root_dir, '{}.gz'.format(digest))
-    with gzip.open(filename, 'wb') as f:
-        print("Written to `{}'".format(filename))
-        f.write(w)
-
-    if cmd.upload:
-        metadata = {'training_id':'1', 'layers':cfg['model']['residual_blocks'],
-                'filters':cfg['model']['filters']}
-        print("\nUploading `{}'...".format(digest[:8]), end='')
-        upload(cmd.upload, metadata, filename)
-        print("[done]\n")
+    tfprocess.session.close()
+    train_parser.shutdown()
+    test_parser.shutdown()
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description=\
     'Tensorflow pipeline for training Leela Chess.')
     argparser.add_argument('--cfg', type=argparse.FileType('r'), 
         help='yaml configuration with training parameters')
-    argparser.add_argument('--upload', type=str, default="",
-        help='url to upload gzipped nets to')
+    argparser.add_argument('--output', type=str, 
+        help='file to store weights in')
 
     mp.set_start_method('spawn')
     main(argparser.parse_args())
