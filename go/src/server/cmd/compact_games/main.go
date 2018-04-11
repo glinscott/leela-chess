@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"server/db"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -55,7 +57,8 @@ func tarGame(game *db.TrainingGame, dir string, tw *tar.Writer) error {
 	defer gzFile.Close()
 	gzr, err := gzip.NewReader(gzFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Skipping %s: %v\n", path, err)
+		return nil
 	}
 	defer gzr.Close()
 
@@ -74,6 +77,12 @@ func tarGame(game *db.TrainingGame, dir string, tw *tar.Writer) error {
 		log.Fatal(err)
 	}
 
+	// Remove the temporary file
+	err = os.Remove(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return nil
 }
 
@@ -84,7 +93,7 @@ func tarGames(games []db.TrainingGame) string {
 	}
 	defer os.RemoveAll(dir)
 
-	outputPath := fmt.Sprintf("games%d.tar.gz", games[0].ID)
+	outputPath := fmt.Sprintf("games%d.tar.gz", games[0].ID / 10000 * 10000)
 	outputTar, err := os.Create(outputPath)
 	if err != nil {
 		log.Fatalln(err)
@@ -110,21 +119,62 @@ func tarGames(games []db.TrainingGame) string {
 	return outputPath
 }
 
-func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+func deleteCompactedGames() {
+	dir := "../../games/run1/"
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	db.Init(true)
-	defer db.Close()
+	ids := []int{}
+	for _, file := range files {
+		id, err := strconv.Atoi(strings.Split(file.Name(), ".")[1])
+		if err != nil {
+			log.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
 
+	// Leave this many games on the server
+	leaveGames := 500000
+	log.Printf("Deleting from %d\n", ids[0])
+	for _, id := range ids {
+		if id + leaveGames >= ids[len(ids)-1] {
+			log.Printf("Deleted to %d\n", id)
+			break
+		}
+	}
+	log.Printf("Latest id %d\n", ids[len(ids)-1])
+
+	for _, id := range ids {
+		if id + leaveGames >= ids[len(ids)-1] {
+			break
+		}
+		err := os.Remove(dir + "training." + strconv.Itoa(id) + ".gz")
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
+func compactGames() bool {
 	// Query for all the active games we haven't yet compacted.
 	games := []db.TrainingGame{}
-	numGames := 10000
+	var numGames int64 = 10000
 	err := db.GetDB().Order("id asc").Limit(numGames).Where("compacted = false AND id >= 40000").Find(&games).Error
 	if err != nil {
 		log.Fatal(err)
 	}
-	if len(games) != numGames {
-		log.Fatal("Not enough games")
+	if len(games) != int(numGames) {
+		return false
+	}
+	stop := int64(games[0].ID) / numGames * numGames + numGames
+	for idx, game := range games {
+		if int64(game.ID) >= stop {
+			games = games[0:idx]
+			break
+		}
 	}
 
 	outputPath := tarGames(games)
@@ -145,4 +195,17 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	return true
+}
+
+func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	db.Init(true)
+	defer db.Close()
+
+	for compactGames() {
+	}
+
+	deleteCompactedGames()
 }

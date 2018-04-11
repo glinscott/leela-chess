@@ -1,0 +1,22 @@
+{{define "content"}}
+<h2>Training Data</h2>
+<div class="table-responsive">
+  <table class="table table-striped table-sm">
+    <thead>
+      <tr>
+        <th>URL</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .files}}
+      <tr>
+				<td><a href="{{.url}}">{{.url}}</a></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+{{define "scripts"}}
+{{end}}

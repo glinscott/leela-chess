@@ -61,6 +61,9 @@ type Match struct {
 	GameCap int
 	Done    bool
 	Passed  bool
+
+	// If true, this is not a promotion match
+	TestOnly bool
 }
 
 type MatchGame struct {
@@ -77,6 +80,8 @@ type MatchGame struct {
 	Result  int
 	Done    bool
 	Flip    bool
+	
+	EngineVersion string
 }
 
 type TrainingGame struct {
@@ -94,4 +99,6 @@ type TrainingGame struct {
 	Path      string
 	Pgn       string
 	Compacted bool
+
+	EngineVersion string
 }
