@@ -102,7 +102,7 @@ private:
     int m_maxvisits;
 
     bool quiet_ = true;
-    bool uci_stop = false;
+    std::atomic<bool> uci_stop{false};
 
     int get_search_time();
 };
