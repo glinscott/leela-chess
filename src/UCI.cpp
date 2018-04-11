@@ -251,8 +251,10 @@ void go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
     Limits = LimitsType();
     string token;
 
-    if ((is >> token) && token == "infinite") Limits.infinite = 1;
-    else Limits.infinite = 0;
+    // TODO: See issue #287.
+    //if ((is >> token) && token == "infinite") Limits.infinite = 1;
+    //else Limits.infinite = 0;
+    Limits.infinite = 0;
 
     do {
         if (token == "wtime")          is >> Limits.time[WHITE];
@@ -265,8 +267,10 @@ void go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
         else if (token == "movetime")  is >> Limits.movetime;
     } while (is >> token);
 
-    std::thread lol(gohelper, std::ref(search), std::ref(bh));
-    lol.detach();
+    // TODO: See issue #287.
+    //std::thread lol(gohelper, std::ref(search), std::ref(bh));
+    //lol.detach();
+    gohelper(search, bh);
 }
 
 
