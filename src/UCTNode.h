@@ -45,6 +45,8 @@ public:
     size_t count_nodes() const;
     bool first_visit() const;
     bool has_children() const;
+    void set_active(const bool active);
+    bool active() const;
     bool create_children(std::atomic<int> & nodecount, const BoardHistory& state, float& eval);
     Move get_move() const;
     int get_visits() const;
@@ -58,10 +60,10 @@ public:
     void virtual_loss(void);
     void virtual_loss_undo(void);
     void dirichlet_noise(float epsilon, float alpha);
-    void randomize_first_proportionally();
+    void randomize_first_proportionally(float tau);
     void update(float eval = std::numeric_limits<float>::quiet_NaN());
 
-    UCTNode* uct_select_child(Color color);
+    UCTNode* uct_select_child(Color color, bool is_root);
     UCTNode* get_first_child() const;
     const std::vector<node_ptr_t>& get_children() const;
 
@@ -71,6 +73,11 @@ public:
     UCTNode::node_ptr_t find_path(std::vector<Move>& moves);
 
 private:
+    enum Status : char {
+        //INVALID, // superko for Go, NA for chess.
+        PRUNED,
+        ACTIVE
+    };
     void link_nodelist(std::atomic<int>& nodecount, std::vector<Network::scored_node>& nodelist, float init_eval);
 
     // Move
@@ -82,6 +89,7 @@ private:
     float m_score;
     float m_init_eval;
     std::atomic<double> m_whiteevals{0};
+    std::atomic<Status> m_status{ACTIVE};
     // Is someone adding scores to this node?
     // We don't need to unset this.
     bool m_is_expanding{false};
