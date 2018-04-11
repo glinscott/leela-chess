@@ -61,12 +61,12 @@ def plot_stats(stats, name, cfg):
     max_plies = stats['white'].size
     fig=plt.figure(figsize=(12, 5), dpi=80)
     plt.xlim(0, max_plies)
-    plt.xlabel('plies')
+    plt.xlabel('ply (half-move)')
     plt.ylabel('games')
     games = int(np.sum(stats['plycount']))
     cutoff = (stats['plycount'][max_plies-1][0] / float(games)) * 100
     plt.title('{} games, (w {}%, b {}%, d {}%) - {:.2f}% cutoff [{}]'.format(games, w, b, d, cutoff, name))
-    
+
     for i, k in enumerate(['white', 'black', 'nomaterial', 'stalemate', '3-fold', '50-move']):
         stats[k][stats[k] == 0] = np.nan
         plt.plot(range(1, max_plies), stats[k][:max_plies-1], "{}".format(types[i]+colors[i]), label=k, markeredgecolor=edges[i])
@@ -90,7 +90,7 @@ def main(cfg):
         names = ['plycount', 'checkmate', 'stalemate', 'gameover', 'nomaterial', 'white', 'black', 'draw', '3-fold', '50-move']
         stats = {}
         failed = 0
-        
+
         for name in names:
             stats[name] = np.zeros((MAX_PLIES, 1), dtype=np.float32)
 
@@ -125,7 +125,7 @@ def main(cfg):
                         stats['black'][plies] += 1
                 else:
                     stats['draw'][plies] += 1
-                
+
                 if board.is_stalemate():
                     stats['stalemate'][plies] += 1
                 elif board.is_insufficient_material():
@@ -134,7 +134,7 @@ def main(cfg):
                     stats['3-fold'][plies] += 1
                 elif board.can_claim_fifty_moves():
                     stats['50-move'][plies] += 1
-                
+
                 if board.is_game_over():
                     stats['gameover'][plies] += 1
 
@@ -148,4 +148,3 @@ def main(cfg):
 if __name__ == "__main__":
     cfg = get_configuration()
     main(cfg)
-
