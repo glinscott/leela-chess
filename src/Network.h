@@ -115,6 +115,7 @@ public:
     static size_t get_num_output_policy();
 
 private:
+    static bool initialized;
     static std::pair<int, int> load_network(std::ifstream& wtfile);
     static std::pair<int, int> load_network_file(std::string filename);
     static void process_bn_var(std::vector<float>& weights,

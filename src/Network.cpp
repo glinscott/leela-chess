@@ -65,6 +65,7 @@ using namespace Utils;
 // Not sure why only T_HISTORY and not all the others.
 constexpr int Network::T_HISTORY;
 
+bool Network::initialized = false;
 size_t Network::m_format_version{0};
 std::unordered_map<Move, int, std::hash<int>> Network::old_move_lookup;
 std::unordered_map<Move, int, std::hash<int>> Network::new_move_lookup;
@@ -348,6 +349,8 @@ std::pair<int, int> Network::load_network_file(std::string filename) {
 }
 
 void Network::initialize(void) {
+	if (initialized) return;
+	initialized = true;
     init_move_map();
 
     // Load network from file
