@@ -102,10 +102,6 @@ public:
     static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
 
     static void initialize();
-    //static void benchmark(const GameState * state, int iterations = 1600);
-    static void softmax(const std::vector<float>& input,
-                        std::vector<float>& output,
-                        float temperature = 1.0f);
 
     static int lookup(Move move, Color c);
     static void gather_features(const BoardHistory& pos, NNPlanes& planes);
@@ -115,6 +111,7 @@ public:
     static size_t get_num_output_policy();
 
 private:
+    static bool initialized;
     static std::pair<int, int> load_network(std::ifstream& wtfile);
     static std::pair<int, int> load_network_file(std::string filename);
     static void process_bn_var(std::vector<float>& weights,
@@ -123,6 +120,9 @@ private:
     static std::unordered_map<Move, int, std::hash<int>> old_move_lookup;
     static std::unordered_map<Move, int, std::hash<int>> new_move_lookup;
 
+    static void softmax(const std::vector<float>& input,
+                        std::vector<float>& output,
+                        float temperature = 1.0f);
     static std::vector<float> winograd_transform_f(const std::vector<float>& f,
         const int outputs, const int channels);
     static std::vector<float> zeropad_U(const std::vector<float>& U,

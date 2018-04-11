@@ -78,7 +78,7 @@ func getExtraParams() map[string]string {
 	return map[string]string{
 		"user":     *USER,
 		"password": *PASSWORD,
-		"version":  "4",
+		"version":  "5",
 	}
 }
 
@@ -396,6 +396,6 @@ func main() {
 			continue
 		}
 		elapsed := time.Since(start)
-		log.Printf("Completed %d games in %s time", i + 1, elapsed)
+		log.Printf("Completed %d games in %s time", i+1, elapsed)
 	}
 }

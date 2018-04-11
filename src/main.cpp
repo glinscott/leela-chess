@@ -78,6 +78,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
         ("noponder", "Disable thinking on opponent's time.")
+        ("uci", "Don't initialize the engine until \"isready\" command is sent. Use this if your GUI is freezing on startup.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
         ("supervise", po::value<std::string>(), "Dump supervised learning data from the pgn.")
         ("gpu",  po::value<std::vector<int> >(),
@@ -155,8 +156,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
     if (vm.count("weights")) {
         cfg_weightsfile = vm["weights"].as<std::string>();
     } else if (cfg_supervise.empty()) {
-        myprintf("A network weights file is required to use the program.\n");
-        exit(EXIT_FAILURE);
+        cfg_weightsfile = "weights.txt";
     }
 
     if (vm.count("threads")) {
@@ -193,6 +193,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("noponder")) {
         cfg_allow_pondering = false;
+    }
+
+    if (vm.count("uci")) {
+        cfg_noinitialize = true;
     }
 
     if (vm.count("noise")) {
@@ -361,11 +365,13 @@ int main(int argc, char* argv[]) {
 #endif
   thread_pool.initialize(cfg_num_threads);
   // Random::GetRng().seedrandom(cfg_rng_seed);
-  Network::initialize();
+  if (!cfg_noinitialize) {
+      Network::initialize();
+  }
 
   if (!cfg_supervise.empty()) {
-    generate_supervised_data(cfg_supervise);
-    return 0;
+      generate_supervised_data(cfg_supervise);
+      return 0;
   }
 
   UCI::loop(uci_start);
