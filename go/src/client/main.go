@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"./http"
+	"client/http"
 
 	"github.com/notnil/chess"
 )
@@ -396,6 +396,6 @@ func main() {
 			continue
 		}
 		elapsed := time.Since(start)
-		log.Printf("Completed %d games in %s time", i + 1, elapsed)
+		log.Printf("Completed %d games in %s time", i+1, elapsed)
 	}
 }
