@@ -99,7 +99,7 @@ func tarGames(games []db.TrainingGame) string {
 		log.Fatalln(err)
 	}
 	defer outputTar.Close()
-	gw := gzip.NewWriter(outputTar)
+	gw := gzip.NewWriterLevel(outputTar, BestCompression)
 	defer gw.Close()
 	tw := tar.NewWriter(gw)
 	defer tw.Close()
