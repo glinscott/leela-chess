@@ -241,7 +241,7 @@ void gohelper(UCTSearch & search, BoardHistory &bh) {
     myprintf_so("bestmove %s\n", UCI::move(move).c_str());
 }
 
-void go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
+unique_ptr<std::thread> go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
 
     Limits = LimitsType();
     string token;
@@ -260,8 +260,7 @@ void go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
         else if (token == "movetime")  is >> Limits.movetime;
     } while (is >> token);
 
-    std::thread lol(gohelper, std::ref(search), std::ref(bh));
-    lol.detach();
+    return unique_ptr<thread>(new std::thread (gohelper, std::ref(search), std::ref(bh)));
 }
 
 
@@ -276,6 +275,7 @@ void UCI::loop(const std::string& start) {
   BoardHistory bh;
   bh.set(Position::StartFEN);
   UCTSearch search (bh.shallow_clone());//std::make_unique<UCTSearch>(bh.shallow_clone());
+  std::unique_ptr<std::thread> search_thread(nullptr); //keep track of ONE search thread
 
   do {
       if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF
@@ -306,8 +306,15 @@ void UCI::loop(const std::string& start) {
           myprintf_so("id name lczero\nuciok\n");
       }
       else if (token == "setoption")  setoption(is);
-      else if (token == "go")         go(search,bh,is);
-      else if (token == "stop")       search.please_stop();
+      else if (token == "go") {
+          search.please_stop();
+          if (search_thread && search_thread->joinable()) search_thread->join();
+          search_thread = go(search, bh, is);
+      }
+      else if (token == "stop") {
+          search.please_stop();
+          if (search_thread && search_thread->joinable()) search_thread->join();
+      }
       else if (token == "perft")      uci_perft(bh, is);
       else if (token == "position")   position(bh, is);
       else if (token == "ucinewgame") ;

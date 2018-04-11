@@ -376,6 +376,8 @@ bool UCTSearch::should_halt_search() {
 // Asks the search to stop politely
 void UCTSearch::please_stop()
 {
+    Limits.infinite = 0;
+    m_run = false;
     uci_stop = true;
 }
 
