@@ -347,7 +347,7 @@ void UCTWorker::operator()() {
         if (result.valid()) {
             m_search->increment_playouts();
         }
-    } while (m_search->is_running() && !m_search->should_halt_search());
+    } while (m_search->is_running());
 }
 
 void UCTSearch::increment_playouts() {
@@ -425,8 +425,13 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         // check if we should still search
         keeprunning = is_running();
         keeprunning &= !should_halt_search();
-        keeprunning &= have_alternate_moves();
-    } while(keeprunning || Limits.infinite);
+        if (!Limits.infinite) {
+            // have_alternate_moves has the side effect
+            // of pruning moves, so be careful to not even
+            // call it when running infinite.
+            keeprunning &= have_alternate_moves();
+        }
+    } while(keeprunning);
 
     // stop the search
     m_run = false;
