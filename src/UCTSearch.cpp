@@ -499,6 +499,7 @@ int UCTSearch::get_search_time() {
 // Used to check if we've run out of time or reached out playout limit
 bool UCTSearch::should_halt_search() {
     if (uci_stop) return true;
+    if (Limits.infinite) return false;
     auto elapsed_millis = now() - m_start_time;
     return m_target_time < 0 ? pv_limit_reached()
         : m_target_time < elapsed_millis;
