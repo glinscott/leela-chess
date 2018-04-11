@@ -293,13 +293,12 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     auto parentvisits = size_t{0};
 	// Net eval can be obtained from an unvisited child. This is invalid
 	// if there are no unvisited children, but then this isn't used in that case.
-	auto net_eval = 0.0f;
+    auto net_eval = 0.0f;
     for (const auto& child : m_children) {
         parentvisits += child->get_visits();
         if (child->get_visits() > 0) {
             total_visited_policy += child->get_score();
         } else {
-			net_eval = child->get_eval(color);
         }
     }
 
