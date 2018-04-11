@@ -237,7 +237,7 @@ func uploadNetwork(c *gin.Context) {
 		CurrentBestID: training_run.BestNetworkID,
 		Done:          false,
 		GameCap:       400,
-		Parameters:    `["--noise"]`,
+		Parameters:    `["--tempdecay 10"]`,
 	}
 	err = db.GetDB().Create(&match).Error
 	if err != nil {
