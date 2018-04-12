@@ -337,45 +337,29 @@ std::pair<int, int> Network::load_network(std::istream& wtfile) {
 }
 
 std::pair<int, int> Network::load_network_file(std::string filename) {
-    auto wtfile = std::ifstream{filename};
-    if (wtfile.fail()) {
+    // gzopen supports both gz and non-gz files, will decompress or just read directly as needed.
+    auto gzhandle = gzopen(filename.c_str(), "rb");
+    if (gzhandle == nullptr) {
         myprintf("Could not open weights file: %s\n", filename.c_str());
         return {0, 0};
     }
-    // Check for gzip id bytes. 31, 139.
-    if (wtfile.get() != 31) {
-        wtfile.unget();
-    } else if (wtfile.get() != 139) {
-        wtfile.unget();
-        wtfile.unget();
-    } else {
-        // File is gzipped, reopen with zlib.
-        wtfile.close();
-        auto gzhandle = gzopen(filename.c_str(), "rb");
-        if (gzhandle == nullptr) {
-            myprintf("Could not open weights file for decompression: %s\n", filename.c_str());
+    // Stream the gz file in to a memory buffer stream.
+    std::stringstream buffer;
+    const int chunkBufferSize = 64 * 1024;
+    std::vector<char> chunkBuffer(chunkBufferSize);
+    while (true) {
+        int bytesRead = gzread(gzhandle, chunkBuffer.data(), chunkBufferSize);
+        if (bytesRead == 0) break;
+        if (bytesRead < 0) {
+            myprintf("Failed to decompress or read: %s\n", filename.c_str());
+            gzclose(gzhandle);
             return {0, 0};
         }
-        // Stream the gz file in to a memory buffer stream.
-        std::stringstream buffer;
-        const int chunkBufferSize = 64 * 1024;
-        std::vector<char> chunkBuffer(chunkBufferSize);
-        while (true) {
-            int bytesRead = gzread(gzhandle, chunkBuffer.data(), chunkBufferSize);
-            if (bytesRead == 0) break;
-            if (bytesRead < 0) {
-                myprintf("Failed to decompress: %s\n", filename.c_str());
-                return {0, 0};
-            }
-            assert(bytesRead <= chunkBufferSize);
-            buffer.write(chunkBuffer.data(), bytesRead);
-        }
-        auto result = load_network(buffer);
-        gzclose(gzhandle);
-        return result;
+        assert(bytesRead <= chunkBufferSize);
+        buffer.write(chunkBuffer.data(), bytesRead);
     }
-    auto result = load_network(wtfile);
-    wtfile.close();
+    auto result = load_network(buffer);
+    gzclose(gzhandle);
     return result;
 }
 
