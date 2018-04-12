@@ -304,7 +304,7 @@ size_t UCTSearch::prune_noncontenders() {
 }
 
 bool UCTSearch::have_alternate_moves() {
-    if (!cfg_timemanage) {
+    if (!cfg_timemanage || Limits.infinite) {
         // When timemanage is off always return true.
         // Even if there is only one legal move, we need to get
         // an accurate winrate for self play training output.
@@ -504,7 +504,7 @@ void UCTSearch::please_stop()
 {
     Limits.infinite = 0;
     m_run = false;
-    uci_stop = true;
+    //uci_stop = true;
 }
 
 void UCTSearch::set_playout_limit(int playouts) {
