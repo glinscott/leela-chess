@@ -239,10 +239,10 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
 // the thinking time and other parameters from the input string, then starts
 // the search.
 
-void gohelper(UCTSearch & search, BoardHistory & bh) {
+void gohelper(UCTSearch & search, BoardHistory &bh) {
     Move move = search.think(bh.shallow_clone());
 
-    //bh.do_move(move);
+    bh.do_move(move);
     myprintf_so("bestmove %s\n", UCI::move(move).c_str());
 }
 
@@ -319,7 +319,6 @@ void UCI::loop(const std::string& start) {
       else if (token == "stop") {
           search.please_stop();
           if (search_thread && search_thread->joinable()) search_thread->join();
-          //search_thread = nullptr;
       }
       else if (token == "perft")      uci_perft(bh, is);
       else if (token == "position")   position(bh, is);
@@ -377,7 +376,6 @@ void UCI::loop(const std::string& start) {
 	  }
 
   } while (start.empty()); // Command line args are one-shot
-  if (search_thread && search_thread->joinable()) search_thread->join();
 }
 
 /// UCI::square() converts a Square to a string in algebraic notation (g1, a7, etc.)
