@@ -41,10 +41,10 @@ using namespace Utils;
 
 static void license_blurb() {
     myprintf_so(
-        "LCZero %s Copyright (C) 2017  Gary Linscott and contributors\n"
+        "LCZero %s Copyright (C) 2017-2018  Gary Linscott and contributors\n"
         "Based on:\n"
         "Leela Chess Copyright (C) 2017 benediamond\n"
-        "Leela Zero Copyright (C) 2017  Gian-Carlo Pascutto and contributors\n"
+        "Leela Zero Copyright (C) 2017-2018  Gian-Carlo Pascutto and contributors\n"
         "Stockfish Copyright (C) 2017  Tord Romstad, Marco Costalba, Joona Kiiski, Gary Linscott\n"
         "This program comes with ABSOLUTELY NO WARRANTY.\n"
         "This is free software, and you are welcome to redistribute it\n"
