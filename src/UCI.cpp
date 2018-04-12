@@ -237,16 +237,17 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
 
 // go() is called when engine receives the "go" UCI command. The function sets
 // the thinking time and other parameters from the input string, then starts
-// the search.
+// the search. It returns a handle to the search thread so the UI loop can continue
+// to run.
 
 void gohelper(UCTSearch & search, BoardHistory &bh) {
     Move move = search.think(bh.shallow_clone());
 
-    bh.do_move(move);
+    //bh.do_move(move);
     myprintf_so("bestmove %s\n", UCI::move(move).c_str());
 }
 
-unique_ptr<std::thread> go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
+std::thread go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
 
     Limits = LimitsType();
     string token;
@@ -265,7 +266,7 @@ unique_ptr<std::thread> go(UCTSearch& search, BoardHistory& bh, istringstream& i
         else if (token == "movetime")  is >> Limits.movetime;
     } while (is >> token);
 
-    return unique_ptr<thread>(new std::thread (gohelper, std::ref(search), std::ref(bh)));
+    return std::thread (gohelper, std::ref(search), std::ref(bh));
 }
 
 
@@ -280,7 +281,7 @@ void UCI::loop(const std::string& start) {
   BoardHistory bh;
   bh.set(Position::StartFEN);
   UCTSearch search (bh.shallow_clone());//std::make_unique<UCTSearch>(bh.shallow_clone());
-  std::unique_ptr<std::thread> search_thread(nullptr); //keep track of ONE search thread
+  std::thread search_thread; //keep track of ONE search thread
 
   do {
       if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF
@@ -313,12 +314,12 @@ void UCI::loop(const std::string& start) {
       else if (token == "setoption")  setoption(is);
       else if (token == "go") {
           search.please_stop();
-          if (search_thread && search_thread->joinable()) search_thread->join();
+          if (search_thread.joinable()) search_thread.join();
           search_thread = go(search, bh, is);
       }
       else if (token == "stop") {
           search.please_stop();
-          if (search_thread && search_thread->joinable()) search_thread->join();
+          if (search_thread.joinable()) search_thread.join();
       }
       else if (token == "perft")      uci_perft(bh, is);
       else if (token == "position")   position(bh, is);
@@ -376,6 +377,7 @@ void UCI::loop(const std::string& start) {
 	  }
 
   } while (start.empty()); // Command line args are one-shot
+  if (search_thread.joinable()) search_thread.join();
 }
 
 /// UCI::square() converts a Square to a string in algebraic notation (g1, a7, etc.)
