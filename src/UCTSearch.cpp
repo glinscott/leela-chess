@@ -279,7 +279,7 @@ int UCTSearch::est_playouts_left() const {
         return MAXINT_DIV2;
     } else {
         const auto playout_rate = 1.0f * playouts / elapsed_millis;
-        const auto time_left = std::max(0l, m_target_time - elapsed_millis);
+        const auto time_left = std::max<int>(0, m_target_time - elapsed_millis);
         return static_cast<int>(std::ceil(playout_rate * time_left));
     }
 }
