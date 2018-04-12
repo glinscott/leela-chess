@@ -42,7 +42,7 @@ using namespace Utils;
 static void license_blurb() {
     myprintf_so(
         "LCZero %s Copyright (C) 2017  Gary Linscott\n"
-        "Based on:"
+        "Based on:\n"
         "Leela Chess Copyright (C) 2017 benediamond\n"
         "Leela Zero Copyright (C) 2017  Gian-Carlo Pascutto\n"
         "Stockfish Copyright (C) 2017  Tord Romstad, Marco Costalba, Joona Kiiski, Gary Linscott\n"
