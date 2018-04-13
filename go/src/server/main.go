@@ -46,7 +46,7 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 	if err != nil {
 		return nil, 0, errors.New("Invalid version")
 	}
-	if version < 4 {
+	if version < 5 {
 		log.Println("Rejecting old game from %s, version %d", user.Username, version)
 		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 	}
@@ -237,7 +237,7 @@ func uploadNetwork(c *gin.Context) {
 		CurrentBestID: training_run.BestNetworkID,
 		Done:          false,
 		GameCap:       400,
-		Parameters:    `["--tempdecay 10"]`,
+		Parameters:    `["--tempdecay=10"]`,
 	}
 	err = db.GetDB().Create(&match).Error
 	if err != nil {
