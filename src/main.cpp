@@ -89,6 +89,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
 #endif
 #ifdef USE_TUNER
         ("puct", po::value<float>())
+        ("fpu_reduction", po::value<float>())
         ("softmax_temp", po::value<float>())
 #endif
         ;
@@ -137,6 +138,9 @@ static std::string parse_commandline(int argc, char *argv[]) {
 #ifdef USE_TUNER
     if (vm.count("puct")) {
         cfg_puct = vm["puct"].as<float>();
+    }
+    if (vm.count("fpu_reduction")) {
+        cfg_fpu_reduction = vm["fpu_reduction"].as<float>();
     }
     if (vm.count("softmax_temp")) {
         cfg_softmax_temp = vm["softmax_temp"].as<float>();
