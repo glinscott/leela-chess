@@ -269,8 +269,9 @@ int UCTSearch::est_playouts_left() const {
     auto playouts = m_playouts.load();
     if (m_target_time < 0) {
         // No time control, use playouts or visits.
-        const auto playouts_left = std::min(m_maxplayouts - playouts,
-                                            m_maxvisits - m_root->get_visits());
+        const auto playouts_left =
+                std::max(0, std::min(m_maxplayouts - playouts,
+                                     m_maxvisits - m_root->get_visits()));
         return playouts_left;
     } else if (elapsed_millis < 1000 || playouts < 100) {
         // Until we reach 1 second or 100 playouts playout_rate
@@ -278,7 +279,7 @@ int UCTSearch::est_playouts_left() const {
         return MAXINT_DIV2;
     } else {
         const auto playout_rate = 1.0f * playouts / elapsed_millis;
-        const auto time_left = m_target_time - elapsed_millis;
+        const auto time_left = std::max<int>(0, m_target_time - elapsed_millis);
         return static_cast<int>(std::ceil(playout_rate * time_left));
     }
 }

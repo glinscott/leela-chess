@@ -34,6 +34,7 @@
 #include <thread>
 #include <boost/utility.hpp>
 #include <boost/format.hpp>
+#include "zlib.h"
 
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
@@ -197,14 +198,31 @@ std::vector<float> Network::zeropad_U(const std::vector<float>& U,
 
 extern "C" void openblas_set_num_threads(int num_threads);
 
-std::pair<int, int> Network::load_network(std::ifstream& wtfile) {
+std::pair<int, int> Network::load_network(std::istream& wtfile) {
+    // Read format version
+    auto line = std::string{};
+    if (std::getline(wtfile, line)) {
+        auto iss = std::stringstream{ line };
+        // First line is the file format version id
+        iss >> m_format_version;
+        if (iss.fail()
+            || m_format_version > MAX_FORMAT_VERSION
+            || m_format_version < 1) {
+            myprintf("Weights file is the wrong version.\n");
+            return {0, 0};
+        } else {
+            assert(m_format_version <= MAX_FORMAT_VERSION);
+        }
+    } else {
+        myprintf("Weights file is empty.\n");
+        return {0, 0};
+    }
     // Count size of the network
     myprintf("Detecting residual layers...");
     myprintf("v%d...", m_format_version);
     // First line was the version number
     auto linecount = size_t{1};
     auto channels = 0;
-    auto line = std::string{};
     while (std::getline(wtfile, line)) {
         auto iss = std::stringstream{line};
         // Third line of parameters are the convolution layer biases,
@@ -314,36 +332,35 @@ std::pair<int, int> Network::load_network(std::ifstream& wtfile) {
         }
         linecount++;
     }
-    wtfile.close();
 
     return {channels, residual_blocks};
 }
 
 std::pair<int, int> Network::load_network_file(std::string filename) {
-    auto wtfile = std::ifstream{filename};
-    if (wtfile.fail()) {
+    // gzopen supports both gz and non-gz files, will decompress or just read directly as needed.
+    auto gzhandle = gzopen(filename.c_str(), "rb");
+    if (gzhandle == nullptr) {
         myprintf("Could not open weights file: %s\n", filename.c_str());
         return {0, 0};
     }
-
-    // Read format version
-    auto line = std::string{};
-    if (std::getline(wtfile, line)) {
-        auto iss = std::stringstream{line};
-        // First line is the file format version id
-        iss >> m_format_version;
-        if (iss.fail()
-            || m_format_version > MAX_FORMAT_VERSION
-            || m_format_version < 1) {
-            myprintf("Weights file is the wrong version.\n");
+    // Stream the gz file in to a memory buffer stream.
+    std::stringstream buffer;
+    const int chunkBufferSize = 64 * 1024;
+    std::vector<char> chunkBuffer(chunkBufferSize);
+    while (true) {
+        int bytesRead = gzread(gzhandle, chunkBuffer.data(), chunkBufferSize);
+        if (bytesRead == 0) break;
+        if (bytesRead < 0) {
+            myprintf("Failed to decompress or read: %s\n", filename.c_str());
+            gzclose(gzhandle);
             return {0, 0};
-        } else {
-            assert(m_format_version <= MAX_FORMAT_VERSION);
-            return load_network(wtfile);
         }
+        assert(bytesRead <= chunkBufferSize);
+        buffer.write(chunkBuffer.data(), bytesRead);
     }
-
-    return {0, 0};
+    auto result = load_network(buffer);
+    gzclose(gzhandle);
+    return result;
 }
 
 void Network::initialize(void) {
