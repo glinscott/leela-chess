@@ -49,8 +49,6 @@ LimitsType Limits;
 
 UCTSearch::UCTSearch(BoardHistory&& bh)
     : bh_(std::move(bh)) {
-    set_playout_limit(cfg_max_playouts);
-    set_visit_limit(cfg_max_visits);
     m_root = std::make_unique<UCTNode>(MOVE_NONE, 0.0f, 0.5f);
 }
 
@@ -388,6 +386,15 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     Time.init(bh_.cur().side_to_move(), bh_.cur().game_ply());
     m_target_time = get_search_time();
     m_start_time = Limits.timeStarted();
+
+    // set up playout limits
+    if (Limits.nodes == 0) {
+        set_playout_limit(cfg_max_playouts);
+        set_visit_limit(cfg_max_visits);
+    } else {
+        set_playout_limit(Limits.nodes);
+        set_visit_limit(0);
+    }
 
     // create a sorted list of legal moves (make sure we
     // play something legal and decent even in time trouble)
