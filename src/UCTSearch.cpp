@@ -392,8 +392,8 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         set_playout_limit(cfg_max_playouts);
         set_visit_limit(cfg_max_visits);
     } else {
-        set_playout_limit(Limits.nodes);
-        set_visit_limit(0);
+        set_playout_limit(0);
+        set_visit_limit(Limits.nodes);
     }
 
     // create a sorted list of legal moves (make sure we
