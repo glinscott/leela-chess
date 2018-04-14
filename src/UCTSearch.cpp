@@ -236,7 +236,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
         return;
     }
 
-    auto bh = bh_.shallow_clone();
+    auto bh = bh_.clone_recent_positions();
     Color color = bh.cur().side_to_move();
 
     std::string pvstring = get_pv(bh, *m_root);
@@ -343,7 +343,7 @@ bool UCTSearch::pv_limit_reached() const {
 
 void UCTWorker::operator()() {
     do {
-        BoardHistory bh = bh_.shallow_clone();
+        BoardHistory bh = bh_.clone_recent_positions();
         auto result = m_search->play_simulation(bh, m_root);
         if (result.valid()) {
             m_search->increment_playouts();
@@ -373,7 +373,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     m_nodes = m_root->count_nodes();
     // TODO: Both UCI and the next line do shallow_clone.
     // Could optimize this.
-    bh_ = new_bh.shallow_clone();
+    bh_ = new_bh.clone_recent_positions();
     m_prevroot_full_key = new_bh.cur().full_key();
 
 #ifndef NDEBUG
@@ -410,7 +410,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     bool keeprunning = true;
     int last_update = 0;
     do {
-        auto currstate = bh_.shallow_clone();
+        auto currstate = bh_.clone_recent_positions();
         auto result = play_simulation(currstate, m_root.get());
         if (result.valid()) {
             increment_playouts();
@@ -469,7 +469,7 @@ void UCTSearch::ponder() {
         tg.add_task(UCTWorker(bh_, this, m_root.get()));
     }
     do {
-        auto bh = bh_.shallow_clone();
+        auto bh = bh_.clone_recent_positions();
         auto result = play_simulation(bh, m_root.get());
         if (result.valid()) {
             increment_playouts();

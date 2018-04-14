@@ -1400,14 +1400,12 @@ void BoardHistory::set(const std::string& fen) {
   cur().set(fen, states.back().get());
 }
 
-// Only need to copy the 8 most recent positions, as that's what is needed by
+// Only need to (deep) copy the 8 most recent positions, as that's what is needed by
 // the eval.  We don't need to fixup StateInfo, as we will never undo_move()
 // before the "root" state.
-BoardHistory BoardHistory::shallow_clone() const {
+BoardHistory BoardHistory::clone_recent_positions() const {
   BoardHistory h;
-  for (int i = std::max(0, static_cast<int>(positions.size()) - 8); i < static_cast<int>(positions.size()); ++i) {
-    h.positions.push_back(positions[i]);
-  }
+  h.positions = std::vector<Position>(max(positions.begin(), positions.end() - 8), positions.end()); // makes a deep copy via STL
   return h;
 }
 
