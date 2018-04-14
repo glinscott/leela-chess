@@ -96,7 +96,7 @@ var vlSpec = {
 		},
 		{
 			"transform": [
-				{ "filter": "datum.rating > -1" }
+				{ "filter": "datum.rating > -1 && isFinite(data.rating)" }
 			],
 			"mark": {"type": "point", "filled": true},
 			"encoding": {
