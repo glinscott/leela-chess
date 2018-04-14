@@ -41,7 +41,7 @@ func makeRunActive() {
 	}
 	//training_run.Active = true
 	//training_run.Description = "Initial testing run"
-	training_run.TrainParameters = `["--randomize", "-n", "-v1600"]`
+	training_run.TrainParameters = `["--randomize", "-n", "-v800"]`
 	err = db.GetDB().Save(&training_run).Error
 	if err != nil {
 		log.Fatal(err)
