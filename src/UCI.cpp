@@ -71,12 +71,9 @@ namespace {
         bh.do_move(m);
   }
 
-
   // setoption() is called when engine receives the "setoption" UCI command. The
   // function updates the UCI option ("name") to the given value ("value").
-
   void setoption(istringstream& is) {
-
     string token, name, value;
 
     is >> token; // Consume "name" token
@@ -89,7 +86,40 @@ namespace {
     while (is >> token)
         value += string(" ", value.empty() ? 0 : 1) + token;
 
-    myprintf_so("No such option: %s\n", name.c_str());
+      if (Options.count(name))
+          Options[name] = value;
+      else
+          myprintf_so("No such option: %s\n", name.c_str());
+  }
+
+  void parse_limits(istringstream& is, UCTSearch& search) {
+      Limits = LimitsType();
+      std::string token;
+
+      search.set_visit_limit(cfg_max_visits);
+      search.set_playout_limit(cfg_max_playouts);
+
+      while (is >> token) {
+          if (token == "wtime")          is >> Limits.time[WHITE];
+          else if (token == "btime")     is >> Limits.time[BLACK];
+          else if (token == "winc")      is >> Limits.inc[WHITE];
+          else if (token == "binc")      is >> Limits.inc[BLACK];
+          else if (token == "movestogo") is >> Limits.movestogo;
+          else if (token == "depth")     is >> Limits.depth;
+          else if (token == "nodes")     {
+              is >> Limits.nodes;
+
+              if (cfg_go_nodes_as_visits) {
+                  search.set_visit_limit(static_cast<int>(Limits.nodes));
+                  search.set_playout_limit(MAXINT_DIV2);
+              } else {
+                  search.set_playout_limit(static_cast<int>(Limits.nodes));
+                  search.set_visit_limit(MAXINT_DIV2);
+              }
+          }
+          else if (token == "movetime")  is >> Limits.movetime;
+          else if (token == "infinite")  Limits.infinite = 1;
+      };
   }
 
   // called when receiving the 'perft Depth' command
@@ -103,7 +133,12 @@ namespace {
   }
 
 void printVersion() {
-  myprintf_so("id name lczero " PROGRAM_VERSION "\nid author The LCZero Authors\nuciok\n");
+  std::stringstream options;
+  options << "id name lczero " PROGRAM_VERSION "\nid author The LCZero Authors";
+  options << Options << "\n";
+  options << "uciok\n";
+
+  myprintf_so("%s", options.str().c_str());
 }
 
 // Return the score from the self-play game
@@ -308,19 +343,7 @@ void UCI::loop(const std::string& start) {
       else if (token == "go") {
           wait_search();
 
-          Limits = LimitsType();
-
-          while (is >> token) {
-              if (token == "wtime")          is >> Limits.time[WHITE];
-              else if (token == "btime")     is >> Limits.time[BLACK];
-              else if (token == "winc")      is >> Limits.inc[WHITE];
-              else if (token == "binc")      is >> Limits.inc[BLACK];
-              else if (token == "movestogo") is >> Limits.movestogo;
-              else if (token == "depth")     is >> Limits.depth;
-              else if (token == "nodes")     is >> Limits.nodes;
-              else if (token == "movetime")  is >> Limits.movetime;
-              else if (token == "infinite")  Limits.infinite = 1;
-          };
+          parse_limits(is, search);
 
           search_thread = std::thread([&bh, &search, bhc = bh.shallow_clone(), &bh_mutex]() mutable {
               Move move = search.think(std::move(bhc));
