@@ -469,7 +469,7 @@ func matchResult(c *gin.Context) {
 }
 
 func getActiveUsers() (gin.H, error) {
-	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(training_games.created_at), count(*) FROM training_games
+	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(engine_version), MAX(training_games.created_at), count(*) FROM training_games
 LEFT JOIN users
 ON users.id = training_games.user_id
 WHERE training_games.created_at >= now() - INTERVAL '1 day'
@@ -487,9 +487,10 @@ ORDER BY count DESC`).Rows()
 		var user_id uint
 		var username string
 		var version int
+		var engine_version string
 		var created_at time.Time
 		var count uint64
-		rows.Scan(&user_id, &username, &version, &created_at, &count)
+		rows.Scan(&user_id, &username, &version, &engine_version, &created_at, &count)
 
 		active_users += 1
 		games_played += int(count)
@@ -503,6 +504,7 @@ ORDER BY count DESC`).Rows()
 			"games_today":  count,
 			"system":       "",
 			"version":      version,
+			"engine":       engine_version,
 			"last_updated": created_at,
 		})
 	}
