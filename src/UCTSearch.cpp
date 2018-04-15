@@ -242,12 +242,10 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     std::string pvstring = get_pv(bh, *m_root);
     float feval = m_root->get_eval(color);
     float winrate = 100.0f * feval;
-    // UCI-like output wants a depth and a cp.
-    // convert winrate to a cp estimate ... assume winrate = 1 / (1 + exp(-cp / 91))
-    // (91 can be tuned to have an output more or less matching e.g. SF, once both have similar strength)
-    int   cp = -91 * log(1 / feval - 1);
+    // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
+    int cp = 162 * tan(3.14 * (feval - 0.5));
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
-    int   depth = log(float(m_nodes)) / log(1.8);
+    int depth = log(float(m_nodes)) / log(1.8);
     // To report nodes, use visits.
     //   - Only includes expanded nodes.
     //   - Includes nodes carried over from tree reuse.
