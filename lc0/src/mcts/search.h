@@ -22,6 +22,7 @@
 #include <shared_mutex>
 #include <thread>
 #include "mcts/node.h"
+#include "neural/cache.h"
 #include "neural/network.h"
 #include "uciloop.h"
 #include "ucioptions.h"
@@ -38,7 +39,7 @@ class Search {
   Search(Node* root_node, NodePool* node_pool, const Network* network,
          BestMoveInfo::Callback best_move_callback,
          UciInfo::Callback info_callback, const SearchLimits& limits,
-         UciOptions* uci_options);
+         UciOptions* uci_options, NNCache* cache);
 
   ~Search();
 
@@ -56,8 +57,8 @@ class Search {
   // Aborts the search, and blocks until all worker thread finish.
   void AbortAndWait();
 
-  // Returns best move, from the point of view of white player.
-  Move GetBestMove() const;
+  // Returns best move, from the point of view of white player. And also ponder.
+  std::pair<Move, Move> GetBestMove() const;
 
  private:
   // Can run several copies of it in separate threads.
@@ -66,6 +67,10 @@ class Search {
   uint64_t GetTimeSinceStart() const;
   void MaybeTriggerStop();
   void MaybeOutputInfo();
+  bool AddNodeToCompute(Node* node, CachingComputation* computation,
+                        bool add_if_cached = true);
+  int PrefetchIntoCache(Node* node, int budget,
+                        CachingComputation* computation);
 
   void SendUciInfo();  // Requires nodes_mutex_ to be held.
 
@@ -80,6 +85,7 @@ class Search {
 
   Node* root_node_;
   NodePool* node_pool_;
+  NNCache* cache_;
 
   mutable std::shared_mutex nodes_mutex_;
   const Network* network_;
@@ -95,10 +101,9 @@ class Search {
 
   // External parameters.
   const int kMiniBatchSize;
+  const int kMiniPrefetchBatch;
+  const bool kAggresiveCaching;
   const float kCpuct;
-  const bool kPopulateMoves;
-  const bool kFlipHistory;
-  const bool kFlipMove;
 };
 
 }  // namespace lczero

@@ -20,6 +20,7 @@
 
 #include <shared_mutex>
 #include "mcts/search.h"
+#include "neural/cache.h"
 #include "neural/network.h"
 #include "uciloop.h"
 #include "ucioptions.h"
@@ -67,6 +68,7 @@ class EngineController {
   // Must not block.
   void Stop();
   void SetNetworkPath(const std::string& path);
+  void SetCacheSize(int size);
 
  private:
   void MakeMove(Move move);
@@ -77,6 +79,7 @@ class EngineController {
   BestMoveInfo::Callback best_move_callback_;
   UciInfo::Callback info_callback_;
 
+  NNCache cache_;
   std::unique_ptr<Network> network_;
   // Locked means that there is some work to wait before responding readyok.
   rp_shared_mutex busy_mutex_;

@@ -1,7 +1,7 @@
-project('lc0', 'cpp', 
-        default_options : ['c_std=c17', 'cpp_std=c++17'])
+project('lc0', 'cpp')
+  #        default_options : ['cpp_std=c++17'])
 
-# add_global_arguments('-Wno-macro-redefined', language : 'cpp')
+add_global_arguments('-std=c++17', language : 'cpp')
 cc = meson.get_compiler('cpp')
 
 # Installed from https://github.com/FloopCZ/tensorflow_cc
@@ -33,6 +33,8 @@ files = [
   'src/chess/board.cc',
   'src/neural/loader.cc',
   'src/neural/network_tf.cc',
+  'src/neural/network_random.cc',
+  'src/neural/cache.cc',
   'src/mcts/search.cc',
   'src/mcts/node.cc',
   'src/engine.cc',
@@ -60,5 +62,10 @@ test('ChessBoard',
 
 test('Network',
   executable('network_test', 'src/neural/network_test.cc',
+  files, include_directories: includes, dependencies: test_deps
+))
+
+test('HashCat',
+  executable('hashcat_test', 'src/utils/hashcat_test.cc',
   files, include_directories: includes, dependencies: test_deps
 ))
