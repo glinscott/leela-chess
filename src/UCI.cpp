@@ -100,6 +100,9 @@ namespace {
        myprintf_so("Total: %lld\n", total);
   }
 
+void printVersion() {
+  myprintf_so("id name lczero " PROGRAM_VERSION "\nid author The LCZero Authors\nuciok\n");
+}
 
 // Return the score from the self-play game
 int play_one_game(BoardHistory& bh) {
@@ -143,6 +146,8 @@ int play_one_game() {
 }
 
 void generate_training_games(istringstream& is) {
+  printVersion();
+
   namespace fs = boost::filesystem;
   std::string suffix;
   if (!(is >> suffix)) {
@@ -295,7 +300,7 @@ void UCI::loop(const std::string& start) {
       token.clear(); // Avoid a stale if getline() returns empty or blank line
       is >> skipws >> token;
 
-	  if (token == "quit" || token == "exit") break;
+      if (token == "quit" || token == "exit") break;
 
       /*
       // The GUI sends 'ponderhit' to tell us the user has played the expected move.
@@ -311,9 +316,7 @@ void UCI::loop(const std::string& start) {
           Threads.ponder = false; // Switch to normal search
       */
 
-      if (token == "uci") {
-          myprintf_so("id name lczero " PROGRAM_VERSION "\nid author The LCZero Authors\nuciok\n");
-      }
+      if (token == "uci")             printVersion();
       else if (token == "setoption")  setoption(is);
       else if (token == "go")         go(search,bh,is);
       else if (token == "stop")       search.please_stop();

@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"server/db"
 	"strconv"
@@ -223,6 +224,15 @@ func uploadNetwork(c *gin.Context) {
 		return
 	}
 
+	// TODO(gary): Make this more generic - upload to s3 for now
+	cmd := exec.Command("aws", "s3", "cp", network.Path, "s3://lczero/networks/")
+	err = cmd.Run()
+	if err != nil {
+		log.Println(err.Error())
+		c.String(500, "Uploading to s3")
+		return
+	}
+
 	// Create a match to see if this network is better
 	training_run, err := getTrainingRun(training_run_id)
 	if err != nil {
@@ -338,7 +348,9 @@ func getNetwork(c *gin.Context) {
 	}
 
 	// Serve the file
-	c.File(network.Path)
+	// NOTE: Disabled due to bandwidth, re-enable this for tests...
+	// c.File(network.Path)
+	c.Redirect(http.StatusMovedPermanently, "https://s3.amazonaws.com/lczero/" + network.Path)
 }
 
 func setBestNetwork(training_id uint, network_id uint) error {
@@ -469,7 +481,7 @@ func matchResult(c *gin.Context) {
 }
 
 func getActiveUsers() (gin.H, error) {
-	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(training_games.created_at), count(*) FROM training_games
+	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(engine_version), MAX(training_games.created_at), count(*) FROM training_games
 LEFT JOIN users
 ON users.id = training_games.user_id
 WHERE training_games.created_at >= now() - INTERVAL '1 day'
@@ -487,9 +499,10 @@ ORDER BY count DESC`).Rows()
 		var user_id uint
 		var username string
 		var version int
+		var engine_version string
 		var created_at time.Time
 		var count uint64
-		rows.Scan(&user_id, &username, &version, &created_at, &count)
+		rows.Scan(&user_id, &username, &version, &engine_version, &created_at, &count)
 
 		active_users += 1
 		games_played += int(count)
@@ -503,6 +516,7 @@ ORDER BY count DESC`).Rows()
 			"games_today":  count,
 			"system":       "",
 			"version":      version,
+			"engine":       engine_version,
 			"last_updated": created_at,
 		})
 	}
