@@ -97,8 +97,8 @@ void TimeManagement::init(Color us, int ply) {
 
         hypMyTime = std::max(hypMyTime, 0);
 
-        int t1 = remaining<OptimumTime>(hypMyTime, hypMTG, ply, 178);
-        int t2 = remaining<MaxTime    >(hypMyTime, hypMTG, ply, 178);
+        int t1 = remaining<OptimumTime>(hypMyTime, hypMTG, ply, 120);
+        int t2 = remaining<MaxTime    >(hypMyTime, hypMTG, ply, 120);
 
         optimumTime = std::min(t1, optimumTime);
         maximumTime = std::min(t2, maximumTime);
