@@ -19,7 +19,12 @@
 #pragma once
 
 #include <functional>
+#ifdef _MSC_VER
+#include "utils/optional.h"
+#else
 #include <optional>
+using std::optional;
+#endif
 #include <string>
 #include <vector>
 #include "chess/bitboard.h"
@@ -30,7 +35,8 @@ namespace lczero {
 void UciLoop(int argc, const char** argv);
 
 struct BestMoveInfo {
-  BestMoveInfo(Move bestmove) : bestmove(bestmove) {}
+  BestMoveInfo(Move bestmove, Move ponder = Move{})
+      : bestmove(bestmove), ponder(ponder) {}
   Move bestmove;
   Move ponder;
   using Callback = std::function<void(const BestMoveInfo&)>;
@@ -47,8 +53,10 @@ struct UciInfo {
   int64_t nodes = -1;
   // Nodes per second.
   int nps = -1;
+  // Hash fullness * 1000
+  int hashfull = -1;
   // Win in centipawns.
-  std::optional<int> score;
+  optional<int> score;
   // Best line found. Moves are from perspective of white player.
   std::vector<Move> pv;
   // Freeform comment.
