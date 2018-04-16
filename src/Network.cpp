@@ -263,15 +263,15 @@ std::pair<int, int> Network::load_network(std::istream& wtfile) {
     while (std::getline(wtfile, line)) {
         std::vector<float> weights;
         float weight;
-        std::istringstream iss(line);
+        char * fz = &line[0];
         bool ok = true;
-        for (; iss;) {
-            if (iss >> weight) {
-                weights.emplace_back(weight);
-            } else if (!iss.eof()) {
-                ok = false;
-                break;
+        for (; *fz != '\0';) {
+            char * tmp = fz;
+            weight = strtof(fz, &fz); // if the read fails, fz is unchanged and weight is 0.0F.
+            if (weight == 0.0F && tmp == fz) {
+                ok = false; break;
             }
+            weights.emplace_back(weight);
         }
         if (!ok) {
             myprintf("\nFailed to parse weight file. Error on line %d.\n",

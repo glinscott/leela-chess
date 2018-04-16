@@ -36,7 +36,7 @@ class BoardSquare {
   // From row(bottom to top), and col(left to right), 0-based.
   constexpr BoardSquare(int row, int col) : BoardSquare(row * 8 + col) {}
   // From Square name, e.g e4. Only lowercase.
-  constexpr BoardSquare(const std::string& str, bool black = false)
+  BoardSquare(const std::string& str, bool black = false)
       : BoardSquare(black ? '8' - str[1] : str[1] - '1', str[0] - 'a') {}
   constexpr std::uint8_t as_int() const { return square_; }
   void set(int row, int col) { square_ = row * 8 + col; }
@@ -198,11 +198,13 @@ class Move {
   BoardSquare from() const { return from_; }
   BoardSquare to() const { return to_; }
   Promotion promotion() const { return promotion_; }
+  bool IsCastling() const { return castling_; }
+  void SetCastling() { castling_ = true; }
 
   // 0 .. 16384, knight promotion and no promotion is the same.
   uint16_t as_packed_int() const;
 
-  // 0 .. 1923, to use in neural networks.
+  // 0 .. 1857, to use in neural networks.
   uint16_t as_nn_index() const;
 
   bool operator==(const Move& other) const {
@@ -219,7 +221,11 @@ class Move {
   }
 
   std::string as_string() const {
-    std::string res = from_.as_string() + to_.as_string();
+    BoardSquare to = to_;
+    if (castling_) {
+      to = BoardSquare(to.row(), (to.col() == 7) ? 6 : 2);
+    }
+    std::string res = from_.as_string() + to.as_string();
     switch (promotion_) {
       case Promotion::None:
         return res;
@@ -238,6 +244,7 @@ class Move {
   BoardSquare from_;
   BoardSquare to_;
   Promotion promotion_ = Promotion::None;
+  bool castling_ = false;
 };
 
 using MoveList = std::vector<Move>;
