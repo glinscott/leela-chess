@@ -25,6 +25,7 @@
 #include <string>
 
 #include "Movegen.h"
+#include "Parameters.h"
 #include "pgn.h"
 #include "Position.h"
 #include "Misc.h"
@@ -89,33 +90,6 @@ namespace {
     myprintf_so("No such option: %s\n", name.c_str());
   }
 
-
-  // go() is called when engine receives the "go" UCI command. The function sets
-  // the thinking time and other parameters from the input string, then starts
-  // the search.
-
-  void go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
-
-    Limits = LimitsType();
-    string token;
-
-    while (is >> token)
-        if (token == "wtime")     is >> Limits.time[WHITE];
-        else if (token == "btime")     is >> Limits.time[BLACK];
-        else if (token == "winc")      is >> Limits.inc[WHITE];
-        else if (token == "binc")      is >> Limits.inc[BLACK];
-        else if (token == "movestogo") is >> Limits.movestogo;
-        else if (token == "depth")     is >> Limits.depth;
-        else if (token == "nodes")     is >> Limits.nodes;
-        else if (token == "movetime")  is >> Limits.movetime;
-
-
-    // TODO(gary): This just does the search on the UI thread...
-    Move move = search.think(bh.shallow_clone());
-    bh.do_move(move);
-    myprintf_so("bestmove %s\n", UCI::move(move).c_str());
-  }
-
   // called when receiving the 'perft Depth' command
   void uci_perft(BoardHistory& bh, istringstream& is) {
        int d;
@@ -126,6 +100,9 @@ namespace {
        myprintf_so("Total: %lld\n", total);
   }
 
+void printVersion() {
+  myprintf_so("id name lczero " PROGRAM_VERSION "\nid author The LCZero Authors\nuciok\n");
+}
 
 // Return the score from the self-play game
 int play_one_game(BoardHistory& bh) {
@@ -147,6 +124,7 @@ int play_one_game(BoardHistory& bh) {
     Limits.startTime = now();
     Move move = search->think(bh.shallow_clone());
 
+    myprintf_so("move played %s\n", UCI::move(move).c_str());
     bh.do_move(move);
   }
 
@@ -168,6 +146,8 @@ int play_one_game() {
 }
 
 void generate_training_games(istringstream& is) {
+  printVersion();
+
   namespace fs = boost::filesystem;
   std::string suffix;
   if (!(is >> suffix)) {
@@ -224,8 +204,11 @@ Bg3 15. f4 d6 16. cxd6+ Ke8 17. Kg1 Bd7 18. a4 Rd8 {0.50s} 19. a5 Ra8 {0.54s}
   */
 
   auto search = std::make_unique<UCTSearch>(game->bh.shallow_clone());
+  auto save_cfg_timemanage = cfg_timemanage;
+  cfg_timemanage = false;
   search->set_quiet(false);
   search->think(game->bh.shallow_clone());
+  cfg_timemanage = save_cfg_timemanage;
 }
 
 } // namespace
@@ -257,6 +240,45 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
 }
 
 
+// go() is called when engine receives the "go" UCI command. The function sets
+// the thinking time and other parameters from the input string, then starts
+// the search.
+
+void gohelper(UCTSearch & search, BoardHistory &bh) {
+    Move move = search.think(bh.shallow_clone());
+
+    bh.do_move(move);
+    myprintf_so("bestmove %s\n", UCI::move(move).c_str());
+}
+
+void go(UCTSearch& search, BoardHistory& bh, istringstream& is) {
+
+    Limits = LimitsType();
+    string token;
+
+    // TODO: See issue #287.
+    //if ((is >> token) && token == "infinite") Limits.infinite = 1;
+    //else Limits.infinite = 0;
+    Limits.infinite = 0;
+
+    do {
+        if (token == "wtime")          is >> Limits.time[WHITE];
+        else if (token == "btime")     is >> Limits.time[BLACK];
+        else if (token == "winc")      is >> Limits.inc[WHITE];
+        else if (token == "binc")      is >> Limits.inc[BLACK];
+        else if (token == "movestogo") is >> Limits.movestogo;
+        else if (token == "depth")     is >> Limits.depth;
+        else if (token == "nodes")     is >> Limits.nodes;
+        else if (token == "movetime")  is >> Limits.movetime;
+    } while (is >> token);
+
+    // TODO: See issue #287.
+    //std::thread lol(gohelper, std::ref(search), std::ref(bh));
+    //lol.detach();
+    gohelper(search, bh);
+}
+
+
 /// UCI::loop() waits for a command from stdin, parses it and calls the appropriate
 /// function. Also intercepts EOF from stdin to ensure gracefully exiting if the
 /// GUI dies unexpectedly. When called with some command line arguments, e.g. to
@@ -267,7 +289,7 @@ void UCI::loop(const std::string& start) {
   string token, cmd = start;
   BoardHistory bh;
   bh.set(Position::StartFEN);
-  auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
+  UCTSearch search (bh.shallow_clone());//std::make_unique<UCTSearch>(bh.shallow_clone());
 
   do {
       if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF
@@ -278,7 +300,7 @@ void UCI::loop(const std::string& start) {
       token.clear(); // Avoid a stale if getline() returns empty or blank line
       is >> skipws >> token;
 
-	  if (token == "quit" || token == "exit") break;
+      if (token == "quit" || token == "exit") break;
 
       /*
       // The GUI sends 'ponderhit' to tell us the user has played the expected move.
@@ -294,15 +316,15 @@ void UCI::loop(const std::string& start) {
           Threads.ponder = false; // Switch to normal search
       */
 
-      if (token == "uci") {
-          myprintf_so("id name lczero\nuciok\n");
-      }
+      if (token == "uci")             printVersion();
       else if (token == "setoption")  setoption(is);
-      else if (token == "go")         go(*search, bh, is);
+      else if (token == "go")         go(search,bh,is);
+      else if (token == "stop")       search.please_stop();
       else if (token == "perft")      uci_perft(bh, is);
       else if (token == "position")   position(bh, is);
-      // else if (token == "ucinewgame") Search::clear();
+      else if (token == "ucinewgame") ;
       else if (token == "isready") {
+          Network::initialize();
           myprintf_so("readyok\n");
       }
       // Additional custom non-UCI commands, mainly for debugging

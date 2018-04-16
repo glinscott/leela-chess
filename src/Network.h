@@ -37,19 +37,37 @@ class UCTNode;
 class Network {
 public:
     // File format version
-    static constexpr int FORMAT_VERSION = 1;
+    static constexpr int MAX_FORMAT_VERSION = 2;
     static constexpr int T_HISTORY = 8;
 
+    // Version 1:
     // 120 input channels
-    // 14 * (6 us, 6 them, 2 reps)
+    // 14 * (6 us, 6 them, 2 reps) = 112
     // 4 castling (us_oo, us_ooo, them_oo, them_ooo)
     // 1 color
     // 1 rule50_count
     // 1 move_count
-    // 1 unused at end to pad it out.
-    static constexpr int INPUT_CHANNELS = 8 + 14 * T_HISTORY;
+    // 1 unused plane of zeros at end to pad it out.
 
-    static constexpr int NUM_OUTPUT_POLICY = 1924;
+    // Version 2:
+    // 120 input channels
+    // 13 * (6 us, 6 them, 1 reps) = 104
+    // 1 rule50_count
+    // 4 castling (us_oo, us_ooo, them_oo, them_ooo)
+    // 1 color
+    // 1 move_count
+    // 1 unused plane of zeros? ones? at end to pad it out.
+
+    // TODO: Should we send ones for padding?
+
+    static constexpr int V1_HIST_PLANES = 14;
+    static constexpr int V2_HIST_PLANES = 13;
+    static constexpr int V1_INPUT_CHANNELS = 8 + V1_HIST_PLANES * T_HISTORY;
+    static constexpr int V2_INPUT_CHANNELS = 8 + V2_HIST_PLANES * T_HISTORY;
+    static constexpr int MAX_INPUT_CHANNELS = std::max(V1_INPUT_CHANNELS, V2_INPUT_CHANNELS);
+
+    static constexpr int V1_NUM_OUTPUT_POLICY = 1924;
+    static constexpr int V2_NUM_OUTPUT_POLICY = 1858;
     static constexpr int NUM_OUTPUT_VALUE = 1;
     static constexpr int NUM_VALUE_CHANNELS = 128;
     static constexpr int NUM_VALUE_INPUT_PLANES = 32;
@@ -60,7 +78,8 @@ public:
     using BoardPlane = std::bitset<8 * 8>;
 
     struct NNPlanes {
-      std::array<BoardPlane, INPUT_CHANNELS - 3> bit;
+      // For V2 some of this is unused
+      std::array<BoardPlane, MAX_INPUT_CHANNELS - 3> bit;
       int rule50_count;
       int move_count;
     };
@@ -83,21 +102,27 @@ public:
     static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
 
     static void initialize();
-    //static void benchmark(const GameState * state, int iterations = 1600);
-    static void softmax(const std::vector<float>& input,
-                        std::vector<float>& output,
-                        float temperature = 1.0f);
 
-    static int lookup(Move move);
+    static int lookup(Move move, Color c);
     static void gather_features(const BoardHistory& pos, NNPlanes& planes);
+    static size_t get_format_version();
+    static size_t get_input_channels();
+    static size_t get_hist_planes();
+    static size_t get_num_output_policy();
 
 private:
-    static std::pair<int, int> load_v1_network(std::ifstream& wtfile);
+    static bool initialized;
+    static std::pair<int, int> load_network(std::istream& wtfile);
     static std::pair<int, int> load_network_file(std::string filename);
     static void process_bn_var(std::vector<float>& weights,
                                const float epsilon=1e-5f);
-    static std::unordered_map<Move, int, std::hash<int>> move_lookup;
+    static size_t m_format_version;
+    static std::unordered_map<Move, int, std::hash<int>> old_move_lookup;
+    static std::unordered_map<Move, int, std::hash<int>> new_move_lookup;
 
+    static void softmax(const std::vector<float>& input,
+                        std::vector<float>& output,
+                        float temperature = 1.0f);
     static std::vector<float> winograd_transform_f(const std::vector<float>& f,
         const int outputs, const int channels);
     static std::vector<float> zeropad_U(const std::vector<float>& U,

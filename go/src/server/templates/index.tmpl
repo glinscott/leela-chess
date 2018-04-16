@@ -1,6 +1,6 @@
 {{define "content"}}
-<div class="alert alert-primary" role="alert">
-  We have increased to -v1600 from -v800 due to the number of games, game rate will be half now.  No update required!  New users download <a href="https://github.com/glinscott/leela-chess/releases/tag/v0.4">here</a>.
+<div class="alert alert-danger" role="alert">
+  v0.5 is now required!  We are on 10x128 network now as well.  Download <a href="https://github.com/glinscott/leela-chess/releases/tag/v0.5">here</a>.
 </div>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
@@ -27,8 +27,8 @@
       <tr>
         <th>User</th>
         <th>Games / Day</th>
-        <th>System</th>
         <th>Version</th>
+        <th>Engine</th>
         <th>Last Updated</th>
       </tr>
     </thead>
@@ -37,8 +37,8 @@
       <tr>
         <td><a href="/user/{{.user}}">{{.user}}</a></td>
         <td>{{.games_today}}</td>
-        <td>{{.system}}</td>
         <td>{{.version}}</td>
+        <td>{{.engine}}</td>
         <td>{{.last_updated}}</td>
       </tr>
       {{end}}

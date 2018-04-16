@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "Network.h"
+#include "UCI.h"
 
 #include <algorithm>
 #include <cassert>
@@ -33,6 +34,7 @@
 #include <thread>
 #include <boost/utility.hpp>
 #include <boost/format.hpp>
+#include "zlib.h"
 
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
@@ -60,14 +62,14 @@
 
 using namespace Utils;
 
-constexpr int Network::FORMAT_VERSION;
+// Seems this is required for the Darwin compiler.
+// Not sure why only T_HISTORY and not all the others.
 constexpr int Network::T_HISTORY;
-constexpr int Network::INPUT_CHANNELS;
 
-constexpr int Network::NUM_OUTPUT_POLICY;
-constexpr int Network::NUM_VALUE_CHANNELS;
-
-std::unordered_map<Move, int, std::hash<int>> Network::move_lookup;
+bool Network::initialized = false;
+size_t Network::m_format_version{0};
+std::unordered_map<Move, int, std::hash<int>> Network::old_move_lookup;
+std::unordered_map<Move, int, std::hash<int>> Network::new_move_lookup;
 
 // Input + residual block tower
 static std::vector<std::vector<float>> conv_weights;
@@ -81,8 +83,14 @@ static std::vector<float> conv_pol_b;
 static std::array<float, Network::NUM_POLICY_INPUT_PLANES> bn_pol_w1;
 static std::array<float, Network::NUM_POLICY_INPUT_PLANES> bn_pol_w2;
 
-static std::array<float, Network::NUM_OUTPUT_POLICY*8*8*Network::NUM_POLICY_INPUT_PLANES> ip_pol_w;
-static std::array<float, Network::NUM_OUTPUT_POLICY> ip_pol_b;
+// TODO: These are compile time sized,
+// It would be nicer to dynamically size.
+// Just a little memory optimization.
+// But maybe there is a reason they must be array not vector?
+static std::array<float, Network::V1_NUM_OUTPUT_POLICY*8*8*Network::NUM_POLICY_INPUT_PLANES> v1_ip_pol_w;
+static std::array<float, Network::V1_NUM_OUTPUT_POLICY> v1_ip_pol_b;
+static std::array<float, Network::V2_NUM_OUTPUT_POLICY*8*8*Network::NUM_POLICY_INPUT_PLANES> v2_ip_pol_w;
+static std::array<float, Network::V2_NUM_OUTPUT_POLICY> v2_ip_pol_b;
 
 // Value head
 static std::vector<float> conv_val_w;
@@ -96,7 +104,21 @@ static std::array<float, Network::NUM_VALUE_CHANNELS> ip1_val_b;
 static std::array<float, Network::NUM_VALUE_CHANNELS> ip2_val_w;
 static std::array<float, 1> ip2_val_b;
 
-//void Network::benchmark(Position* pos, int iterations) //--temporarily (?) killed.
+size_t Network::get_format_version() {
+    return m_format_version;
+}
+
+size_t Network::get_input_channels() {
+    return m_format_version == 1 ? V1_INPUT_CHANNELS : V2_INPUT_CHANNELS;
+}
+
+size_t Network::get_hist_planes() {
+    return m_format_version == 1 ? V1_HIST_PLANES : V2_HIST_PLANES;
+}
+
+size_t Network::get_num_output_policy() {
+    return m_format_version == 1 ? V1_NUM_OUTPUT_POLICY : V2_NUM_OUTPUT_POLICY;
+}
 
 void Network::process_bn_var(std::vector<float>& weights, const float epsilon) {
     for(auto&& w : weights) {
@@ -176,15 +198,31 @@ std::vector<float> Network::zeropad_U(const std::vector<float>& U,
 
 extern "C" void openblas_set_num_threads(int num_threads);
 
-std::pair<int, int>  Network::load_v1_network(std::ifstream& wtfile) {
+std::pair<int, int> Network::load_network(std::istream& wtfile) {
+    // Read format version
+    auto line = std::string{};
+    if (std::getline(wtfile, line)) {
+        auto iss = std::stringstream{ line };
+        // First line is the file format version id
+        iss >> m_format_version;
+        if (iss.fail()
+            || m_format_version > MAX_FORMAT_VERSION
+            || m_format_version < 1) {
+            myprintf("Weights file is the wrong version.\n");
+            return {0, 0};
+        } else {
+            assert(m_format_version <= MAX_FORMAT_VERSION);
+        }
+    } else {
+        myprintf("Weights file is empty.\n");
+        return {0, 0};
+    }
     // Count size of the network
     myprintf("Detecting residual layers...");
-    // We are version 1
-    myprintf("v%d...", 1);
+    myprintf("v%d...", m_format_version);
     // First line was the version number
     auto linecount = size_t{1};
     auto channels = 0;
-    auto line = std::string{};
     while (std::getline(wtfile, line)) {
         auto iss = std::stringstream{line};
         // Third line of parameters are the convolution layer biases,
@@ -200,9 +238,13 @@ std::pair<int, int>  Network::load_v1_network(std::ifstream& wtfile) {
     }
     // 1 format id, 1 input layer (4 x weights), 14 ending weights,
     // the rest are residuals, every residual has 8 x weight lines
+    // Note: 14 ending weights is for value/policy head.
+    //     It's a coincidence it's the same number of input features
+    //     for V1 networks.
     auto residual_blocks = linecount - (1 + 4 + 14);
     if (residual_blocks % 8 != 0) {
         myprintf("\nInconsistent number of weights in the file.\n");
+        myprintf("%d %d %d %d\n", m_format_version, residual_blocks, linecount, get_hist_planes());
         return {0, 0};
     }
     residual_blocks /= 8;
@@ -234,7 +276,7 @@ std::pair<int, int>  Network::load_v1_network(std::ifstream& wtfile) {
         if (!ok) {
             myprintf("\nFailed to parse weight file. Error on line %d.\n",
                     linecount + 2); //+1 from version line, +1 from 0-indexing
-            return {0,0};
+            return {0, 0};
         }
         if (linecount < plain_conv_wts) {
             if (linecount % 4 == 0) {
@@ -259,9 +301,17 @@ std::pair<int, int>  Network::load_v1_network(std::ifstream& wtfile) {
             process_bn_var(weights);
             std::copy(begin(weights), end(weights), begin(bn_pol_w2));
         } else if (linecount == plain_conv_wts + 4) {
-            std::copy(begin(weights), end(weights), begin(ip_pol_w));
+            if (m_format_version == 1) {
+                std::copy(begin(weights), end(weights), begin(v1_ip_pol_w));
+            } else {
+                std::copy(begin(weights), end(weights), begin(v2_ip_pol_w));
+            }
         } else if (linecount == plain_conv_wts + 5) {
-            std::copy(begin(weights), end(weights), begin(ip_pol_b));
+            if (m_format_version == 1) {
+                std::copy(begin(weights), end(weights), begin(v1_ip_pol_b));
+            } else {
+                std::copy(begin(weights), end(weights), begin(v2_ip_pol_b));
+            }
         } else if (linecount == plain_conv_wts + 6) {
             conv_val_w = std::move(weights);
         } else if (linecount == plain_conv_wts + 7) {
@@ -282,43 +332,48 @@ std::pair<int, int>  Network::load_v1_network(std::ifstream& wtfile) {
         }
         linecount++;
     }
-    wtfile.close();
 
     return {channels, residual_blocks};
 }
 
 std::pair<int, int> Network::load_network_file(std::string filename) {
-    auto wtfile = std::ifstream{filename};
-    if (wtfile.fail()) {
+    // gzopen supports both gz and non-gz files, will decompress or just read directly as needed.
+    auto gzhandle = gzopen(filename.c_str(), "rb");
+    if (gzhandle == nullptr) {
         myprintf("Could not open weights file: %s\n", filename.c_str());
         return {0, 0};
     }
-
-    // Read format version
-    auto line = std::string{};
-    auto format_version = -1;
-    if (std::getline(wtfile, line)) {
-        auto iss = std::stringstream{line};
-        // First line is the file format version id
-        iss >> format_version;
-        if (iss.fail() || format_version != FORMAT_VERSION) {
-            myprintf("Weights file is the wrong version.\n");
+    // Stream the gz file in to a memory buffer stream.
+    std::stringstream buffer;
+    const int chunkBufferSize = 64 * 1024;
+    std::vector<char> chunkBuffer(chunkBufferSize);
+    while (true) {
+        int bytesRead = gzread(gzhandle, chunkBuffer.data(), chunkBufferSize);
+        if (bytesRead == 0) break;
+        if (bytesRead < 0) {
+            myprintf("Failed to decompress or read: %s\n", filename.c_str());
+            gzclose(gzhandle);
             return {0, 0};
-        } else {
-            assert(format_version == FORMAT_VERSION);
-            return load_v1_network(wtfile);
         }
+        assert(bytesRead <= chunkBufferSize);
+        buffer.write(chunkBuffer.data(), bytesRead);
     }
-
-    return {0, 0};
+    auto result = load_network(buffer);
+    gzclose(gzhandle);
+    return result;
 }
 
 void Network::initialize(void) {
+    if (initialized) return;
+    initialized = true;
+
     init_move_map();
 
     // Load network from file
     size_t channels, residual_blocks;
+    assert(m_format_version == 0);
     std::tie(channels, residual_blocks) = load_network_file(cfg_weightsfile);
+    assert(m_format_version > 0);
     if (channels == 0) {
         exit(EXIT_FAILURE);
     }
@@ -328,7 +383,7 @@ void Network::initialize(void) {
     // Winograd transform convolution weights
     conv_weights[weight_index] =
         winograd_transform_f(conv_weights[weight_index],
-                             channels, INPUT_CHANNELS);
+                             channels, get_input_channels());
     weight_index++;
 
     // Residual block convolutions
@@ -380,14 +435,14 @@ void Network::initialize(void) {
         weight_index = 0;
 
         size_t m_ceil = ceilMultiple(ceilMultiple(channels, mwg), vwm);
-        size_t k_ceil = ceilMultiple(ceilMultiple(INPUT_CHANNELS, kwg), vwm);
+        size_t k_ceil = ceilMultiple(ceilMultiple(get_input_channels(), kwg), vwm);
 
         auto Upad = zeropad_U(conv_weights[weight_index],
-                              channels, INPUT_CHANNELS,
+                              channels, get_input_channels(),
                               m_ceil, k_ceil);
 
         // Winograd filter transformation changes filter size to 4x4
-        opencl_net->push_input_convolution(WINOGRAD_ALPHA, INPUT_CHANNELS, channels,
+        opencl_net->push_input_convolution(WINOGRAD_ALPHA, get_input_channels(), channels,
                 Upad, batchnorm_means[weight_index], batchnorm_stddivs[weight_index]);
         weight_index++;
 
@@ -416,8 +471,15 @@ void Network::initialize(void) {
         std::vector<float> bn_val_means(bn_val_w1.begin(), bn_val_w1.end());
         std::vector<float> bn_val_stddivs(bn_val_w2.begin(), bn_val_w2.end());
 
-        std::vector<float> ip_pol_w_vec(ip_pol_w.begin(), ip_pol_w.end());
-        std::vector<float> ip_pol_b_vec(ip_pol_b.begin(), ip_pol_b.end());
+        std::vector<float> ip_pol_w_vec;
+        std::vector<float> ip_pol_b_vec;
+        if (m_format_version == 1) {
+            ip_pol_w_vec = std::vector<float>(v1_ip_pol_w.begin(), v1_ip_pol_w.end());
+            ip_pol_b_vec = std::vector<float>(v1_ip_pol_b.begin(), v1_ip_pol_b.end());
+        } else {
+            ip_pol_w_vec = std::vector<float>(v2_ip_pol_w.begin(), v2_ip_pol_w.end());
+            ip_pol_b_vec = std::vector<float>(v2_ip_pol_b.begin(), v2_ip_pol_b.end());
+        }
 
         std::vector<float> ip_val_w_vec(ip1_val_w.begin(), ip1_val_w.end());
         std::vector<float> ip_val_b_vec(ip1_val_b.begin(), ip1_val_b.end());
@@ -426,7 +488,7 @@ void Network::initialize(void) {
         constexpr unsigned int height = 8;
 
         opencl_net->push_policy(channels, NUM_POLICY_INPUT_PLANES,
-                NUM_POLICY_INPUT_PLANES*width*height, NUM_OUTPUT_POLICY,
+                NUM_POLICY_INPUT_PLANES*width*height, get_num_output_policy(),
                 conv_pol_w,
                 bn_pol_means, bn_pol_stddivs,
                 ip_pol_w_vec, ip_pol_b_vec);
@@ -456,12 +518,16 @@ void Network::initialize(void) {
 }
 
 void Network::init_move_map() {
-  std::vector<Move> moves;
+  // old includes black promotions from 2nd to 1st rank
+  // new excludes those
+  std::vector<Move> old_moves;
+  std::vector<Move> new_moves;
   for (Square s = SQ_A1; s <= SQ_H8; ++s) {
     // Queen and knight moves
     Bitboard b = attacks_bb(QUEEN, s, 0) | attacks_bb(KNIGHT, s, 0);
     while (b) {
-      moves.push_back(make_move(s, pop_lsb(&b)));
+      old_moves.push_back(make_move(s, pop_lsb(&b)));
+      new_moves.push_back(old_moves.back());
     }
   }
 
@@ -474,25 +540,47 @@ void Network::init_move_map() {
         }
         Square from = make_square(File(c_from), c == WHITE? RANK_7 : RANK_2);
         Square to = make_square(File(c_to), c == WHITE ? RANK_8 : RANK_1);
-        moves.push_back(make<PROMOTION>(from, to, QUEEN));
-        moves.push_back(make<PROMOTION>(from, to, ROOK));
-        moves.push_back(make<PROMOTION>(from, to, BISHOP));
+        // push both black and white promotions for old
+        old_moves.push_back(make<PROMOTION>(from, to, QUEEN));
+        old_moves.push_back(make<PROMOTION>(from, to, ROOK));
+        old_moves.push_back(make<PROMOTION>(from, to, BISHOP));
         // Don't need knight, as it's equivalent to pawn push to final rank.
+        if (c == WHITE) {
+          // only push white promotions (7th to 8th rank) for new
+          new_moves.push_back(make<PROMOTION>(from, to, QUEEN));
+          new_moves.push_back(make<PROMOTION>(from, to, ROOK));
+          new_moves.push_back(make<PROMOTION>(from, to, BISHOP));
+        }
       }
     }
   }
 
-  for (size_t i = 0; i < moves.size(); ++i) {
-    move_lookup[moves[i]] = i;
+  for (size_t i = 0; i < old_moves.size(); ++i) {
+    old_move_lookup[old_moves[i]] = i;
   }
-  myprintf("Generated %lu moves\n", moves.size());
+  for (size_t i = 0; i < new_moves.size(); ++i) {
+    new_move_lookup[new_moves[i]] = i;
+  }
 }
 
-int Network::lookup(Move move) {
+int Network::lookup(Move move, Color c) {
     if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
+        // Mask off the special move flags,
+        // in particular en passant and castling
         move = Move(move & 0xfff);
     }
-    return move_lookup.at(move);
+    if (m_format_version == 1) {
+        return old_move_lookup.at(move);
+    } else {
+        if (c == WHITE) {
+            return new_move_lookup.at(move);
+        } else {
+            // The NN plays BLACK with the board flipped vertically,
+            // And outputs the moves as if BLACK is moving up.
+            // Flip the policy so the moves are normal.
+            return new_move_lookup.at(make_move(~from_sq(move), ~to_sq(move)));
+        }
+    }
 }
 
 #ifdef USE_BLAS
@@ -802,7 +890,7 @@ void Network::forward_cpu(std::vector<float>& input,
     //when the network has very few filters
     const auto input_channels = std::max(
             static_cast<size_t>(output_channels),
-            static_cast<size_t>(INPUT_CHANNELS));
+            static_cast<size_t>(get_input_channels()));
     auto conv_out = std::vector<float>(output_channels * width * height);
 
     auto V = std::vector<float>(WINOGRAD_TILE * input_channels * tiles);
@@ -844,7 +932,11 @@ void Network::forward_cpu(std::vector<float>& input,
 
     batchnorm<width*height>(NUM_VALUE_INPUT_PLANES, value_data, bn_val_w1.data(), bn_val_w2.data());
 
-    innerproduct<NUM_POLICY_INPUT_PLANES*width*height, NUM_OUTPUT_POLICY>(policy_data, ip_pol_w, ip_pol_b, output_pol);
+    if (m_format_version == 1) {
+        innerproduct<NUM_POLICY_INPUT_PLANES*width*height, V1_NUM_OUTPUT_POLICY>(policy_data, v1_ip_pol_w, v1_ip_pol_b, output_pol);
+    } else {
+        innerproduct<NUM_POLICY_INPUT_PLANES*width*height, V2_NUM_OUTPUT_POLICY>(policy_data, v2_ip_pol_w, v2_ip_pol_b, output_pol);
+    }
     innerproduct<NUM_VALUE_INPUT_PLANES*width*height, NUM_VALUE_CHANNELS>(value_data, ip1_val_w, ip1_val_b, output_val);
 }
 
@@ -875,11 +967,12 @@ T relative_difference(T a, T b) {
 
 bool compare_net_outputs(std::vector<float>& data,
                          std::vector<float>& ref,
+                         bool& fatal,
                          bool display_only = false,
                          std::string info = "") {
     auto almost_equal = true;
-    // The idea is to allow an OpenCL error > 5% every SELFCHECK_MIN_EXPANSIONS
-    // correct expansions. As the num_expansions increases between errors > 5%,
+    // The idea is to allow an OpenCL error > 10% every SELFCHECK_MIN_EXPANSIONS
+    // correct expansions. As the num_expansions increases between errors > 10%,
     // we'll allow more errors to occur (max 3) before crashing. As if it
     // builds up credit.
     constexpr int64 min_correct_expansions = SELFCHECK_MIN_EXPANSIONS / SELFCHECK_PROBABILITY / 2;
@@ -900,9 +993,7 @@ bool compare_net_outputs(std::vector<float>& data,
             myprintf("Error in OpenCL calculation: expected %f got %f (%lli"
                        "(error=%f%%)\n", ref[idx], data[idx], num_expansions.load(), err * 100.0);
             if (num_expansions < min_correct_expansions) {
-                myprintf_so("Update your GPU drivers or reduce the amount of games "
-                           "played simultaneously.\n");
-                throw std::runtime_error("OpenCL self-check mismatch.");
+                fatal = true;
             }
             else {
                 num_expansions -= min_correct_expansions;
@@ -956,20 +1047,20 @@ Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawDa
 }
 
 Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, NNPlanes& planes, DebugRawData* debug_data) {
-    assert(INPUT_CHANNELS == planes.bit.size()+3);
+    assert(MAX_INPUT_CHANNELS == planes.bit.size()+3);
     constexpr int width = 8;
     constexpr int height = 8;
     const auto convolve_channels = conv_pol_w.size() / conv_pol_b.size();
     std::vector<net_t> input_data;
     std::vector<net_t> output_data(convolve_channels * width * height);
     std::vector<float> value_data(Network::NUM_VALUE_INPUT_PLANES * width * height);
-    std::vector<float> policy_data(Network::NUM_OUTPUT_POLICY);
-    std::vector<float> softmax_data(Network::NUM_OUTPUT_POLICY);
+    std::vector<float> policy_data(get_num_output_policy());
+    std::vector<float> softmax_data(get_num_output_policy());
     std::vector<float> winrate_data(Network::NUM_VALUE_CHANNELS);
     std::vector<float> winrate_out(1);
     // Data layout is input_data[(c * height + h) * width + w]
-    input_data.reserve(INPUT_CHANNELS * width * height);
-    for (int c = 0; c < INPUT_CHANNELS - 3; ++c) {
+    input_data.reserve(MAX_INPUT_CHANNELS * width * height);
+    for (int c = 0; c < MAX_INPUT_CHANNELS - 3; ++c) {
         for (int i = 0; i < 64; ++i) {
             input_data.emplace_back(net_t(planes.bit[c][i]));
         }
@@ -980,10 +1071,12 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     for (int i = 0; i < 64; ++i) {
         input_data.emplace_back(net_t(planes.move_count));
     }
+    // TODO: I changed this to a plane of ones for V2.
+    // To help see the edge of the board
     for (int i = 0; i < 64; ++i) {
-        input_data.emplace_back(net_t(0.0));
+        input_data.emplace_back(net_t(m_format_version == 1 ? 0.0 : 1.0));
     }
-    assert(input_data.size() == INPUT_CHANNELS * width * height);
+    assert(input_data.size() == MAX_INPUT_CHANNELS * width * height);
 #ifdef USE_OPENCL
     opencl.forward(input_data, policy_data, value_data);
 #elif defined(USE_BLAS) && !defined(USE_OPENCL)
@@ -995,24 +1088,30 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     if (Random::GetRng().RandInt(SELFCHECK_PROBABILITY) == 0) {
         auto cpu_policy_data = std::vector<float>(policy_data.size());
         auto cpu_value_data = std::vector<float>(value_data.size());
+        auto fatal = false;
         forward_cpu(input_data, cpu_policy_data, cpu_value_data);
-        auto almost_equal = compare_net_outputs(policy_data, cpu_policy_data);
-        almost_equal &= compare_net_outputs(value_data, cpu_value_data);
+        auto almost_equal = compare_net_outputs(policy_data, cpu_policy_data, fatal);
+        almost_equal &= compare_net_outputs(value_data, cpu_value_data, fatal);
         if (!almost_equal) {
             myprintf("PGN\n%s\nEND\n", pos.pgn().c_str());
             // Compare again but with debug info
-            compare_net_outputs(policy_data, cpu_policy_data, true, "orig policy");
-            compare_net_outputs(value_data, cpu_value_data, true, "orig value");
+            compare_net_outputs(policy_data, cpu_policy_data, fatal, true, "orig policy");
+            compare_net_outputs(value_data, cpu_value_data, fatal, true, "orig value");
             // Call opencl.forward again to see if the error is reproduceable.
             std::vector<float> value_data_retry(Network::NUM_VALUE_INPUT_PLANES * width * height);
-            std::vector<float> policy_data_retry(Network::NUM_OUTPUT_POLICY);
+            std::vector<float> policy_data_retry(get_num_output_policy());
             opencl.forward(input_data, policy_data_retry, value_data_retry);
-            auto almost_equal_retry = compare_net_outputs(policy_data_retry, policy_data, true, "retry policy");
-            almost_equal_retry &= compare_net_outputs(value_data_retry, value_data, true, "retry value");
+            auto almost_equal_retry = compare_net_outputs(policy_data_retry, policy_data, fatal, true, "retry policy");
+            almost_equal_retry &= compare_net_outputs(value_data_retry, value_data, fatal, true, "retry value");
             if (!almost_equal_retry) {
                 throw std::runtime_error("OpenCL retry self-check mismatch.");
             } else {
                 myprintf("compare_net_outputs retry was ok\n");
+            }
+            if (fatal) {
+                myprintf_so("Update your GPU drivers or reduce the amount of games "
+                           "played simultaneously.\n");
+                throw std::runtime_error("OpenCL self-check mismatch.");
             }
         }
     }
@@ -1031,7 +1130,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     MoveList<LEGAL> moves(pos.cur());
     std::vector<scored_node> result;
     for (Move move : moves) {
-        result.emplace_back(outputs[lookup(move)], move);
+        result.emplace_back(outputs[lookup(move, pos.cur().side_to_move())], move);
     }
 
     if (debug_data) {
@@ -1043,8 +1142,6 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
 
     return std::make_pair(result, winrate_sig);
 }
-
-//void Network::show_heatmap(Position* state, Netresult& result, bool topmoves) { //--killed.
 
 template<PieceType Pt>
 void addPieces(const Position* pos, Color side, Network::NNPlanes& planes, int plane_idx, bool flip) {
@@ -1060,7 +1157,7 @@ void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
     Color them = ~us;
     const Position* pos = &bh.cur();
 
-    int kFeatureBase = T_HISTORY * 14;
+    int kFeatureBase = T_HISTORY * get_hist_planes();
     if (pos->can_castle(BLACK_OOO)) planes.bit[kFeatureBase+(us==BLACK?0:2)+0].set();
     if (pos->can_castle(BLACK_OO)) planes.bit[kFeatureBase+(us==BLACK?0:2)+1].set();
     if (pos->can_castle(WHITE_OOO)) planes.bit[kFeatureBase+(us==WHITE?0:2)+0].set();
@@ -1073,31 +1170,36 @@ void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
     planes.move_count = 0;
 
     int mc = bh.positions.size() - 1;
+    bool flip = us == BLACK;
     for (int i = 0; i < std::min(T_HISTORY, mc + 1); ++i) {
         pos = &bh.positions[mc - i];
 
-        us = pos->side_to_move();
-        them = ~us;
+        if (m_format_version == 1) {
+            us = pos->side_to_move();
+            them = ~us;
 
-        bool flip = us == BLACK;
+            flip = us == BLACK;
+        }
 
-        addPieces<PAWN  >(pos, us, planes, i * 14 + 0, flip);
-        addPieces<KNIGHT>(pos, us, planes, i * 14 + 1, flip);
-        addPieces<BISHOP>(pos, us, planes, i * 14 + 2, flip);
-        addPieces<ROOK  >(pos, us, planes, i * 14 + 3, flip);
-        addPieces<QUEEN >(pos, us, planes, i * 14 + 4, flip);
-        addPieces<KING  >(pos, us, planes, i * 14 + 5, flip);
+        addPieces<PAWN  >(pos, us, planes, i * get_hist_planes() + 0, flip);
+        addPieces<KNIGHT>(pos, us, planes, i * get_hist_planes() + 1, flip);
+        addPieces<BISHOP>(pos, us, planes, i * get_hist_planes() + 2, flip);
+        addPieces<ROOK  >(pos, us, planes, i * get_hist_planes() + 3, flip);
+        addPieces<QUEEN >(pos, us, planes, i * get_hist_planes() + 4, flip);
+        addPieces<KING  >(pos, us, planes, i * get_hist_planes() + 5, flip);
 
-        addPieces<PAWN  >(pos, them, planes, i * 14 + 6, flip);
-        addPieces<KNIGHT>(pos, them, planes, i * 14 + 7, flip);
-        addPieces<BISHOP>(pos, them, planes, i * 14 + 8, flip);
-        addPieces<ROOK  >(pos, them, planes, i * 14 + 9, flip);
-        addPieces<QUEEN >(pos, them, planes, i * 14 + 10, flip);
-        addPieces<KING  >(pos, them, planes, i * 14 + 11, flip);
+        addPieces<PAWN  >(pos, them, planes, i * get_hist_planes() + 6, flip);
+        addPieces<KNIGHT>(pos, them, planes, i * get_hist_planes() + 7, flip);
+        addPieces<BISHOP>(pos, them, planes, i * get_hist_planes() + 8, flip);
+        addPieces<ROOK  >(pos, them, planes, i * get_hist_planes() + 9, flip);
+        addPieces<QUEEN >(pos, them, planes, i * get_hist_planes() + 10, flip);
+        addPieces<KING  >(pos, them, planes, i * get_hist_planes() + 11, flip);
 
         int repetitions = pos->repetitions_count();
-        if (repetitions >= 1) planes.bit[i * 14 + 12].set();
-        if (repetitions >= 2) planes.bit[i * 14 + 13].set();
+        if (repetitions >= 1) planes.bit[i * get_hist_planes() + 12].set();
+        if (m_format_version == 1) {
+            if (repetitions >= 2) planes.bit[i * get_hist_planes() + 13].set();
+        }
     }
 }
 
