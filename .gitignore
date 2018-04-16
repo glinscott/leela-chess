@@ -26,3 +26,9 @@ training/tf/leelaz-model-*
 training/tf/leelalogs
 training/tf/models/
 .idea/
+/.vs
+*.exe
+*.dll
+/go/src/client/settings.json
+*.vspx
+*.psess

@@ -24,6 +24,7 @@
 
 constexpr int MAXINT_DIV2 = std::numeric_limits<int>::max() / 2;
 extern bool cfg_allow_pondering;
+extern bool cfg_noinitialize;
 extern int cfg_max_threads;
 extern int cfg_num_threads;
 extern int cfg_max_playouts;
@@ -34,6 +35,7 @@ extern int cfg_noise;
 extern int cfg_randomize;
 extern int cfg_timemanage;
 extern int cfg_min_resign_moves;
+extern int cfg_root_temp_decay;
 extern uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
 extern std::vector<int> cfg_gpus;
@@ -43,6 +45,7 @@ extern bool cfg_tune_only;
 extern float cfg_puct;
 extern float cfg_softmax_temp;
 extern float cfg_fpu_reduction;
+extern bool cfg_fpu_dynamic_eval;
 extern std::string cfg_logfile;
 extern std::string cfg_weightsfile;
 extern std::string cfg_supervise;

@@ -18,8 +18,10 @@
 
 #include "mcts/node.h"
 
+#include <algorithm>
 #include <cstring>
 #include <sstream>
+#include "utils/hashcat.h"
 
 namespace lczero {
 
@@ -39,30 +41,21 @@ Node* NodePool::GetNode() {
   return result;
 }
 
-void NodePool::AllocateNewBatch() {
-  allocations_.emplace_back(std::make_unique<Node[]>(kAllocationSize));
-  for (int i = 0; i < kAllocationSize; ++i) {
-    pool_.push_back(allocations_.back().get() + i);
-  }
+void NodePool::ReleaseNode(Node* node) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  pool_.push_back(node);
 }
 
-void NodePool::ReleaseNode(Node* node) { pool_.push_back(node); }
-
 void NodePool::ReleaseChildren(Node* node) {
+  std::lock_guard<std::mutex> lock(mutex_);
   for (Node* iter = node->child; iter; iter = iter->sibling) {
     ReleaseSubtree(iter);
   }
   node->child = nullptr;
 }
 
-void NodePool::ReleaseSubtree(Node* node) {
-  for (Node* iter = node->child; iter; iter = iter->sibling) {
-    ReleaseSubtree(iter);
-    ReleaseNode(iter);
-  }
-}
-
 void NodePool::ReleaseAllChildrenExceptOne(Node* root, Node* subtree) {
+  std::lock_guard<std::mutex> lock(mutex_);
   Node* child = nullptr;
   for (Node* iter = root->child; iter; iter = iter->sibling) {
     if (iter == subtree) {
@@ -80,6 +73,27 @@ void NodePool::ReleaseAllChildrenExceptOne(Node* root, Node* subtree) {
 uint64_t NodePool::GetAllocatedNodeCount() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return kAllocationSize * allocations_.size() - pool_.size();
+}
+
+// Mutex must be hold.
+void NodePool::ReleaseSubtree(Node* node) {
+  for (Node* iter = node->child; iter; iter = iter->sibling) {
+    ReleaseSubtree(iter);
+    pool_.push_back(iter);
+  }
+}
+
+// Mutex must be hold.
+void NodePool::AllocateNewBatch() {
+  allocations_.emplace_back(std::make_unique<Node[]>(kAllocationSize));
+  for (int i = 0; i < kAllocationSize; ++i) {
+    pool_.push_back(allocations_.back().get() + i);
+  }
+}
+
+uint64_t Node::BoardHash() const {
+  return board.Hash();
+  // return HashCat({board.Hash(), no_capture_ply, repetitions});
 }
 
 std::string Node::DebugString() const {

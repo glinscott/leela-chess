@@ -110,14 +110,42 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
         return;
     }
 
+    auto root_temperature = 1.0f;
+    auto normfactor = float(m_root->get_first_child()->get_visits());
+    auto accum = 0.0f;
+    if (cfg_randomize) {
+        if (cfg_root_temp_decay > 0) {
+            root_temperature = get_root_temperature();
+        }
+        for (const auto& node : boost::adaptors::reverse(parent.get_children())) {
+            accum += std::pow(node->get_visits()/normfactor,1/root_temperature);
+        }
+    }
+
     // Reverse sort because GUIs typically will reverse it again.
     for (const auto& node : boost::adaptors::reverse(parent.get_children())) {
         std::string tmp = state.cur().move_to_san(node->get_move());
         std::string pvstring(tmp);
+        std::string moveprob(10, '\0');
 
-        myprintf_so("info string %4s -> %7d (V: %5.2f%%) (N: %5.2f%%) PV: ",
+        auto move_probability = 0.0f;
+        if (cfg_randomize) {
+            move_probability = std::pow(node->get_visits()/normfactor,1/root_temperature)/accum*100.0f;
+            if (move_probability > 0.01f) {
+                std::snprintf(&moveprob[0], moveprob.size(), "(%6.2f%%)", move_probability);
+            } else if (move_probability > 0.00001f) {
+                std::snprintf(&moveprob[0], moveprob.size(), "%s", "(> 0.00%)");
+            } else {
+                std::snprintf(&moveprob[0], moveprob.size(), "%s", "(  0.00%)");
+            }
+        } else {
+            auto needed = std::snprintf(&moveprob[0], moveprob.size(), "%s", " ");
+            moveprob.resize(needed+1);
+        }
+        myprintf_so("info string %5s -> %7d %s (V: %5.2f%%) (N: %5.2f%%) PV: ",
                 tmp.c_str(),
                 node->get_visits(),
+                moveprob.c_str(),
                 node->get_eval(color)*100.0f,
                 node->get_score() * 100.0f);
 
@@ -131,6 +159,15 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
     myprintf("\n");
 }
 
+float UCTSearch::get_root_temperature() {
+    auto adjusted_ply = 1.0f + (bh_.cur().game_ply()+1.0f) * cfg_root_temp_decay / 50.0f;
+    auto root_temp = 1.0f / (1.0f + std::log(adjusted_ply));
+    if (root_temp < 0.05f) {
+        root_temp = 0.05f;
+    }
+    return root_temp;
+}
+
 Move UCTSearch::get_best_move() {
     Color color = bh_.cur().side_to_move();
 
@@ -138,9 +175,17 @@ Move UCTSearch::get_best_move() {
     m_root->sort_root_children(color);
 
     // Check whether to randomize the best move proportional
-    // to the playout counts.
+    // to the (exponentiated) visit counts.
+   
     if (cfg_randomize) {
-        m_root->randomize_first_proportionally();
+        auto root_temperature = 1.0f;
+        // If a temperature decay schedule is set, calculate root temperature from
+        // ply count and decay constant. Set default value for too small root temperature. 
+        if (cfg_root_temp_decay > 0) {
+            root_temperature = get_root_temperature();
+            myprintf("Game ply: %d, root temperature: %5.2f \n",bh_.cur().game_ply()+1, root_temperature);
+        } 
+        m_root->randomize_first_proportionally(root_temperature);
     }
 
     Move bestmove = m_root->get_first_child()->get_move();
@@ -197,12 +242,10 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     std::string pvstring = get_pv(bh, *m_root);
     float feval = m_root->get_eval(color);
     float winrate = 100.0f * feval;
-    // UCI-like output wants a depth and a cp.
-    // convert winrate to a cp estimate ... assume winrate = 1 / (1 + exp(-cp / 91))
-    // (91 can be tuned to have an output more or less matching e.g. SF, once both have similar strength)
-    int   cp = -91 * log(1 / feval - 1);
+    // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
+    int cp = 162 * tan(3.14 * (feval - 0.5));
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
-    int   depth = log(float(m_nodes)) / log(1.8);
+    int depth = log(float(m_nodes)) / log(1.8);
     // To report nodes, use visits.
     //   - Only includes expanded nodes.
     //   - Includes nodes carried over from tree reuse.
@@ -224,8 +267,9 @@ int UCTSearch::est_playouts_left() const {
     auto playouts = m_playouts.load();
     if (m_target_time < 0) {
         // No time control, use playouts or visits.
-        const auto playouts_left = std::min(m_maxplayouts - playouts,
-                                            m_maxvisits - m_root->get_visits());
+        const auto playouts_left =
+                std::max(0, std::min(m_maxplayouts - playouts,
+                                     m_maxvisits - m_root->get_visits()));
         return playouts_left;
     } else if (elapsed_millis < 1000 || playouts < 100) {
         // Until we reach 1 second or 100 playouts playout_rate
@@ -233,7 +277,7 @@ int UCTSearch::est_playouts_left() const {
         return MAXINT_DIV2;
     } else {
         const auto playout_rate = 1.0f * playouts / elapsed_millis;
-        const auto time_left = m_target_time - elapsed_millis;
+        const auto time_left = std::max<int>(0, m_target_time - elapsed_millis);
         return static_cast<int>(std::ceil(playout_rate * time_left));
     }
 }
@@ -302,7 +346,7 @@ void UCTWorker::operator()() {
         if (result.valid()) {
             m_search->increment_playouts();
         }
-    } while (m_search->is_running() && !m_search->halt_search());
+    } while (m_search->is_running());
 }
 
 void UCTSearch::increment_playouts() {
@@ -313,6 +357,8 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 #ifndef NDEBUG
     auto start_nodes = m_root->count_nodes();
 #endif
+
+    uci_stop.store(false, std::memory_order_seq_cst);
 
     // See if the position is in our previous search tree.
     // If not, construct a new m_root.
@@ -377,9 +423,13 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
         // check if we should still search
         keeprunning = is_running();
-        keeprunning &= !halt_search();
-        keeprunning &= have_alternate_moves();
-
+        keeprunning &= !should_halt_search();
+        if (!Limits.infinite) {
+            // have_alternate_moves has the side effect
+            // of pruning moves, so be careful to not even
+            // call it when running infinite.
+            keeprunning &= have_alternate_moves();
+        }
     } while(keeprunning);
 
     // stop the search
@@ -446,10 +496,17 @@ int UCTSearch::get_search_time() {
 }
 
 // Used to check if we've run out of time or reached out playout limit
-bool UCTSearch::halt_search() {
+bool UCTSearch::should_halt_search() {
+    if (uci_stop.load(std::memory_order_seq_cst)) return true;
+    if (Limits.infinite) return false;
     auto elapsed_millis = now() - m_start_time;
     return m_target_time < 0 ? pv_limit_reached()
         : m_target_time < elapsed_millis;
+}
+
+// Asks the search to stop politely
+void UCTSearch::please_stop() {
+    uci_stop.store(true, std::memory_order_seq_cst);
 }
 
 void UCTSearch::set_playout_limit(int playouts) {

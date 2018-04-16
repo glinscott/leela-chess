@@ -70,7 +70,7 @@ Weights LoadWeightsFromFile(const std::string& filename) {
   if (vecs.size() <= 19)
     throw Exception("Weithts file " + filename +
                     " should have at least 19 lines");
-  if (vecs[0][0] != 1) throw Exception("Weights version 1 expected");
+  if (vecs[0][0] != 2) throw Exception("Weights version 2 expected");
 
   Weights result;
   // Populating backwards.
@@ -112,11 +112,11 @@ std::string DiscoveryWeightsFile(const std::string& binary_name) {
   }
 
   std::vector<std::pair<file_time_type, std::string>> candidates;
-  for (const auto& file : recursive_directory_iterator(
-           path, directory_options::skip_permission_denied)) {
+  for (const auto& file : recursive_directory_iterator(path)) {
     if (!is_regular_file(file.path())) continue;
     if (file_size(file.path()) < kMinFileSize) continue;
-    candidates.emplace_back(last_write_time(file.path()), file.path());
+    candidates.emplace_back(last_write_time(file.path()),
+                            file.path().generic_u8string());
   }
 
   std::sort(candidates.rbegin(), candidates.rend());
@@ -125,7 +125,7 @@ std::string DiscoveryWeightsFile(const std::string& binary_name) {
     std::ifstream file(candidate.second.c_str());
     int val = 0;
     file >> val;
-    if (!file.fail() && val == 1) {
+    if (!file.fail() && val == 2) {
       std::cerr << "Found network file: " << candidate.second << std::endl;
       return candidate.second;
     }

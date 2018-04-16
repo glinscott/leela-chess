@@ -45,6 +45,8 @@ func readSettings(path string) (string, string) {
 	if err != nil {
 		// File was not found
 		fmt.Printf("Please enter your username and password, an account will be automatically created.\n")
+		fmt.Printf("Note that this password will be stored in plain text, so avoid a password that is\n")
+		fmt.Printf("also used for sensitive applications. It also cannot be recovered.\n")
 		fmt.Printf("Enter username : ")
 		fmt.Scanf("%s\n", &settings.User)
 		fmt.Printf("Enter password : ")
@@ -76,15 +78,16 @@ func getExtraParams() map[string]string {
 	return map[string]string{
 		"user":     *USER,
 		"password": *PASSWORD,
-		"version":  "4",
+		"version":  "6",
 	}
 }
 
-func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse, retryCount uint) error {
+func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse, version string, retryCount uint) error {
 	extraParams := getExtraParams()
 	extraParams["training_id"] = strconv.Itoa(int(nextGame.TrainingId))
 	extraParams["network_id"] = strconv.Itoa(int(nextGame.NetworkId))
 	extraParams["pgn"] = pgn
+	extraParams["engineVersion"] = version
 	request, err := client.BuildUploadRequest(*HOSTNAME+"/upload_game", extraParams, "file", path)
 	if err != nil {
 		return err
@@ -99,7 +102,7 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 		log.Print(err)
 		log.Print("Error uploading, retrying...")
 		time.Sleep(time.Second * (2 << retryCount))
-		err = uploadGame(httpClient, path, pgn, nextGame, retryCount+1)
+		err = uploadGame(httpClient, path, pgn, nextGame, version, retryCount+1)
 		return err
 	}
 	resp.Body.Close()
@@ -131,6 +134,7 @@ type CmdWrapper struct {
 	Pgn      string
 	Input    io.WriteCloser
 	BestMove chan string
+	Version  string
 }
 
 func (c *CmdWrapper) openInput() {
@@ -179,6 +183,8 @@ func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 				c.Pgn += line + "\n"
 			} else if strings.HasPrefix(line, "bestmove ") {
 				c.BestMove <- strings.Split(line, " ")[1]
+			} else if strings.HasPrefix(line, "id name lczero ") {
+				c.Version = strings.Split(line, " ")[3]
 			}
 		}
 	}()
@@ -200,7 +206,7 @@ func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 	}
 }
 
-func playMatch(baselinePath string, candidatePath string, params []string, flip bool) (int, string, error) {
+func playMatch(baselinePath string, candidatePath string, params []string, flip bool) (int, string, string, error) {
 	baseline := CmdWrapper{}
 	baseline.launch(baselinePath, params, true)
 	defer baseline.Input.Close()
@@ -225,7 +231,7 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	move_history := ""
 	turn := 0
 	for {
-		if turn >= 450 || game.Outcome() != chess.NoOutcome {
+		if turn >= 450 || game.Outcome() != chess.NoOutcome || len(game.EligibleDraws()) > 1 {
 			if game.Outcome() == chess.WhiteWon {
 				result = 1
 			} else if game.Outcome() == chess.BlackWon {
@@ -255,7 +261,7 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 			err := game.MoveStr(best_move)
 			if err != nil {
 				log.Println("Error decoding: " + best_move + " for game:\n" + game.String())
-				return 0, "", err
+				return 0, "", "", err
 			}
 			if len(move_history) == 0 {
 				move_history = " moves"
@@ -264,15 +270,15 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 			turn += 1
 		case <-time.After(60 * time.Second):
 			log.Println("Bestmove has timed out, aborting match")
-			return 0, "", errors.New("timeout")
+			return 0, "", "", errors.New("timeout")
 		}
 	}
 
 	chess.UseNotation(chess.AlgebraicNotation{})(game)
-	return result, game.String(), nil
+	return result, game.String(), candidate.Version, nil
 }
 
-func train(networkPath string, count int, params []string) (string, string) {
+func train(networkPath string, count int, params []string) (string, string, string) {
 	// pid is intended for use in multi-threaded training
 	pid := os.Getpid()
 
@@ -297,7 +303,7 @@ func train(networkPath string, count int, params []string) (string, string) {
 		log.Fatal(err)
 	}
 
-	return path.Join(train_dir, "training.0.gz"), c.Pgn
+	return path.Join(train_dir, "training.0.gz"), c.Pgn, c.Version
 }
 
 func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, error) {
@@ -344,19 +350,21 @@ func nextGame(httpClient *http.Client, count int) error {
 		if err != nil {
 			return err
 		}
-		result, pgn, err := playMatch(networkPath, candidatePath, params, nextGame.Flip)
+		result, pgn, version, err := playMatch(networkPath, candidatePath, params, nextGame.Flip)
 		if err != nil {
 			return err
 		}
-		go client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, getExtraParams())
+		extraParams := getExtraParams()
+		extraParams["engineVersion"] = version
+		go client.UploadMatchResult(httpClient, *HOSTNAME, nextGame.MatchGameId, result, pgn, extraParams)
 		return nil
 	} else if nextGame.Type == "train" {
 		networkPath, err := getNetwork(httpClient, nextGame.Sha, true)
 		if err != nil {
 			return err
 		}
-		trainFile, pgn := train(networkPath, count, params)
-		go uploadGame(httpClient, trainFile, pgn, nextGame, 0)
+		trainFile, pgn, version := train(networkPath, count, params)
+		go uploadGame(httpClient, trainFile, pgn, nextGame, version, 0)
 		return nil
 	}
 
@@ -388,6 +396,6 @@ func main() {
 			continue
 		}
 		elapsed := time.Since(start)
-		log.Printf("Completed %d games in %s time", i, elapsed)
+		log.Printf("Completed %d games in %s time", i+1, elapsed)
 	}
 }

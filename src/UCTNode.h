@@ -60,7 +60,7 @@ public:
     void virtual_loss(void);
     void virtual_loss_undo(void);
     void dirichlet_noise(float epsilon, float alpha);
-    void randomize_first_proportionally();
+    void randomize_first_proportionally(float tau);
     void update(float eval = std::numeric_limits<float>::quiet_NaN());
 
     UCTNode* uct_select_child(Color color, bool is_root);

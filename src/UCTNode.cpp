@@ -168,18 +168,30 @@ void UCTNode::dirichlet_noise(float epsilon, float alpha) {
     }
 }
 
-void UCTNode::randomize_first_proportionally() {
-    auto accum = uint32{0};
-    auto accum_vector = std::vector<uint32>{};
+void UCTNode::randomize_first_proportionally(float tau) {
+    auto accum = 0.0f;
+    auto normfactor = 0.0f;
+    auto accum_vector = std::vector<float>{};
+
+    // Calculate exponentiated visit count vector, normalised to the first child visits
     for (const auto& child : m_children) {
-        accum += child->get_visits();
+        if (normfactor == 0.0f) {
+            normfactor = child->get_visits();
+        }
+        accum += std::pow(child->get_visits()/normfactor,1/tau);
         accum_vector.emplace_back(accum);
+        // myprintf("Visits: %d Exponentiated visits: %11.9f Cumulative visits: %11.9f\n",child->get_visits(), std::pow(child->get_visits()/normfactor,1.0f/tau), accum); 
     }
 
-    auto pick = Random::GetRng().RandInt<std::uint32_t>(accum);
+    // For the root move selection, a random number between 0 and the integer numerical
+    // limit (~2.1e9) is scaled to the cumulative exponentiated visit count
+    auto int_limit = std::numeric_limits<int>::max();
+    auto pick = Random::GetRng().RandInt<std::uint32_t>(int_limit);
+    auto pick_scaled = pick*accum/int_limit;
+    // myprintf("pick, pick_scaled: %d, %11.9f\n",pick,pick_scaled);
     auto index = size_t{0};
     for (size_t i = 0; i < accum_vector.size(); i++) {
-        if (pick < accum_vector[i]) {
+        if (pick_scaled < accum_vector[i]) {
             index = i;
             break;
         }
@@ -279,10 +291,15 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     // Count parentvisits manually to avoid issues with transpositions.
     auto total_visited_policy = 0.0f;
     auto parentvisits = size_t{0};
+    // Net eval can be obtained from an unvisited child. This is invalid
+    // if there are no unvisited children, but then this isn't used in that case.
+    auto net_eval = 0.0f;
     for (const auto& child : m_children) {
         parentvisits += child->get_visits();
         if (child->get_visits() > 0) {
             total_visited_policy += child->get_score();
+        } else {
+            net_eval = child->get_eval(color);
         }
     }
 
@@ -296,7 +313,8 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     }
 
     // Estimated eval for unknown nodes = original parent NN eval - reduction
-    auto fpu_eval = get_eval(color) - fpu_reduction;
+    // Or curent parent eval - reduction if dynamic_eval is enabled.
+    auto fpu_eval = (cfg_fpu_dynamic_eval ? get_eval(color) : net_eval) - fpu_reduction;
 
     for (const auto& child : m_children) {
         if (!child->active()) {
