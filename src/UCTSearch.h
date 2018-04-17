@@ -98,8 +98,8 @@ private:
     int64_t m_target_time{0};
     int64_t m_start_time{0};
     std::atomic<bool> m_run{false};
-    int m_maxplayouts;
-    int m_maxvisits;
+    int m_maxplayouts{0};
+    int m_maxvisits{0};
 
     bool quiet_ = true;
     std::atomic<bool> uci_stop{false};
