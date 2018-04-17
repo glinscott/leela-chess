@@ -37,29 +37,29 @@
 class SearchResult {
 public:
     SearchResult() = default;
-    bool valid() const { return m_valid;  }
-    float eval() const { return m_eval;  }
-	bool certain() const { return m_certain; }
-	static SearchResult from_eval(float eval) {
-		return SearchResult(eval, false);
-	}
-	static SearchResult from_score(float board_score) {
-		if (board_score > 0.0f) {
-			return SearchResult(1.0f, true);
-		}
-		else if (board_score < 0.0f) {
-			return SearchResult(0.0f, true);
-		}
-		else {
-		    return SearchResult(0.5f, true);
-		}
-	}
+    bool valid() const { return m_valid; }
+    float eval() const { return m_eval; }
+    bool certain() const { return m_certain; }
+    static SearchResult from_eval(float eval) {
+        return SearchResult(eval, false);
+    }
+    static SearchResult from_score(float board_score) {
+        if (board_score > 0.0f) {
+            return SearchResult(1.0f, true);
+        }
+        else if (board_score < 0.0f) {
+            return SearchResult(0.0f, true);
+        }
+        else {
+            return SearchResult(0.5f, true);
+        }
+    }
 private:
-	explicit SearchResult(float eval, bool certain)
-		 : m_valid(true), m_eval(eval), m_certain(certain) {}
-	bool m_valid{ false };
-	float m_eval{ 0.0f };
-	bool m_certain{ false };
+    explicit SearchResult(float eval, bool certain)
+        : m_valid(true), m_eval(eval), m_certain(certain) {}
+    bool m_valid{false};
+    float m_eval{0.0f};
+    bool m_certain{false};
 };
 
 class UCTSearch {

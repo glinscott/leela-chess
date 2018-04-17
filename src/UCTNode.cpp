@@ -254,7 +254,7 @@ void UCTNode::update(Color tomove, float eval, bool certain) {
         }
     }
 
-	m_visits++;
+    m_visits++;
     accumulate_eval(eval);
 }
 
@@ -286,7 +286,7 @@ float UCTNode::get_eval(int tomove) const {
         }
         return score;
     }
-	// Due to the use of atomic updates and virtual losses, it is
+    // Due to the use of atomic updates and virtual losses, it is
     // possible for the visit count to change underneath us. Make sure
     // to return a consistent result to the caller by caching the values.
     auto virtual_loss = int{m_virtual_loss};

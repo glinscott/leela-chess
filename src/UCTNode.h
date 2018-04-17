@@ -63,7 +63,7 @@ public:
     void virtual_loss_undo(void);
     void dirichlet_noise(float epsilon, float alpha);
     void randomize_first_proportionally(float tau);
-	void update(Color tomove, float eval = std::numeric_limits<float>::quiet_NaN(), bool certain = false);
+    void update(Color tomove, float eval = std::numeric_limits<float>::quiet_NaN(), bool certain = false);
 
     UCTNode* uct_select_child(Color color, bool is_root);
     UCTNode* get_first_child() const;
@@ -92,9 +92,9 @@ private:
     float m_init_eval;
     std::atomic<double> m_whiteevals{0};
     std::atomic<Status> m_status{ACTIVE};
-	std::atomic<bool> m_certain{false};
-	std::atomic<float> m_certaineval{0};
-	// Is someone adding scores to this node?
+    std::atomic<bool> m_certain{false};
+    std::atomic<float> m_certaineval{0};
+    // Is someone adding scores to this node?
     // We don't need to unset this.
     bool m_is_expanding{false};
     SMP::Mutex m_nodemutex;

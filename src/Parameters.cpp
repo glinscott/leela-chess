@@ -91,9 +91,9 @@ void Parameters::setup_default_parameters() {
     cfg_fpu_reduction = 0.0f;
     cfg_fpu_dynamic_eval = true;
     cfg_root_temp_decay = 0;
-	cfg_certain_bonus = 0.0f;
-	cfg_use_certain = false;
-	cfg_min_resign_moves = 20;
+    cfg_certain_bonus = 0.0f;
+    cfg_use_certain = false;
+    cfg_min_resign_moves = 20;
     cfg_resignpct = 10;
     cfg_noise = false;
     cfg_randomize = false;
