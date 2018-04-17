@@ -151,7 +151,8 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
 
         StateInfo si;
         state.cur().do_move(node->get_move(), si);
-        pvstring += " " + get_pv(state, *node);
+        // Since this is just a string, set use_san=true
+        pvstring += " " + get_pv(state, *node, true);
         state.cur().undo_move(node->get_move());
 
         myprintf_so("%s\n", pvstring.c_str());
@@ -211,19 +212,19 @@ Move UCTSearch::get_best_move() {
     return bestmove;
 }
 
-std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent) {
+std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent, bool use_san) {
     if (!parent.has_children()) {
         return std::string();
     }
 
     auto& best_child = parent.get_best_root_child(state.cur().side_to_move());
     auto best_move = best_child.get_move();
-    auto res = state.cur().move_to_san(best_move);
+    auto res = use_san ? state.cur().move_to_san(best_move) : UCI::move(best_move);
 
     StateInfo st;
     state.cur().do_move(best_move, st);
 
-    auto next = get_pv(state, best_child);
+    auto next = get_pv(state, best_child, use_san);
     if (!next.empty()) {
         res.append(" ").append(next);
     }
@@ -239,15 +240,13 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     auto bh = bh_.shallow_clone();
     Color color = bh.cur().side_to_move();
 
-    std::string pvstring = get_pv(bh, *m_root);
+    // UCI requires long algebraic notation, so use_san=false
+    std::string pvstring = get_pv(bh, *m_root, false);
     float feval = m_root->get_eval(color);
-    float winrate = 100.0f * feval;
-    // UCI-like output wants a depth and a cp.
-    // convert winrate to a cp estimate ... assume winrate = 1 / (1 + exp(-cp / 91))
-    // (91 can be tuned to have an output more or less matching e.g. SF, once both have similar strength)
-    int   cp = -91 * log(1 / feval - 1);
+    // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
+    int cp = 162 * tan(3.14 * (feval - 0.5));
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
-    int   depth = log(float(m_nodes)) / log(1.8);
+    int depth = log(float(m_nodes)) / log(1.8);
     // To report nodes, use visits.
     //   - Only includes expanded nodes.
     //   - Includes nodes carried over from tree reuse.
@@ -255,9 +254,9 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // To report nps, use m_playouts to exclude nodes added by tree reuse,
     // which is similar to a ponder hit. The user will expect to know how
     // fast nodes are being added, not how big the ponder hit was.
-    myprintf_so("info depth %d nodes %d nps %0.f score cp %d winrate %5.2f%% time %lld pv %s\n",
+    myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
              depth, visits, 1000.0 * m_playouts / (elapsed + 1),
-             cp, winrate, elapsed, pvstring.c_str());
+             cp, elapsed, pvstring.c_str());
 }
 
 bool UCTSearch::is_running() const {
@@ -360,7 +359,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     auto start_nodes = m_root->count_nodes();
 #endif
 
-    uci_stop = false;
+    uci_stop.store(false, std::memory_order_seq_cst);
 
     // See if the position is in our previous search tree.
     // If not, construct a new m_root.
@@ -499,16 +498,16 @@ int UCTSearch::get_search_time() {
 
 // Used to check if we've run out of time or reached out playout limit
 bool UCTSearch::should_halt_search() {
-    if (uci_stop) return true;
+    if (uci_stop.load(std::memory_order_seq_cst)) return true;
+    if (Limits.infinite) return false;
     auto elapsed_millis = now() - m_start_time;
     return m_target_time < 0 ? pv_limit_reached()
         : m_target_time < elapsed_millis;
 }
 
 // Asks the search to stop politely
-void UCTSearch::please_stop()
-{
-    uci_stop = true;
+void UCTSearch::please_stop() {
+    uci_stop.store(true, std::memory_order_seq_cst);
 }
 
 void UCTSearch::set_playout_limit(int playouts) {

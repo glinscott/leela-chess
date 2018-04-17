@@ -16,26 +16,17 @@
   along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "utils/hashcat.h"
 #include <gtest/gtest.h>
-#include "neural/loader.h"
-#include "neural/network_tf.h"
 
 namespace lczero {
 
-TEST(Network, FakeData) {
-  auto weights = LoadWeightsFromFile(
-      "../testdata/"
-      "218a136a377302cce2c645e6436b0cb8284764319046dbd5f57f7aaeb498580a");
-  auto network = MakeTensorflowNetwork(weights);
-  auto compute = network->NewComputation();
-  for (int j = 0; j < 4; ++j) {
-    InputPlanes planes(kInputPlanes);
-    for (int i = 0; i < kInputPlanes; ++i) {
-      planes[i].mask = 0x230709012008ull;
-    }
-    compute->AddInput(std::move(planes));
-  }
-  compute->ComputeBlocking();
+TEST(HashCat, TestCollision) {
+  uint64_t hash1 = HashCat({0x8000000010500000, 0x4000080000002000,
+                            0x8000000000002000, 0x4000000000000000});
+  uint64_t hash2 = HashCat({0x4000000010500000, 0x1000080000002000,
+                            0x4000000000002000, 0x1000000000000000});
+  EXPECT_NE(hash1, hash2);
 }
 
 }  // namespace lczero
