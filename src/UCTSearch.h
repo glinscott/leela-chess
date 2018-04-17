@@ -96,6 +96,7 @@ private:
     std::atomic<int> m_nodes{0};
     std::atomic<int> m_playouts{0};
     int64_t m_target_time{0};
+    int64_t m_max_time{0};
     int64_t m_start_time{0};
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
