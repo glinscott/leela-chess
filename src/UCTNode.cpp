@@ -335,7 +335,8 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
 
     // Estimated eval for unknown nodes = original parent NN eval - reduction
     // Or curent parent eval - reduction if dynamic_eval is enabled.
-    auto fpu_eval = (cfg_fpu_dynamic_eval ? get_raw_eval(color) : net_eval) - fpu_reduction;
+    auto fpu_eval = (cfg_fpu_dynamic_eval ? get_eval(color) : net_eval) - fpu_reduction;
+    //myprintf("Dynamic node eval with VL: %8.5f   without VL: %8.5f   FPU eval: %8.5f%\n ", get_eval(color), get_raw_eval(color), fpu_eval);
 
     for (const auto& child : m_children) {
         if (!child->active()) {
@@ -345,6 +346,7 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
         float winrate = fpu_eval;
         if (child->get_visits() > 0) {
             winrate = child->get_eval(color);
+            //myprintf("Expanded node eval: %8.5f\n ", winrate);
         }
         auto psa = child->get_score();
         auto denom = 1.0f + child->get_visits();
