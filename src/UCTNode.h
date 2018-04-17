@@ -52,9 +52,9 @@ public:
     int get_visits() const;
     float get_score() const;
     void set_score(float score);
-	bool get_certain() const;
-	void set_certain(bool value, float eval);
-	float get_eval(int tomove) const;
+    bool get_certain() const;
+    void set_certain(bool value, float eval);
+    float get_eval(int tomove) const;
     double get_whiteevals() const;
     void set_visits(int visits);
     void set_whiteevals(double whiteevals);
