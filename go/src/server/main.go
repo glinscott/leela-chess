@@ -225,7 +225,7 @@ func uploadNetwork(c *gin.Context) {
 	}
 
 	// TODO(gary): Make this more generic - upload to s3 for now
-	cmd := exec.Command("aws", "s3", "cp", network.Path, "s3://lczero/" + networks/)
+	cmd := exec.Command("aws", "s3", "cp", network.Path, "s3://lczero/networks/")
 	err = cmd.Run()
 	if err != nil {
 		log.Println(err.Error())
