@@ -88,7 +88,7 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
     }
 
     if (result.valid()) {
-		node->update(color, result.eval(), result.certain());
+        node->update(color, result.eval(), result.certain());
     }
     node->virtual_loss_undo();
 
