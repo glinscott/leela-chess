@@ -58,13 +58,17 @@ void UCTSearch::set_quiet(bool quiet) {
     quiet_ = quiet;
 }
 
-SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
+SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node, int ndepth) {
     const auto& cur = bh.cur();
     const auto color = cur.side_to_move();
 
     auto result = SearchResult{};
 
     node->virtual_loss();
+    if (ndepth > m_maxdepth) {
+        m_maxdepth = ndepth;
+    }
+    //myprintf("Current search depth: %d\n", ndepth);
 
     if (!node->has_children()) {
         bool drawn = cur.is_draw();
@@ -84,7 +88,7 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
         auto next = node->uct_select_child(color, node == m_root.get());
         auto move = next->get_move();
         bh.do_move(move);
-        result = play_simulation(bh, next);
+        result = play_simulation(bh, next, ndepth+1);
     }
 
     if (result.valid()) {
@@ -247,7 +251,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // (91 can be tuned to have an output more or less matching e.g. SF, once both have similar strength)
     int   cp = -91 * log(1 / feval - 1);
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
-    int   depth = log(float(m_nodes)) / log(1.8);
+    int   ldepth = log(float(m_nodes)) / log(1.8);
     // To report nodes, use visits.
     //   - Only includes expanded nodes.
     //   - Includes nodes carried over from tree reuse.
@@ -255,8 +259,8 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // To report nps, use m_playouts to exclude nodes added by tree reuse,
     // which is similar to a ponder hit. The user will expect to know how
     // fast nodes are being added, not how big the ponder hit was.
-    myprintf_so("info depth %d nodes %d nps %0.f score cp %d winrate %5.2f%% time %lld pv %s\n",
-             depth, visits, 1000.0 * m_playouts / (elapsed + 1),
+    myprintf_so("info depth %d max depth %d nodes %d nps %0.f score cp %d winrate %5.2f%% time %lld pv %s\n",
+             ldepth, m_maxdepth, visits, 1000.0 * m_playouts / (elapsed + 1),
              cp, winrate, elapsed, pvstring.c_str());
 }
 
@@ -344,7 +348,7 @@ bool UCTSearch::pv_limit_reached() const {
 void UCTWorker::operator()() {
     do {
         BoardHistory bh = bh_.shallow_clone();
-        auto result = m_search->play_simulation(bh, m_root);
+        auto result = m_search->play_simulation(bh, m_root, 0);
         if (result.valid()) {
             m_search->increment_playouts();
         }
@@ -370,6 +374,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     }
 
     m_playouts = 0;
+    m_maxdepth = 0;
     m_nodes = m_root->count_nodes();
     // TODO: Both UCI and the next line do shallow_clone.
     // Could optimize this.
@@ -411,7 +416,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     int last_update = 0;
     do {
         auto currstate = bh_.shallow_clone();
-        auto result = play_simulation(currstate, m_root.get());
+        auto result = play_simulation(currstate, m_root.get(), 0);
         if (result.valid()) {
             increment_playouts();
         }
@@ -470,7 +475,7 @@ void UCTSearch::ponder() {
     }
     do {
         auto bh = bh_.shallow_clone();
-        auto result = play_simulation(bh, m_root.get());
+        auto result = play_simulation(bh, m_root.get(), 0);
         if (result.valid()) {
             increment_playouts();
         }
