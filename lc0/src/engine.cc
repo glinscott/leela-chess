@@ -16,11 +16,13 @@
   along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <algorithm>
 #include <functional>
 
 #include "engine.h"
 #include "mcts/search.h"
 #include "neural/loader.h"
+#include "neural/network_random.h"
 #include "neural/network_tf.h"
 
 namespace lczero {
@@ -29,6 +31,25 @@ const int kDefaultThreads = 2;
 const char* kThreadsOption = "Number of worker threads";
 
 const char* kAutoDiscover = "<autodiscover>";
+
+SearchLimits PopulateSearchLimits(int ply, bool is_black,
+                                  const GoParams& params) {
+  SearchLimits limits;
+  limits.nodes = params.nodes;
+  limits.time_ms = params.movetime;
+  int64_t time = (is_black ? params.btime : params.wtime);
+  if (params.infinite || time < 0) return limits;
+  int increment = std::max(int64_t(0), is_black ? params.binc : params.winc);
+
+  // During first few moves policy network is mostly fine, so don't search deep.
+  if (ply < 4 && (limits.nodes < 0 || limits.nodes > 400)) limits.nodes = 400;
+
+  int movestogo = params.movestogo < 0 ? 50 : params.movestogo;
+  limits.time_ms = (time + (increment * (movestogo - 1))) * 0.95 / movestogo;
+
+  return limits;
+}
+
 }  // namespace
 
 EngineController::EngineController(BestMoveInfo::Callback best_move_callback,
@@ -45,6 +66,10 @@ void EngineController::GetUciOptions(UciOptions* options) {
   options->Add(std::make_unique<SpinOption>(kThreadsOption, kDefaultThreads, 1,
                                             128, std::function<void(int)>{},
                                             "threads", 't'));
+  options->Add(std::make_unique<SpinOption>(
+      "NNCache size", 200000, 0, 999999999,
+      std::bind(&EngineController::SetCacheSize, this, _1)));
+
   Search::PopulateUciParams(options);
 }
 
@@ -60,7 +85,10 @@ void EngineController::SetNetworkPath(const std::string& path) {
   Weights weights = LoadWeightsFromFile(net_path);
   // TODO Make backend selection.
   network_ = MakeTensorflowNetwork(weights);
+  // network_ = MakeRandomNetwork();
 }
+
+void EngineController::SetCacheSize(int size) { cache_.SetCapacity(size); }
 
 void EngineController::NewGame() {
   SharedLock lock(busy_mutex_);
@@ -85,13 +113,13 @@ void EngineController::MakeMove(Move move) {
     new_head = node_pool_->GetNode();
     current_head_->child = new_head;
     new_head->parent = current_head_;
-    new_head->board_flipped = current_head_->board;
-    const bool capture = new_head->board_flipped.ApplyMove(move);
-    new_head->board = new_head->board_flipped;
+    new_head->board = current_head_->board;
+    const bool capture = new_head->board.ApplyMove(move);
     new_head->board.Mirror();
     new_head->ply_count = current_head_->ply_count + 1;
     new_head->no_capture_ply = capture ? 0 : current_head_->no_capture_ply + 1;
     new_head->repetitions = ComputeRepetitions(new_head);
+    new_head->move = move;
   }
   current_head_ = new_head;
 }
@@ -117,8 +145,6 @@ void EngineController::SetPosition(const std::string& fen,
   if (!gamebegin_node_) {
     gamebegin_node_ = node_pool_->GetNode();
     gamebegin_node_->board = starting_board;
-    gamebegin_node_->board_flipped = starting_board;
-    gamebegin_node_->board_flipped.Mirror();
     gamebegin_node_->no_capture_ply = no_capture_ply;
     gamebegin_node_->ply_count =
         full_moves * 2 - (starting_board.flipped() ? 1 : 2);
@@ -136,15 +162,12 @@ void EngineController::Go(const GoParams& params) {
     SetPosition(ChessBoard::kStartingFen, {});
   }
 
-  SearchLimits limits;
-  limits.nodes = params.nodes;
-  limits.time_ms =
-      (current_head_->board.flipped() ? params.btime : params.wtime);
-  if (limits.time_ms >= 0) limits.time_ms /= 20;
+  auto limits = PopulateSearchLimits(current_head_->ply_count,
+                                     current_head_->board.flipped(), params);
 
-  search_ = std::make_unique<Search>(current_head_, node_pool_.get(),
-                                     network_.get(), best_move_callback_,
-                                     info_callback_, limits, uci_options_);
+  search_ = std::make_unique<Search>(
+      current_head_, node_pool_.get(), network_.get(), best_move_callback_,
+      info_callback_, limits, uci_options_, &cache_);
 
   search_->StartThreads(uci_options_ ? uci_options_->GetIntValue(kThreadsOption)
                                      : kDefaultThreads);

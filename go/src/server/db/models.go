@@ -80,7 +80,7 @@ type MatchGame struct {
 	Result  int
 	Done    bool
 	Flip    bool
-	
+
 	EngineVersion string
 }
 
