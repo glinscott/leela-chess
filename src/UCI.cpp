@@ -345,6 +345,7 @@ void UCI::loop(const std::string& start) {
       }
       else if (token == "ucinewgame") {
           stop_and_wait_search();
+          Training::clear_training();
       }
       else if (token == "isready") {
           Network::initialize();
