@@ -20,7 +20,6 @@
 import itertools
 import multiprocessing as mp
 import numpy as np
-import random
 from scipy.optimize import minimize_scalar
 import shufflebuffer as sb
 import struct
