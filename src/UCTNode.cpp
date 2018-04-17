@@ -251,10 +251,9 @@ void UCTNode::update(Color tomove, float eval, bool certain) {
                 }
                 set_certain(true, best_certain_eval);
             }
-
         }
-
     }
+
 	m_visits++;
     accumulate_eval(eval);
 }
@@ -403,6 +402,20 @@ public:
     NodeComp(int color) : m_color(color) {};
     bool operator()(const UCTNode::node_ptr_t& a,
                     const UCTNode::node_ptr_t& b) {
+
+        if (a->get_certain() || b->get_certain()) {
+            if (a->get_eval(m_color) != b->get_eval(m_color)) {
+                return a->get_eval(m_color) < b->get_eval(m_color);
+            }
+            if (a->get_eval(m_color) == 1.0 && a->get_certain() && b->get_certain()) {
+                // Reverse visit sort for certain wins, as it may lead to mate faster?
+                return a->get_visits() > b->get_visits();
+            }
+            else {
+                return a->get_visits() < b->get_visits();
+            }
+        }
+
         // if visits are not same, sort on visits
         if (a->get_visits() != b->get_visits()) {
             return a->get_visits() < b->get_visits();
