@@ -355,6 +355,11 @@ void UCTSearch::increment_playouts() {
 }
 
 Move UCTSearch::think(BoardHistory&& new_bh) {
+    // set up timing info
+    Time.init(bh_.cur().side_to_move(), bh_.cur().game_ply());
+    m_target_time = get_search_time();
+    m_start_time = Limits.timeStarted();
+    
 #ifndef NDEBUG
     auto start_nodes = m_root->count_nodes();
 #endif
@@ -381,13 +386,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         m_nodes.load(),
         m_nodes > 0 ? 100.0 * m_nodes.load() / start_nodes : 0);
 #endif
-
-    // set up timing info
-
-    Time.init(bh_.cur().side_to_move(), bh_.cur().game_ply());
-    m_target_time = get_search_time();
-    m_start_time = Limits.timeStarted();
-
+    
     // create a sorted list of legal moves (make sure we
     // play something legal and decent even in time trouble)
     if (!m_root->has_children()) {
