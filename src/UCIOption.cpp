@@ -115,7 +115,7 @@ namespace UCI {
         myprintf("Set cfg_slowmover to %d.\n", cfg_slowmover);
     }
 
-    void on_nodes_as_vistis(const Option& o) {
+    void on_nodes_as_visits(const Option& o) {
         cfg_go_nodes_as_visits = o;
 
         if (cfg_go_nodes_as_visits) {
@@ -138,12 +138,12 @@ namespace UCI {
     void init(OptionsMap& o) {
         o["Threads"]                << Option(cfg_num_threads, 1, cfg_max_threads, on_threads);
         o["Quiet"]                  << Option(cfg_quiet, on_quiet);
-        o["Softmax Temp"]           << SilentOption(std::to_string(cfg_softmax_temp).c_str(), on_softmaxtemp);
-        o["FPU Reduction"]          << Option(std::to_string(cfg_fpu_reduction).c_str(), on_fpureduction);
-        o["FPU Dynamic Eval"]       << SilentOption(cfg_fpu_dynamic_eval, on_fpudynamiceval);
+        o["Softmax temp"]           << SilentOption(std::to_string(cfg_softmax_temp).c_str(), on_softmaxtemp);
+        o["FPU reduction"]          << Option(std::to_string(cfg_fpu_reduction).c_str(), on_fpureduction);
+        o["FPU dynamic eval"]       << SilentOption(cfg_fpu_dynamic_eval, on_fpudynamiceval);
         o["Puct"]                   << Option(std::to_string(cfg_puct).c_str(), on_puct);
         o["SlowMover"]              << Option(cfg_slowmover, 1, std::numeric_limits<int>::max(), on_slowmover);
-        o["Go Nodes Visits"]        << Option(cfg_go_nodes_as_visits, on_nodes_as_vistis);
+        o["Go nodes as visits"]        << Option(cfg_go_nodes_as_visits, on_nodes_as_visits);
     }
 
 /// operator<<() is used to print all the options default values in chronological
