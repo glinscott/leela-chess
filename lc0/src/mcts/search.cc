@@ -17,56 +17,55 @@
 */
 
 #include "mcts/search.h"
-#include "mcts/node.h"
 
+#include <algorithm>
 #include <cmath>
+
+#include "mcts/node.h"
+#include "neural/cache.h"
 #include "neural/network_tf.h"
 
 namespace lczero {
 
 namespace {
 
-const int kDefaultMiniBatchSize = 32;
+const int kDefaultMiniBatchSize = 16;
 const char* kMiniBatchSizeOption = "Minibatch size for NN inference";
+
+const int kDefaultPrefetchBatchSize = 64;
+const char* kMiniPrefetchBatchOption = "Max prefetch nodes, per NN call";
+
+const bool kDefaultAggresiveCaching = false;
+const char* kAggresiveCachingOption = "Try hard to find what to cache";
 
 const int kDefaultCpuct = 170;
 const char* kCpuctOption = "Cpuct MCTS option (x100)";
-
-const bool kDefaultPopulateMoves = false;
-const char* kPopulateMovesOption = "(oldbug) Populate movecount plane";
-
-const bool kDefaultFlipHistory = true;
-const char* kFlipHistoryOption = "(oldbug) Flip opponents history";
-
-const bool kDefaultFlipMove = true;
-const char* kFlipMoveOption = "(oldbug) Flip black's moves";
 }  // namespace
 
 void Search::PopulateUciParams(UciOptions* options) {
   options->Add(std::make_unique<SpinOption>(kMiniBatchSizeOption,
-                                            kDefaultMiniBatchSize, 1, 128,
+                                            kDefaultMiniBatchSize, 1, 1024,
                                             std::function<void(int)>{}));
+
+  options->Add(std::make_unique<SpinOption>(kMiniPrefetchBatchOption,
+                                            kDefaultPrefetchBatchSize, 0, 1024,
+                                            std::function<void(int)>{}));
+
+  options->Add(std::make_unique<CheckOption>(kAggresiveCachingOption,
+                                             kDefaultAggresiveCaching,
+                                             std::function<void(bool)>{}));
 
   options->Add(std::make_unique<SpinOption>(kCpuctOption, kDefaultCpuct, 0,
                                             9999, std::function<void(int)>{}));
-
-  options->Add(std::make_unique<CheckOption>(kPopulateMovesOption,
-                                             kDefaultPopulateMoves,
-                                             std::function<void(bool)>{}));
-
-  options->Add(std::make_unique<CheckOption>(
-      kFlipHistoryOption, kDefaultFlipHistory, std::function<void(bool)>{}));
-
-  options->Add(std::make_unique<CheckOption>(kFlipMoveOption, kDefaultFlipMove,
-                                             std::function<void(bool)>{}));
 }
 
 Search::Search(Node* root_node, NodePool* node_pool, const Network* network,
                BestMoveInfo::Callback best_move_callback,
                UciInfo::Callback info_callback, const SearchLimits& limits,
-               UciOptions* uci_options)
+               UciOptions* uci_options, NNCache* cache)
     : root_node_(root_node),
       node_pool_(node_pool),
+      cache_(cache),
       network_(network),
       limits_(limits),
       start_time_(std::chrono::steady_clock::now()),
@@ -75,16 +74,120 @@ Search::Search(Node* root_node, NodePool* node_pool, const Network* network,
       kMiniBatchSize(uci_options
                          ? uci_options->GetIntValue(kMiniBatchSizeOption)
                          : kDefaultMiniBatchSize),
+      kMiniPrefetchBatch(
+          uci_options ? uci_options->GetIntValue(kMiniPrefetchBatchOption)
+                      : kDefaultPrefetchBatchSize),
+      kAggresiveCaching(uci_options
+                            ? uci_options->GetBoolValue(kAggresiveCachingOption)
+                            : kDefaultAggresiveCaching),
       kCpuct((uci_options ? uci_options->GetIntValue(kCpuctOption)
                           : kDefaultCpuct) /
-             100.0f),
-      kPopulateMoves(uci_options
-                         ? uci_options->GetBoolValue(kPopulateMovesOption)
-                         : kDefaultPopulateMoves),
-      kFlipHistory(uci_options ? uci_options->GetBoolValue(kFlipHistoryOption)
-                               : kDefaultFlipHistory),
-      kFlipMove(uci_options ? uci_options->GetBoolValue(kFlipMoveOption)
-                            : kDefaultFlipMove) {}
+             100.0f) {}
+
+// Returns whether node was already in cache.
+bool Search::AddNodeToCompute(Node* node, CachingComputation* computation,
+                              bool add_if_cached) {
+  auto hash = node->BoardHash();
+  // If already in cache, no need to do anything.
+  if (add_if_cached) {
+    if (computation->AddInputByHash(hash)) return true;
+  } else {
+    if (cache_->ContainsKey(hash)) return true;
+  }
+  auto planes = EncodeNode(node);
+
+  std::vector<uint16_t> moves;
+
+  if (node->child) {
+    // Valid moves are known, using them.
+    for (Node* iter = node->child; iter; iter = iter->sibling) {
+      moves.emplace_back(iter->move.as_nn_index());
+    }
+  } else {
+    // Cache pseudovalid moves. A bit of a waste, but faster.
+    const auto& pseudovalid_moves = node->board.GeneratePseudovalidMoves();
+    moves.reserve(pseudovalid_moves.size());
+    for (const Move& m : pseudovalid_moves) {
+      moves.emplace_back(m.as_nn_index());
+    }
+  }
+
+  computation->AddInput(hash, std::move(planes), std::move(moves));
+  return false;
+}
+
+namespace {
+inline float ScoreNodeU(Node* node) {
+  return node->p / (1 + node->n + node->n_in_flight);
+}
+
+inline float ScoreNodeQ(Node* node) {
+  return (node->n ? node->q : -node->parent->q);
+}
+}  // namespace
+
+// Prefetches up to @budget nodes into cache. Returns number of nodes
+// prefetched.
+int Search::PrefetchIntoCache(Node* node, int budget,
+                              CachingComputation* computation) {
+  if (budget <= 0) return 0;
+
+  // We are in a leaf, which is not yet being processed.
+  if (node->n + node->n_in_flight == 0) {
+    if (AddNodeToCompute(node, computation, false)) {
+      return kAggresiveCaching ? 0 : 1;
+    }
+    return 1;
+  }
+
+  // If it's a node in progress of expansion or is terminal, not prefetching.
+  if (!node->child) return 0;
+
+  // Populate all subnodes and their scores.
+  typedef std::pair<float, Node*> ScoredNode;
+  std::vector<ScoredNode> scores;
+  float factor = kCpuct * std::sqrt(node->n + 1);
+  for (Node* iter = node->child; iter; iter = iter->sibling) {
+    scores.emplace_back(factor * ScoreNodeU(iter) + ScoreNodeQ(iter), iter);
+  }
+
+  int first_unsorted_index = 0;
+  int total_budget_spent = 0;
+  int budget_to_spend = budget;  // Initializing for the case there's only
+                                 // on child.
+  for (int i = 0; i < scores.size(); ++i) {
+    if (budget <= 0) break;
+
+    // Sort next chunk of a vector. 3 of a time. Most of the times it's fine.
+    if (first_unsorted_index != scores.size() &&
+        i + 2 >= first_unsorted_index) {
+      const int new_unsorted_index = std::min(
+          static_cast<int>(scores.size()),
+          budget < 2 ? first_unsorted_index + 2 : first_unsorted_index + 3);
+      std::partial_sort(scores.begin() + first_unsorted_index,
+                        scores.begin() + new_unsorted_index, scores.end());
+      first_unsorted_index = new_unsorted_index;
+    }
+
+    Node* n = scores[i].second;
+    // Last node gets the same budget as prev-to-last node.
+    if (i != scores.size() - 1) {
+      const float next_score = scores[i + 1].first;
+      const float q = ScoreNodeQ(n);
+      if (next_score > q) {
+        budget_to_spend = std::min(
+            budget,
+            int(n->p * factor / (next_score - q) - n->n - n->n_in_flight) + 1);
+      } else {
+        budget_to_spend = budget;
+      }
+    }
+    const int budget_spent = PrefetchIntoCache(n, budget_to_spend, computation);
+    budget -= budget_spent;
+    total_budget_spent += budget_spent;
+  }
+  return total_budget_spent;
+}
 
 void Search::Worker() {
   std::vector<Node*> nodes_to_process;
@@ -94,10 +197,12 @@ void Search::Worker() {
   do {
     int new_nodes = 0;
     nodes_to_process.clear();
-    auto computation = network_->NewComputation();
+    auto computation = CachingComputation(network_->NewComputation(), cache_);
 
     // Gather nodes to process in the current batch.
     for (int i = 0; i < kMiniBatchSize; ++i) {
+      // If there's something to do without touching slow neural net, do it.
+      if (i > 0 && computation.GetCacheMisses() == 0) break;
       Node* node = PickNodeToExtend(root_node_);
       // If we hit the node that is already processed (by our batch or in
       // another thread) stop gathering and process smaller batch.
@@ -114,26 +219,34 @@ void Search::Worker() {
       // If node turned out to be a terminal one, no need to send to NN for
       // evaluation.
       if (!node->is_terminal) {
-        auto planes = EncodeNode(node);
-        computation->AddInput(std::move(planes));
+        AddNodeToCompute(node, &computation);
       }
     }
 
+    // If there are requests to NN, but the batch is not full, try to prefetch
+    // nodes which are likely useful in future.
+    if (computation.GetCacheMisses() > 0 &&
+        computation.GetCacheMisses() < kMiniPrefetchBatch) {
+      std::shared_lock<std::shared_mutex> lock{nodes_mutex_};
+      PrefetchIntoCache(root_node_,
+                        kMiniPrefetchBatch - computation.GetCacheMisses(),
+                        &computation);
+    }
+
     // Evaluate nodes through NN.
-    if (computation->GetBatchSize() != 0) {
-      computation->ComputeBlocking();
+    if (computation.GetBatchSize() != 0) {
+      computation.ComputeBlocking();
 
       int idx_in_computation = 0;
       for (Node* node : nodes_to_process) {
         if (node->is_terminal) continue;
         // Populate Q value.
-        node->q = -computation->GetQVal(idx_in_computation);
+        node->v = -computation.GetQVal(idx_in_computation);
         // Populate P values.
         float total = 0.0;
         for (Node* n = node->child; n; n = n->sibling) {
-          Move m = n->move;
-          if (kFlipMove && node->board.flipped()) m.Mirror();
-          float p = computation->GetPVal(idx_in_computation, m.as_nn_index());
+          float p =
+              computation.GetPVal(idx_in_computation, n->move.as_nn_index());
           total += p;
           n->p = p;
         }
@@ -152,7 +265,7 @@ void Search::Worker() {
       std::unique_lock<std::shared_mutex> lock{nodes_mutex_};
       total_nodes_ += new_nodes;
       for (Node* node : nodes_to_process) {
-        float v = node->q;
+        float v = node->v;
         // Maximum depth the node is explored.
         uint16_t depth = 0;
         // If the node is terminal, mark it as fully explored to an infinite
@@ -228,9 +341,10 @@ void Search::SendUciInfo() {
   uci_info_.seldepth = root_node_->max_depth;
   uci_info_.time = GetTimeSinceStart();
   uci_info_.nodes = total_nodes_;
+  uci_info_.hashfull = cache_->GetSize() * 1000LL / cache_->GetCapacity();
   uci_info_.nps =
       uci_info_.time ? (uci_info_.nodes * 1000 / uci_info_.time) : 0;
-  uci_info_.score = -91 * log(2 / (best_move_node_->q + 1) - 1);
+  uci_info_.score = -191 * log(2 / (best_move_node_->q * 0.99 + 1) - 1);
   uci_info_.pv.clear();
 
   for (Node* iter = best_move_node_; iter; iter = GetBestChild(iter)) {
@@ -270,7 +384,9 @@ void Search::MaybeTriggerStop() {
   if (stop_ && !responded_bestmove_) {
     responded_bestmove_ = true;
     SendUciInfo();
-    best_move_callback_(GetBestMove());
+    auto best_move = GetBestMove();
+    best_move_callback_({best_move.first, best_move.second});
+    best_move_node_ = nullptr;
   }
 }
 
@@ -286,30 +402,30 @@ void Search::ExtendNode(Node* node) {
     node->is_terminal = true;
     if (board.IsUnderCheck()) {
       // Checkmate.
-      node->q = 1.0f;
+      node->v = 1.0f;
     } else {
       // Stalemate.
-      node->q = 0.0f;
+      node->v = 0.0f;
     }
     return;
   }
 
   if (!board.HasMatingMaterial()) {
     node->is_terminal = true;
-    node->q = 0.0f;
+    node->v = 0.0f;
     return;
   }
 
   if (node->no_capture_ply >= 100) {
     node->is_terminal = true;
-    node->q = 0.0f;
+    node->v = 0.0f;
     return;
   }
 
   node->repetitions = ComputeRepetitions(node);
   if (node->repetitions >= 2) {
     node->is_terminal = true;
-    node->q = 0.0f;
+    node->v = 0.0f;
     return;
   }
 
@@ -326,7 +442,6 @@ void Search::ExtendNode(Node* node) {
     }
 
     new_node->move = move.move;
-    new_node->board_flipped = move.board;
     new_node->board = move.board;
     new_node->board.Mirror();
     new_node->no_capture_ply =
@@ -362,10 +477,9 @@ Node* Search::PickNodeToExtend(Node* node) {
     float factor = kCpuct * std::sqrt(node->n + 1);
     float best = -100.0f;
     for (Node* iter = node->child; iter; iter = iter->sibling) {
-      const float u = factor * iter->p / (1 + iter->n + iter->n_in_flight);
-      const float v = u + iter->q;
-      if (v > best) {
-        best = v;
+      const float score = factor * ScoreNodeU(iter) + ScoreNodeQ(iter);
+      if (score > best) {
+        best = score;
         node = iter;
       }
     }
@@ -374,7 +488,8 @@ Node* Search::PickNodeToExtend(Node* node) {
 
 InputPlanes Search::EncodeNode(const Node* node) {
   const int kMoveHistory = 8;
-  const int kAuxPlaneBase = 14 * kMoveHistory;
+  const int planesPerBoard = 13;
+  const int kAuxPlaneBase = planesPerBoard * kMoveHistory;
 
   InputPlanes result(kAuxPlaneBase + 8);
 
@@ -383,11 +498,10 @@ InputPlanes Search::EncodeNode(const Node* node) {
 
   for (int i = 0; i < kMoveHistory; ++i, flip = !flip) {
     if (!node) break;
-    ChessBoard board = flip ? node->board_flipped : node->board;
+    ChessBoard board = node->board;
+    if (flip) board.Mirror();
 
-    if (kFlipHistory && i % 2 == 1) board.Mirror();
-
-    const int base = i * 14;
+    const int base = i * planesPerBoard;
     if (i == 0) {
       if (board.castlings().we_can_000()) result[kAuxPlaneBase + 0].SetAll();
       if (board.castlings().we_can_00()) result[kAuxPlaneBase + 1].SetAll();
@@ -395,7 +509,6 @@ InputPlanes Search::EncodeNode(const Node* node) {
       if (board.castlings().they_can_00()) result[kAuxPlaneBase + 3].SetAll();
       if (we_are_black) result[kAuxPlaneBase + 4].SetAll();
       result[kAuxPlaneBase + 5].Fill(node->no_capture_ply);
-      if (kPopulateMoves) result[kAuxPlaneBase + 6].Fill(node->ply_count % 256);
     }
 
     result[base + 0].mask = (board.ours() * board.pawns()).as_int();
@@ -414,7 +527,6 @@ InputPlanes Search::EncodeNode(const Node* node) {
 
     const int repetitions = node->repetitions;
     if (repetitions >= 1) result[base + 12].SetAll();
-    if (repetitions >= 2) result[base + 13].SetAll();
 
     node = node->parent;
   }
@@ -422,12 +534,18 @@ InputPlanes Search::EncodeNode(const Node* node) {
   return result;
 }
 
-Move Search::GetBestMove() const {
+std::pair<Move, Move> Search::GetBestMove() const {
   std::shared_lock<std::shared_mutex> lock(nodes_mutex_);
   Node* best_node = GetBestChild(root_node_);
   Move move = best_node->move;
   if (!best_node->board.flipped()) move.Mirror();
-  return move;
+
+  Move ponder_move;
+  if (best_node->child) {
+    ponder_move = GetBestChild(best_node)->move;
+    if (best_node->board.flipped()) ponder_move.Mirror();
+  }
+  return {move, ponder_move};
 }
 
 void Search::StartThreads(int how_many) {

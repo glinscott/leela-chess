@@ -31,9 +31,6 @@ struct Node {
   Move move;
   // The board from the point of view of the player to move.
   ChessBoard board;
-  // The board from the point of view of the opponent. Used to fill historical
-  // planes.
-  ChessBoard board_flipped;
   // How many half-moves without capture or pawn move was there.
   std::uint8_t no_capture_ply;
   // How many repetitions this position had before. For new positions it's 0.
@@ -47,6 +44,8 @@ struct Node {
   uint32_t n_in_flight;
   // How many completed visits this node had.
   uint32_t n;
+  // Q value fetched from neural network.
+  float v;
   // Average value (from value head of neural network) of all visited nodes in
   // subtree. Terminal nodes (which lead to checkmate or draw) may be visited
   // several times, those are counted several times. q = w / n
@@ -72,6 +71,7 @@ struct Node {
   // Pointer to a next sibling. nullptr if there are no further siblings.
   Node* sibling;
 
+  uint64_t BoardHash() const;
   std::string DebugString() const;
 };
 
@@ -88,13 +88,13 @@ class NodePool {
   void ReleaseAllChildrenExceptOne(Node* root, Node* subtree);
   // Releases all children, but doesn't release the node isself.
   void ReleaseChildren(Node*);
-  // Release all children of the node and the node itself.
-  void ReleaseSubtree(Node*);
 
   // Returns total number of nodes allocated.
   uint64_t GetAllocatedNodeCount() const;
 
  private:
+  // Release all children of the node and the node itself.
+  void ReleaseSubtree(Node*);
   void AllocateNewBatch();
 
   mutable std::mutex mutex_;

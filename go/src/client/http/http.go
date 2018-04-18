@@ -2,7 +2,6 @@ package client
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -117,12 +116,6 @@ func DownloadNetwork(httpClient *http.Client, hostname string, networkPath strin
 		return err
 	}
 
-	// Copy while decompressing
-	zr, err := gzip.NewReader(r.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	_, err = io.Copy(out, zr)
+	_, err = io.Copy(out, r.Body)
 	return err
 }

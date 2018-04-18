@@ -30,3 +30,5 @@ training/tf/models/
 *.exe
 *.dll
 /go/src/client/settings.json
+*.vspx
+*.psess
