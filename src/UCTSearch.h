@@ -81,11 +81,11 @@ public:
     void increment_playouts();
     bool should_halt_search();
     void please_stop();
-    SearchResult play_simulation(BoardHistory& bh, UCTNode* const node, int depth);
+    SearchResult play_simulation(BoardHistory& bh, UCTNode* const node, int sdepth);
 
 private:
     void dump_stats(BoardHistory& pos, UCTNode& parent);
-    std::string get_pv(BoardHistory& pos, UCTNode& parent, bool use_san);
+    std::string get_pv(BoardHistory& pos, UCTNode& parent);
     void dump_analysis(int64_t elapsed, bool force_output);
     Move get_best_move();
     float get_root_temperature();
