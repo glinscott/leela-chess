@@ -332,7 +332,7 @@ void generate_supervised_data(const std::string& filename) {
       myprintf_so("Invalid game in %s\n", filename.c_str());
       break;
     }
-    myprintf_so("\rProcessed %d games", ++games);
+    myprintf_so("\rProcessed %d games\n", ++games);
     BoardHistory bh;
     bh.set(Position::StartFEN);
     for (int i = 0; i < static_cast<int>(game->bh.positions.size()) - 1; ++i) {
