@@ -55,7 +55,7 @@ std::unique_ptr<PGNGame> PGNParser::parse() {
     }
 
     // Skip comments
-    if (s[0] == '{') {
+    if (s.front() == '{' || s.front() == '[' || s.back() == '}' || s.back() == ']') {
       continue;
     }
 
