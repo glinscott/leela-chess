@@ -500,9 +500,8 @@ int UCTSearch::get_search_time() {
 bool UCTSearch::should_halt_search() {
     if (uci_stop) return true;
     auto elapsed_millis = now() - m_start_time;
-    if (elapsed_millis > m_max_time) return true;
     return m_target_time < 0 ? pv_limit_reached()
-        : m_target_time < elapsed_millis;
+        : (m_target_time < elapsed_millis || elapsed_millis > m_max_time);
 }
 
 // Asks the search to stop politely
