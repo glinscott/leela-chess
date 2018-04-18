@@ -270,6 +270,27 @@ float UCTNode::get_eval(int tomove) const {
     }
 }
 
+float UCTNode::get_raw_eval(int tomove) const {
+    // For use in the FPU, a dynamic evaluation which is unaffected by
+    // virtual losses is also required.
+    auto visits = get_visits();
+    if (visits > 0) {
+        auto whiteeval = get_whiteevals();
+        auto score = static_cast<float>(whiteeval / (double)visits);
+        if (tomove == BLACK) {
+            score = 1.0f - score;
+        }
+        return score;
+    } else {
+        // If a node has not been visited yet, the eval is that of the parent.
+        auto eval = m_init_eval;
+        if (tomove == BLACK) {
+            eval = 1.0f - eval;
+        }
+        return eval;
+    }
+}
+
 double UCTNode::get_whiteevals() const {
     return m_whiteevals;
 }
@@ -315,6 +336,7 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     // Estimated eval for unknown nodes = original parent NN eval - reduction
     // Or curent parent eval - reduction if dynamic_eval is enabled.
     auto fpu_eval = (cfg_fpu_dynamic_eval ? get_eval(color) : net_eval) - fpu_reduction;
+    //myprintf("Dynamic node eval with VL: %8.5f   without VL: %8.5f   FPU eval: %8.5f%\n ", get_eval(color), get_raw_eval(color), fpu_eval);
 
     for (const auto& child : m_children) {
         if (!child->active()) {
@@ -324,6 +346,7 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
         float winrate = fpu_eval;
         if (child->get_visits() > 0) {
             winrate = child->get_eval(color);
+            //myprintf("Expanded node eval: %8.5f\n ", winrate);
         }
         auto psa = child->get_score();
         auto denom = 1.0f + child->get_visits();
