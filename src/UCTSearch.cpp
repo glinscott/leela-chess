@@ -177,15 +177,15 @@ Move UCTSearch::get_best_move() {
 
     // Check whether to randomize the best move proportional
     // to the (exponentiated) visit counts.
-   
+
     if (cfg_randomize) {
         auto root_temperature = 1.0f;
         // If a temperature decay schedule is set, calculate root temperature from
-        // ply count and decay constant. Set default value for too small root temperature. 
+        // ply count and decay constant. Set default value for too small root temperature.
         if (cfg_root_temp_decay > 0) {
             root_temperature = get_root_temperature();
             myprintf("Game ply: %d, root temperature: %5.2f \n",bh_.cur().game_ply()+1, root_temperature);
-        } 
+        }
         m_root->randomize_first_proportionally(root_temperature);
     }
 
@@ -244,7 +244,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     std::string pvstring = get_pv(bh, *m_root, false);
     float feval = m_root->get_eval(color);
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
-    int cp = 162 * tan(3.14 * (feval - 0.5));
+    int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
     int depth = log(float(m_nodes)) / log(1.8);
     // To report nodes, use visits.
@@ -386,6 +386,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
     Time.init(bh_.cur().side_to_move(), bh_.cur().game_ply());
     m_target_time = get_search_time();
+    m_max_time = Time.maximum();
     m_start_time = Limits.timeStarted();
 
     // create a sorted list of legal moves (make sure we
@@ -502,7 +503,7 @@ bool UCTSearch::should_halt_search() {
     if (Limits.infinite) return false;
     auto elapsed_millis = now() - m_start_time;
     return m_target_time < 0 ? pv_limit_reached()
-        : m_target_time < elapsed_millis;
+        : (m_target_time < elapsed_millis || elapsed_millis > m_max_time);
 }
 
 // Asks the search to stop politely
