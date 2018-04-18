@@ -81,7 +81,7 @@ public:
     void increment_playouts();
     bool should_halt_search();
     void please_stop();
-    SearchResult play_simulation(BoardHistory& bh, UCTNode* const node);
+    SearchResult play_simulation(BoardHistory& bh, UCTNode* const node, int sdepth);
 
 private:
     void dump_stats(BoardHistory& pos, UCTNode& parent);
@@ -101,6 +101,7 @@ private:
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
     int m_maxvisits;
+    int m_maxdepth;
 
     bool quiet_ = true;
     std::atomic<bool> uci_stop{false};
