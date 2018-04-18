@@ -60,9 +60,20 @@ std::unique_ptr<PGNGame> PGNParser::parse() {
     }
 
     // Skip the move numbers
-    if ((i % 3) == 0) {
-      ++i;
+    if (s.back() == '.') {
       continue;
+    }
+
+    // Drop annotations
+    if (s.back() == '!' || s.back() == '?') {
+      size_t len = s.length();
+      auto backIt = s.end();
+      backIt--;
+      while (*backIt == '!' || *backIt == '?') {
+        backIt--;
+        len--;
+      }
+      s = s.substr(0, len);
     }
 
     ++i;
