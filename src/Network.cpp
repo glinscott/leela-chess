@@ -263,15 +263,15 @@ std::pair<int, int> Network::load_network(std::istream& wtfile) {
     while (std::getline(wtfile, line)) {
         std::vector<float> weights;
         float weight;
-        std::istringstream iss(line);
+        char * fz = &line[0];
         bool ok = true;
-        for (; iss;) {
-            if (iss >> weight) {
-                weights.emplace_back(weight);
-            } else if (!iss.eof()) {
-                ok = false;
-                break;
+        for (; *fz != '\0';) {
+            char * tmp = fz;
+            weight = strtof(fz, &fz); // if the read fails, fz is unchanged and weight is 0.0F.
+            if (weight == 0.0F && tmp == fz) {
+                ok = false; break;
             }
+            weights.emplace_back(weight);
         }
         if (!ok) {
             myprintf("\nFailed to parse weight file. Error on line %d.\n",
@@ -575,10 +575,16 @@ int Network::lookup(Move move, Color c) {
         if (c == WHITE) {
             return new_move_lookup.at(move);
         } else {
+            Move flipped_move;
+            if (type_of(move) == PROMOTION) {
+                flipped_move = make<PROMOTION>(~from_sq(move), ~to_sq(move), promotion_type(move));
+            } else {
+                flipped_move = make_move(~from_sq(move), ~to_sq(move));
+            }
             // The NN plays BLACK with the board flipped vertically,
             // And outputs the moves as if BLACK is moving up.
             // Flip the policy so the moves are normal.
-            return new_move_lookup.at(make_move(~from_sq(move), ~to_sq(move)));
+            return new_move_lookup.at(flipped_move);
         }
     }
 }

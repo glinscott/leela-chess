@@ -21,6 +21,7 @@
 #include <cmath>
 
 #include "TimeMan.h"
+#include "Parameters.h"
 
 TimeManagement Time; // Our global time management object
 
@@ -40,7 +41,7 @@ double move_importance(int ply) {
 
 int remaining(int myTime, int movesToGo, int ply) {
 
-    double moveImportance = move_importance(ply) * 111 / 100; // Slow Mover Ratio
+    double moveImportance = move_importance(ply) * cfg_slowmover / 100; // Slow Mover Ratio
     double otherMovesImportance = 0;
 
     for (int i = 1; i < movesToGo; ++i)
