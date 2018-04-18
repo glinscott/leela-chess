@@ -21,6 +21,7 @@
 #include <cmath>
 
 #include "TimeMan.h"
+#include "Parameters.h"
 
 TimeManagement Time; // Our global time management object
 
@@ -97,8 +98,8 @@ void TimeManagement::init(Color us, int ply) {
 
         hypMyTime = std::max(hypMyTime, 0);
 
-        int t1 = remaining<OptimumTime>(hypMyTime, hypMTG, ply, 89);
-        int t2 = remaining<MaxTime    >(hypMyTime, hypMTG, ply, 89);
+        int t1 = remaining<OptimumTime>(hypMyTime, hypMTG, ply, cfg_slowmover);
+        int t2 = remaining<MaxTime    >(hypMyTime, hypMTG, ply, cfg_slowmover);
 
         optimumTime = std::min(t1, optimumTime);
         maximumTime = std::min(t2, maximumTime);
