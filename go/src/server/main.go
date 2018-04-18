@@ -556,7 +556,7 @@ func getProgress() ([]gin.H, error) {
 		"rating": 0.0,
 		"best":   false,
 		"sprt":   "FAIL",
-		"hash":   "",
+		"id":     "",
 	})
 
 	var count uint64 = 0
@@ -585,7 +585,7 @@ func getProgress() ([]gin.H, error) {
 				"rating": elo + matchElo,
 				"best":   best,
 				"sprt":   sprt,
-				"hash":   network.Sha[0:8],
+				"id":     network.ID,
 			})
 			if matches[matchIdx].Passed {
 				elo += matchElo
@@ -599,13 +599,37 @@ func getProgress() ([]gin.H, error) {
 				"rating": elo,
 				"best":   true,
 				"sprt":   sprt,
-				"hash":   network.Sha[0:8],
+				"id":     network.ID,
 			})
 		}
 		count += counts[network.ID]
 	}
 
 	return result, nil
+}
+
+func filterProgress(result []gin.H) []gin.H {
+	// Show just the last 100 networks
+	result = result[len(result)-100:]
+
+	// Ensure the ordering is correct now (HACK)
+	tmp := []gin.H{}
+	tmp = append(tmp, gin.H{
+		"net":    result[0]["net"],
+		"rating": result[0]["rating"],
+		"best":   false,
+		"sprt":   "???",
+		"id":     "",
+	})
+	tmp = append(tmp, gin.H{
+		"net":    result[0]["net"],
+		"rating": result[0]["rating"],
+		"best":   false,
+		"sprt":   "FAIL",
+		"id":     "",
+	})
+
+	return append(tmp, result...)
 }
 
 func frontPage(c *gin.Context) {
@@ -622,6 +646,7 @@ func frontPage(c *gin.Context) {
 		c.String(500, "Internal error")
 		return
 	}
+	progress = filterProgress(progress)
 
 	c.HTML(http.StatusOK, "index", gin.H{
 		"active_users": users["active_users"],

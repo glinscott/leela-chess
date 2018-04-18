@@ -575,10 +575,16 @@ int Network::lookup(Move move, Color c) {
         if (c == WHITE) {
             return new_move_lookup.at(move);
         } else {
+            Move flipped_move;
+            if (type_of(move) == PROMOTION) {
+                flipped_move = make<PROMOTION>(~from_sq(move), ~to_sq(move), promotion_type(move));
+            } else {
+                flipped_move = make_move(~from_sq(move), ~to_sq(move));
+            }
             // The NN plays BLACK with the board flipped vertically,
             // And outputs the moves as if BLACK is moving up.
             // Flip the policy so the moves are normal.
-            return new_move_lookup.at(make_move(~from_sq(move), ~to_sq(move)));
+            return new_move_lookup.at(flipped_move);
         }
     }
 }

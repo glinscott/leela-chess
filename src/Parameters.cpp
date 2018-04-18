@@ -51,6 +51,7 @@ int cfg_resignpct;
 int cfg_noise;
 int cfg_randomize;
 int cfg_timemanage;
+int cfg_slowmover;
 int cfg_min_resign_moves;
 int cfg_root_temp_decay;
 uint64_t cfg_rng_seed;
@@ -68,6 +69,7 @@ std::string cfg_logfile;
 std::string cfg_supervise;
 FILE* cfg_logfile_handle;
 bool cfg_quiet;
+bool cfg_go_nodes_as_visits;
 
 void Parameters::setup_default_parameters() {
     cfg_allow_pondering = true;
@@ -94,9 +96,11 @@ void Parameters::setup_default_parameters() {
     cfg_noise = false;
     cfg_randomize = false;
     cfg_timemanage = true;
+    cfg_slowmover = 89;
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     cfg_rng_seed = 0;
     cfg_weightsfile = "weights.txt";
+    cfg_go_nodes_as_visits = true;
 }
 
