@@ -403,18 +403,38 @@ public:
     bool operator()(const UCTNode::node_ptr_t& a,
                     const UCTNode::node_ptr_t& b) {
 
-        if (a->get_certain() || b->get_certain()) {
-            if (a->get_eval(m_color) != b->get_eval(m_color)) {
-                return a->get_eval(m_color) < b->get_eval(m_color);
+        // Certain wins and losses are treated specifically to avoid potential
+        // mistakes based on visit count.
+        if (a->get_certain() && b->get_certain()) {
+            if(a->get_eval(m_color) != 0.5 && b->get_eval(m_color) != 0.5) {
+                // Sort certain wins relative to each other by visits, same for
+                // losses. Otherwise losses before wins.
+                if (a->get_eval(m_color) == b->get_eval(m_color)) {
+                    return a->get_visits() < b->get_visits();
+                } else {
+                    return a->get_eval(m_color) < b->get_eval(m_color);
+                }
             }
-            if (a->get_eval(m_color) == 1.0 && a->get_certain() && b->get_certain()) {
-                // Reverse visit sort for certain wins, as it may lead to mate faster?
-                return a->get_visits() > b->get_visits();
+        } else if (a->get_certain()) {
+            // Certain wins always go to the back of the list compared to
+            // non-certain.
+            // Certain losses always go to the front of the list compared to
+            // non-certain.
+            if (a->get_eval(m_color) != 0.5) {
+                return a->get_eval(m_color) == 0.0;
             }
-            else {
-                return a->get_visits() < b->get_visits();
+        } else if (b->get_certain()) {
+            // Certain wins always go to the back of the list compared to
+            // non-certain.
+            // Certain losses always go to the front of the list compared to
+            // non-certain.
+            if (b->get_eval(m_color) != 0.5) {
+                return b->get_eval(m_color) == 1.0;
             }
         }
+        // Certain draws fall through and get compared like normal. It is
+        // dificult to come up with a valid comparator which attempts to ensure
+        // they are rated higher than uncertain loss.
 
         // if visits are not same, sort on visits
         if (a->get_visits() != b->get_visits()) {
