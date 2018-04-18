@@ -244,7 +244,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     std::string pvstring = get_pv(bh, *m_root, false);
     float feval = m_root->get_eval(color);
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
-    int cp = 162 * tan(3.14 * (feval - 0.5));
+    int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
     int depth = log(float(m_nodes)) / log(1.8);
     // To report nodes, use visits.
