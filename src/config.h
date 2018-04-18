@@ -39,7 +39,7 @@ static constexpr int SELFCHECK_PROBABILITY = 2000;
 static constexpr int SELFCHECK_MIN_EXPANSIONS = 2'000'000;
 //#define USE_TUNER
 
-#define PROGRAM_VERSION "v0.5"
+#define PROGRAM_VERSION "v0.7"
 
 // OpenBLAS limitation
 #if defined(USE_BLAS) && defined(USE_OPENBLAS)

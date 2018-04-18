@@ -1,6 +1,6 @@
 {{define "content"}}
 <div class="alert alert-danger" role="alert">
-  v0.5 is now required!  Download <a href="https://github.com/glinscott/leela-chess/releases/tag/v0.5">here</a>.
+  v0.7 is now out.  This fixes a critical training bug, please update.  Download <a href="https://github.com/glinscott/leela-chess/releases/tag/v0.7">here</a>.
 </div>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
@@ -27,8 +27,8 @@
       <tr>
         <th>User</th>
         <th>Games / Day</th>
-        <th>System</th>
         <th>Version</th>
+        <th>Engine</th>
         <th>Last Updated</th>
       </tr>
     </thead>
@@ -37,8 +37,8 @@
       <tr>
         <td><a href="/user/{{.user}}">{{.user}}</a></td>
         <td>{{.games_today}}</td>
-        <td>{{.system}}</td>
         <td>{{.version}}</td>
+        <td>{{.engine}}</td>
         <td>{{.last_updated}}</td>
       </tr>
       {{end}}
@@ -80,6 +80,9 @@ var vlSpec = {
 					"type": "quantitative",
 					"axis": {
 						"title": "Number of accumulated games",
+					},
+					"scale": {
+						"zero": false
 					}
 				},
 				"y": {
@@ -87,6 +90,9 @@ var vlSpec = {
 					"type": "quantitative",
 					"axis": {
 						"title": "Elo rating (0 = random play)"
+					},
+					"scale": {
+						"zero": false
 					}
 				},
 				"color": {
@@ -105,6 +111,9 @@ var vlSpec = {
 					"type": "quantitative",
 					"axis": {
 						"title": "Number of accumulated games",
+					},
+					"scale": {
+						"zero": false
 					}
 				},
 				"y": {
@@ -112,6 +121,9 @@ var vlSpec = {
 					"type": "quantitative",
 					"axis": {
 						"title": "Elo rating (0 = random play)"
+					},
+					"scale": {
+						"zero": false
 					}
 				},
 				"color": {
@@ -138,8 +150,7 @@ var tooltipOpt = {
 		{field: "id", title: "Network Id", format: ",d"},
 		{field: "net", title: "Number of trained games", format: ",d"},
 		{field: "rating", title: "Elo rating (0 = random play)"},
-		{field: "sprt", title: "SPRT"},
-		{field: "hash", title: "Hash"}
+		{field: "sprt", title: "SPRT"}
 	]
 };
 vegaEmbed("#eloChart", vlSpec, opt)
