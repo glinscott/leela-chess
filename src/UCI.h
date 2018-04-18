@@ -27,7 +27,7 @@
 #include "Types.h"
 
 class Position;
-class BoardHistory;
+struct BoardHistory;
 
 namespace UCI {
     
