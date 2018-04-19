@@ -267,6 +267,68 @@ static std::string parse_commandline(int argc, char *argv[]) {
     return start;
 }
 
+// test for the gather_features function
+void test_gather_features() {
+    //Network::m_format_version = 2;
+    myprintf("format %d\n", Network::get_format_version());
+    BoardHistory bh;
+    bh.set(Position::StartFEN);
+    for (int it = 0; it < 100; ++it)
+    {
+        std::stringstream ss;
+        ss << bh.cur();
+        myprintf("%s\n", ss.str().c_str());
+
+        Network::NNPlanes planes;
+        Network::gather_features(bh, planes);
+        // flipping the board should not change the value of the planes
+        for (auto &pos : bh.positions) pos.flip();
+        Network::NNPlanes planes2;
+        Network::gather_features(bh, planes2);
+        // undo the flip
+        for (auto &pos : bh.positions) pos.flip();
+        int size = planes.bit.size();
+        for (int i = 0; i < size; ++i)
+            if (planes.bit.at(i) != planes2.bit.at(i))
+                myprintf("it %d bit %d/%d disagrees %llx vs %llx\n", it, i, size, planes.bit.at(i), planes2.bit.at(i));
+        MoveList<LEGAL> moves(bh.cur());
+        if (moves.size() == 0) break;
+        Move mov(moves.begin()[it % moves.size()]);
+        bh.do_move(mov);
+    }
+    bh.cur();
+}
+
+// test for the flip_move function
+void test_flip() {
+    for (int i = 0; i < (1<<16); ++i)
+    {
+        Move move = Move(i);
+        // ignore dubious moves; non-promotion moves shouldn't specify the promotion type
+        if (type_of(move) != PROMOTION && promotion_type(move) != KNIGHT) continue;
+        Move flipped_move(flip_move(move));
+        Move test_move;
+        if (move == MOVE_NONE || move == MOVE_NULL) {
+            test_move = move;
+        }
+        else if (type_of(move) == ENPASSANT) {
+            test_move = make<ENPASSANT>(~from_sq(move), ~to_sq(move));
+        }
+        else if (type_of(move) == CASTLING) {
+            test_move = make<CASTLING>(~from_sq(move), ~to_sq(move));
+        }
+        else if (type_of(move) == PROMOTION) {
+            test_move = make<PROMOTION>(~from_sq(move), ~to_sq(move), promotion_type(move));
+        }
+        else {
+            test_move = make_move(~from_sq(move), ~to_sq(move));
+        }
+        assert(flipped_move == test_move);
+        if (flipped_move != test_move)
+            myprintf("Move %d flipped to %d not %d\n", i, flipped_move, test_move);
+    }
+}
+
 void test_pgn_parse() {
   std::string raw = R"EOM([Event "?"]
 [Site "?"]
@@ -353,6 +415,8 @@ int main(int argc, char* argv[]) {
   std::string uci_start = parse_commandline(argc, argv);
 
   // test_pgn_parse();
+  // test_flip();
+  // test_gather_features();
 
   // Disable IO buffering as much as possible
   std::cout.setf(std::ios::unitbuf);

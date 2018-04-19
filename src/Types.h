@@ -367,4 +367,9 @@ constexpr bool is_ok(Move m) {
   return from_sq(m) != to_sq(m); // Catch MOVE_NULL and MOVE_NONE
 }
 
+constexpr Move flip_move(Move move) {
+    if (move == MOVE_NONE || move == MOVE_NULL) return move;
+    return Move(move ^ 0xE38); // flip bits 3,4,5,9,10,11
+}
+
 #endif // #ifndef TYPES_H_INCLUDED

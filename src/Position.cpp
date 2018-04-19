@@ -1011,7 +1011,9 @@ void Position::flip() {
   std::getline(ss, token); // Half and full moves
   f += token;
 
+  Move move(st->move); // preserve any move
   set(f, st);
+  st->move = flip_move(move);
 
   assert(pos_is_ok());
 }

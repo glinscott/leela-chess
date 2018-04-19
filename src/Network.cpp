@@ -388,7 +388,7 @@ void Network::initialize(void) {
 
     // Residual block convolutions
     for (auto i = size_t{0}; i < residual_blocks * 2; i++) {
-		conv_weights[weight_index] =
+        conv_weights[weight_index] =
             winograd_transform_f(conv_weights[weight_index],
                                  channels, channels);
         weight_index++;
@@ -575,16 +575,10 @@ int Network::lookup(Move move, Color c) {
         if (c == WHITE) {
             return new_move_lookup.at(move);
         } else {
-            Move flipped_move;
-            if (type_of(move) == PROMOTION) {
-                flipped_move = make<PROMOTION>(~from_sq(move), ~to_sq(move), promotion_type(move));
-            } else {
-                flipped_move = make_move(~from_sq(move), ~to_sq(move));
-            }
             // The NN plays BLACK with the board flipped vertically,
             // And outputs the moves as if BLACK is moving up.
             // Flip the policy so the moves are normal.
-            return new_move_lookup.at(flipped_move);
+            return new_move_lookup.at(flip_move(move));
         }
     }
 }
@@ -1168,6 +1162,8 @@ void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
     if (pos->can_castle(BLACK_OO)) planes.bit[kFeatureBase+(us==BLACK?0:2)+1].set();
     if (pos->can_castle(WHITE_OOO)) planes.bit[kFeatureBase+(us==WHITE?0:2)+0].set();
     if (pos->can_castle(WHITE_OO)) planes.bit[kFeatureBase+(us==WHITE?0:2)+1].set();
+    // NOTE, this results in unequal evaluations whether white or black's turn to move (even though we present
+    // the board flipped if Network::get_format_version() == 2). This is as in AZ.
     if (us == BLACK) planes.bit[kFeatureBase+4].set();
     planes.rule50_count = pos->rule50_count();
     // Move count is redundant in chess and was clamped to uint8_t. We disabled

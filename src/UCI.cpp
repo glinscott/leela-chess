@@ -407,6 +407,9 @@ void UCI::loop(const std::string& start) {
           myprintf_so("position startpos%s\n", result.c_str());
       }
       else if (token == "showpgn") myprintf_so("%s\n", bh.pgn().c_str());
+      else if (token == "flip") {
+          for (auto &pos : bh.positions) pos.flip();
+      }
       else if (token == "undo") {
           wait_search();
 
