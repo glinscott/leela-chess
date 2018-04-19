@@ -292,7 +292,7 @@ constexpr Piece make_piece(Color c, PieceType pt) {
   return Piece((c << 3) + pt);
 }
 
-constexpr PieceType type_of(Piece pc) {
+constexpr PieceType move_type(Piece pc) {
   return PieceType(pc & 7);
 }
 
@@ -346,7 +346,7 @@ constexpr int from_to(Move m) {
  return m & 0xFFF;
 }
 
-constexpr MoveType type_of(Move m) {
+constexpr MoveType move_type(Move m) {
   return MoveType(m & (3 << 14));
 }
 

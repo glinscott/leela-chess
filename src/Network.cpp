@@ -564,7 +564,7 @@ void Network::init_move_map() {
 }
 
 int Network::lookup(Move move, Color c) {
-    if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
+    if (move_type(move) != PROMOTION || promotion_type(move) == KNIGHT) {
         // Mask off the special move flags,
         // in particular en passant and castling
         move = Move(move & 0xfff);

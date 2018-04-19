@@ -462,7 +462,7 @@ bool Position::legal(Move m) const {
   // En passant captures are a tricky special case. Because they are rather
   // uncommon, we do it simply by testing whether the king is attacked after
   // the move is made.
-  if (type_of(m) == ENPASSANT)
+  if (move_type(m) == ENPASSANT)
   {
       Square ksq = square<KING>(us);
       Square to = to_sq(m);
@@ -481,8 +481,8 @@ bool Position::legal(Move m) const {
   // If the moving piece is a king, check whether the destination
   // square is attacked by the opponent. Castling moves are checked
   // for legality during move generation.
-  if (type_of(piece_on(from)) == KING)
-      return type_of(m) == CASTLING || !(attackers_to(to_sq(m)) & pieces(~us));
+  if (move_type(piece_on(from)) == KING)
+      return move_type(m) == CASTLING || !(attackers_to(to_sq(m)) & pieces(~us));
 
   // A non-king move is legal if and only if it is not pinned or it
   // is moving along the ray towards or away from the king.
@@ -503,7 +503,7 @@ bool Position::pseudo_legal(const Move m) const {
   Piece pc = moved_piece(m);
 
   // Use a slower but simpler function for uncommon cases
-  if (type_of(m) != NORMAL)
+  if (move_type(m) != NORMAL)
       return MoveList<LEGAL>(*this).contains(m);
 
   // Is not a promotion, so promotion piece must be empty
@@ -520,7 +520,7 @@ bool Position::pseudo_legal(const Move m) const {
       return false;
 
   // Handle the special case of a pawn move
-  if (type_of(pc) == PAWN)
+  if (move_type(pc) == PAWN)
   {
       // We have already handled promotion moves, so destination
       // cannot be on the 8th/1st rank.
@@ -535,7 +535,7 @@ bool Position::pseudo_legal(const Move m) const {
                && empty(to - pawn_push(us))))
           return false;
   }
-  else if (!(attacks_from(type_of(pc), from) & to))
+  else if (!(attacks_from(move_type(pc), from) & to))
       return false;
 
   // Evasions generator already takes care to avoid some kind of illegal moves
@@ -543,7 +543,7 @@ bool Position::pseudo_legal(const Move m) const {
   // kind of moves are filtered out here.
   if (checkers())
   {
-      if (type_of(pc) != KING)
+      if (move_type(pc) != KING)
       {
           // Double check? In this case a king move is required
           if (more_than_one(checkers()))
@@ -574,7 +574,7 @@ bool Position::gives_check(Move m) const {
   Square to = to_sq(m);
 
   // Is there a direct check?
-  if (st->checkSquares[type_of(piece_on(from))] & to)
+  if (st->checkSquares[move_type(piece_on(from))] & to)
       return true;
 
   // Is there a discovered check?
@@ -582,7 +582,7 @@ bool Position::gives_check(Move m) const {
       && !aligned(from, to, square<KING>(~sideToMove)))
       return true;
 
-  switch (type_of(m))
+  switch (move_type(m))
   {
   case NORMAL:
       return false;
@@ -649,13 +649,13 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   Square from = from_sq(m);
   Square to = to_sq(m);
   Piece pc = piece_on(from);
-  Piece captured = type_of(m) == ENPASSANT ? make_piece(them, PAWN) : piece_on(to);
+  Piece captured = move_type(m) == ENPASSANT ? make_piece(them, PAWN) : piece_on(to);
 
   assert(color_of(pc) == us);
-  assert(captured == NO_PIECE || color_of(captured) == (type_of(m) != CASTLING ? them : us));
-  assert(type_of(captured) != KING);
+  assert(captured == NO_PIECE || color_of(captured) == (move_type(m) != CASTLING ? them : us));
+  assert(move_type(captured) != KING);
 
-  if (type_of(m) == CASTLING)
+  if (move_type(m) == CASTLING)
   {
       assert(pc == make_piece(us, KING));
       assert(captured == make_piece(us, ROOK));
@@ -673,9 +673,9 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
       // If the captured piece is a pawn, update pawn hash key, otherwise
       // update non-pawn material.
-      if (type_of(captured) == PAWN)
+      if (move_type(captured) == PAWN)
       {
-          if (type_of(m) == ENPASSANT)
+          if (move_type(m) == ENPASSANT)
           {
               capsq -= pawn_push(us);
 
@@ -718,11 +718,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   }
 
   // Move the piece. The tricky Chess960 castling is handled earlier
-  if (type_of(m) != CASTLING)
+  if (move_type(m) != CASTLING)
       move_piece(pc, from, to);
 
   // If the moving piece is a pawn do some special extra work
-  if (type_of(pc) == PAWN)
+  if (move_type(pc) == PAWN)
   {
       // Set en-passant square if the moved pawn can be captured
       if (   (int(to) ^ int(from)) == 16
@@ -732,12 +732,12 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           k ^= Zobrist::enpassant[file_of(st->epSquare)];
       }
 
-      else if (type_of(m) == PROMOTION)
+      else if (move_type(m) == PROMOTION)
       {
           Piece promotion = make_piece(us, promotion_type(m));
 
           assert(relative_rank(us, to) == RANK_8);
-          assert(type_of(promotion) >= KNIGHT && type_of(promotion) <= QUEEN);
+          assert(move_type(promotion) >= KNIGHT && move_type(promotion) <= QUEEN);
 
           remove_piece(pc, to);
           put_piece(promotion, to);
@@ -786,21 +786,21 @@ void Position::undo_move(Move m) {
   Square to = to_sq(m);
   Piece pc = piece_on(to);
 
-  assert(empty(from) || type_of(m) == CASTLING);
-  assert(type_of(st->capturedPiece) != KING);
+  assert(empty(from) || move_type(m) == CASTLING);
+  assert(move_type(st->capturedPiece) != KING);
 
-  if (type_of(m) == PROMOTION)
+  if (move_type(m) == PROMOTION)
   {
       assert(relative_rank(us, to) == RANK_8);
-      assert(type_of(pc) == promotion_type(m));
-      assert(type_of(pc) >= KNIGHT && type_of(pc) <= QUEEN);
+      assert(move_type(pc) == promotion_type(m));
+      assert(move_type(pc) >= KNIGHT && move_type(pc) <= QUEEN);
 
       remove_piece(pc, to);
       pc = make_piece(us, PAWN);
       put_piece(pc, to);
   }
 
-  if (type_of(m) == CASTLING)
+  if (move_type(m) == CASTLING)
   {
       Square rfrom, rto;
       do_castling<false>(us, from, to, rfrom, rto);
@@ -813,11 +813,11 @@ void Position::undo_move(Move m) {
       {
           Square capsq = to;
 
-          if (type_of(m) == ENPASSANT)
+          if (move_type(m) == ENPASSANT)
           {
               capsq -= pawn_push(us);
 
-              assert(type_of(pc) == PAWN);
+              assert(move_type(pc) == PAWN);
               assert(to == st->previous->epSquare);
               assert(relative_rank(us, to) == RANK_6);
               assert(piece_on(capsq) == NO_PIECE);
@@ -1065,7 +1065,7 @@ bool Position::pos_is_ok() const {
 
   for (Piece pc : Pieces)
   {
-      if (   pieceCount[pc] != popcount(pieces(color_of(pc), type_of(pc)))
+      if (   pieceCount[pc] != popcount(pieces(color_of(pc), move_type(pc)))
           || pieceCount[pc] != std::count(board, board + SQUARE_NB, pc))
           assert(0 && "pos_is_ok: Pieces");
 
@@ -1095,10 +1095,10 @@ std::string Position::move_to_san(Move m) const {
   Piece pc = moved_piece(m);
 
   std::string result = "";
-  if (type_of(m) == CASTLING) {
+  if (move_type(m) == CASTLING) {
     result = file_of(to) > FILE_E ? "O-O" : "O-O-O";
   } else {
-    switch (type_of(pc)) {
+    switch (move_type(pc)) {
     case PAWN: break;
     case KNIGHT: result += "N"; break;
     case BISHOP: result += "B"; break;
@@ -1111,7 +1111,7 @@ std::string Position::move_to_san(Move m) const {
     MoveList<LEGAL> moves(*this);
     bool dupe = false, rank_diff = true, file_diff = true;
     for (auto m2 : moves) {
-      if (from_sq(m2) != from && to_sq(m2) == to && type_of(pc) == type_of(moved_piece(m2))) {
+      if (from_sq(m2) != from && to_sq(m2) == to && move_type(pc) == move_type(moved_piece(m2))) {
         dupe = true;
         if (file_of(from) == file_of(from_sq(m2))) file_diff = false;
         if (rank_of(from) == rank_of(from_sq(m2))) rank_diff = false;
@@ -1128,18 +1128,18 @@ std::string Position::move_to_san(Move m) const {
         result += file;
         result += rank;
       }
-    } else if (type_of(pc) == PAWN && (board[to] != NO_PIECE || type_of(m) == ENPASSANT)) {
+    } else if (move_type(pc) == PAWN && (board[to] != NO_PIECE || move_type(m) == ENPASSANT)) {
       result += file;
     }
 
-    if (board[to] != NO_PIECE || type_of(m) == ENPASSANT) {
+    if (board[to] != NO_PIECE || move_type(m) == ENPASSANT) {
       result += "x";
     }
 
     result += "abcdefgh"[file_of(to)];
     result += '1' + rank_of(to);
   }
-  if (type_of(m) == PROMOTION) {
+  if (move_type(m) == PROMOTION) {
     switch(promotion_type(m)) {
     case KNIGHT: result += "=N"; break;
     case BISHOP: result += "=B"; break;
@@ -1166,11 +1166,11 @@ bool Position::move_is_san(Move m, const char* ref) const {
   Square from = from_sq(m);
   Square to = to_sq(m);
   Piece pc = piece_on(from);
-  PieceType pt = type_of(pc);
+  PieceType pt = move_type(pc);
 
   buf[2] = '\0'; // Init to fast compare later on
 
-  if (type_of(m) == CASTLING)
+  if (move_type(m) == CASTLING)
   {
       int cmp, last = to > from ? 3 : 5;
 
@@ -1192,7 +1192,7 @@ bool Position::move_is_san(Move m, const char* ref) const {
 
       // A disambiguation occurs if we have more then one piece of type 'pt'
       // that can reach 'to' with a legal move.
-      others = b = (attacks_from(type_of(pc), to) & pieces(sideToMove, pt)) ^ from;
+      others = b = (attacks_from(move_type(pc), to) & pieces(sideToMove, pt)) ^ from;
 
       while (Strict && b)
       {
@@ -1235,7 +1235,7 @@ bool Position::move_is_san(Move m, const char* ref) const {
   *san++ = char('a' + file_of(to));
   *san++ = char('1' + rank_of(to));
 
-  if (type_of(m) == PROMOTION)
+  if (move_type(m) == PROMOTION)
   {
       if (Strict) // Sometime promotion move misses the '='
           *san++ = '=';

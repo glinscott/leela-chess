@@ -305,19 +305,19 @@ void test_flip() {
     {
         Move move = Move(i);
         // ignore dubious moves; non-promotion moves shouldn't specify the promotion type
-        if (type_of(move) != PROMOTION && promotion_type(move) != KNIGHT) continue;
+        if (move_type(move) != PROMOTION && promotion_type(move) != KNIGHT) continue;
         Move flipped_move(flip_move(move));
         Move test_move;
         if (move == MOVE_NONE || move == MOVE_NULL) {
             test_move = move;
         }
-        else if (type_of(move) == ENPASSANT) {
+        else if (move_type(move) == ENPASSANT) {
             test_move = make<ENPASSANT>(~from_sq(move), ~to_sq(move));
         }
-        else if (type_of(move) == CASTLING) {
+        else if (move_type(move) == CASTLING) {
             test_move = make<CASTLING>(~from_sq(move), ~to_sq(move));
         }
-        else if (type_of(move) == PROMOTION) {
+        else if (move_type(move) == PROMOTION) {
             test_move = make<PROMOTION>(~from_sq(move), ~to_sq(move), promotion_type(move));
         }
         else {

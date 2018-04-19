@@ -311,7 +311,7 @@ inline bool Position::pawn_passed(Color c, Square s) const {
 }
 
 inline bool Position::advanced_pawn_push(Move m) const {
-  return   type_of(moved_piece(m)) == PAWN
+  return   move_type(moved_piece(m)) == PAWN
         && relative_rank(sideToMove, from_sq(m)) > RANK_4;
 }
 
@@ -335,13 +335,13 @@ inline bool Position::opposite_bishops() const {
 
 inline bool Position::capture_or_promotion(Move m) const {
   assert(is_ok(m));
-  return type_of(m) != NORMAL ? type_of(m) != CASTLING : !empty(to_sq(m));
+  return move_type(m) != NORMAL ? move_type(m) != CASTLING : !empty(to_sq(m));
 }
 
 inline bool Position::capture(Move m) const {
   assert(is_ok(m));
   // Castling is encoded as "king captures rook"
-  return (!empty(to_sq(m)) && type_of(m) != CASTLING) || type_of(m) == ENPASSANT;
+  return (!empty(to_sq(m)) && move_type(m) != CASTLING) || move_type(m) == ENPASSANT;
 }
 
 inline Piece Position::captured_piece() const {
@@ -352,7 +352,7 @@ inline void Position::put_piece(Piece pc, Square s) {
 
   board[s] = pc;
   byTypeBB[ALL_PIECES] |= s;
-  byTypeBB[type_of(pc)] |= s;
+  byTypeBB[move_type(pc)] |= s;
   byColorBB[color_of(pc)] |= s;
   index[s] = pieceCount[pc]++;
   pieceList[pc][index[s]] = s;
@@ -366,7 +366,7 @@ inline void Position::remove_piece(Piece pc, Square s) {
   // the list and not in its original place, it means index[] and pieceList[]
   // are not invariant to a do_move() + undo_move() sequence.
   byTypeBB[ALL_PIECES] ^= s;
-  byTypeBB[type_of(pc)] ^= s;
+  byTypeBB[move_type(pc)] ^= s;
   byColorBB[color_of(pc)] ^= s;
   /* board[s] = NO_PIECE;  Not needed, overwritten by the capturing one */
   Square lastSquare = pieceList[pc][--pieceCount[pc]];
@@ -382,7 +382,7 @@ inline void Position::move_piece(Piece pc, Square from, Square to) {
   // is accessed just by known occupied squares.
   Bitboard from_to_bb = SquareBB[from] ^ SquareBB[to];
   byTypeBB[ALL_PIECES] ^= from_to_bb;
-  byTypeBB[type_of(pc)] ^= from_to_bb;
+  byTypeBB[move_type(pc)] ^= from_to_bb;
   byColorBB[color_of(pc)] ^= from_to_bb;
   board[from] = NO_PIECE;
   board[to] = pc;
