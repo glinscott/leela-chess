@@ -335,13 +335,12 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     auto fpu_vl_factor = 1.0f;
     // Simulate the effect of virtual loss on parent node calculation,
     //  without actually using it (because of multithreading issues)
-    fpu_vl_factor = get_visits()/(get_visits()+cfg_fpu_vl);
+    fpu_vl_factor = (parentvisits+1)/(parentvisits+1+cfg_fpu_vl);
 
     // Estimated eval for unknown nodes = original parent NN eval*vl_factor - reduction (if static
     // FPU eval is enabled), current parent eval*vl_factor - reduction if no parameters are enabled
-
     auto fpu_eval = (cfg_fpu_dynamic_eval ? get_raw_eval(color) : net_eval)*fpu_vl_factor - fpu_reduction;
-    myprintf("Move ID: %4d  Static parent eval: %8.5f  dynamic parent eval: %8.5f  Visits: %4d  VL adjusted: %8.5f  FPU eval: %8.5f%\n ", get_move(), net_eval, get_raw_eval(color), get_visits(), fpu_eval+fpu_reduction, fpu_eval);
+    //myprintf("Move ID: %5d  Static parent eval: %8.5f  dynamic parent eval: %8.5f  Visits: %4d VL adjusted: %8.5f  FPU eval: %8.5f%\n ", get_move(), net_eval, get_raw_eval(color), int(parentvisits)+1, fpu_eval+fpu_reduction, fpu_eval);
 
     for (const auto& child : m_children) {
         if (!child->active()) {
