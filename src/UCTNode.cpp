@@ -403,51 +403,15 @@ public:
     bool operator()(const UCTNode::node_ptr_t& a,
                     const UCTNode::node_ptr_t& b) {
 
-        // Certain wins and losses are treated specifically to avoid potential
-        // mistakes based on visit count.
-        if (a->get_certain() && b->get_certain()) {
-            if(a->get_eval(m_color) != 0.5 && b->get_eval(m_color) != 0.5) {
-                // Sort certain wins relative to each other by visits, same for
-                // losses. Otherwise losses before wins.
-                if (a->get_eval(m_color) == b->get_eval(m_color)) {
-                    return a->get_visits() < b->get_visits();
-                } else {
-                    return a->get_eval(m_color) < b->get_eval(m_color);
-                }
-            }
-        } else if (a->get_certain()) {
-            // Certain wins always go to the back of the list compared to
-            // non-certain.
-            // Certain losses always go to the front of the list compared to
-            // non-certain.
-            if (a->get_eval(m_color) != 0.5) {
-                return a->get_eval(m_color) == 0.0;
-            }
-        } else if (b->get_certain()) {
-            // Certain wins always go to the back of the list compared to
-            // non-certain.
-            // Certain losses always go to the front of the list compared to
-            // non-certain.
-            if (b->get_eval(m_color) != 0.5) {
-                return b->get_eval(m_color) == 1.0;
-            }
-        }
-        // Certain draws fall through and get compared like normal. It is
-        // dificult to come up with a valid comparator which attempts to ensure
-        // they are rated higher than uncertain loss.
-
-        // if visits are not same, sort on visits
-        if (a->get_visits() != b->get_visits()) {
-            return a->get_visits() < b->get_visits();
-        }
-
-        // neither has visits, sort on prior score
-        if (a->get_visits() == 0) {
-            return a->get_score() < b->get_score();
-        }
-
-        // both have same non-zero number of visits
-        return a->get_eval(m_color) < b->get_eval(m_color);
+        auto sort_key = [=](const UCTNode::node_ptr_t& node) {
+            // Certain loss < other < Certain win
+            // Within each category visits is tie breaker.
+            // Within equal visits eval is tie breaker unless visits is 0, then score instead.
+            float certain_eval = node->get_certain() ? node->get_eval(m_color) : 0.5f;            
+            float eval_or_score = node->get_visits() > 0 ? node->get_eval(m_color) : node->get_score();
+            return std::make_tuple(certain_eval, node->get_visits(), eval_or_score);
+        };
+        return sort_key(a) < sort_key(b);
     }
 private:
     int m_color;
