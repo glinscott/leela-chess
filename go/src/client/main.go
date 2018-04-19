@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"client/http"
+	client "github.com/glinscott/leela-chess/go/src/client/http"
 
 	"github.com/notnil/chess"
 )
