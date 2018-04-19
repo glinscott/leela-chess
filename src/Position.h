@@ -75,8 +75,8 @@ public:
   Position() = default;
 
   // FEN string input/output
-  Position& set(const std::string& fenStr, StateInfo* si);
-  Position& set(const std::string& code, Color c, StateInfo* si);
+  Position& init(const std::string& fenStr, StateInfo* si);
+  Position& init(const std::string& code, Color c, StateInfo* si);
   const std::string fen() const;
   void set_st(StateInfo* si) { st = si; }
 
