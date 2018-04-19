@@ -123,6 +123,8 @@ public:
     }
 
 private:
+    friend class NetworkTest;
+
     static bool initialized;
     static std::pair<int, int> load_network(std::istream& wtfile);
     static std::pair<int, int> load_network_file(std::string filename);
