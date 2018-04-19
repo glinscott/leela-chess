@@ -64,9 +64,6 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node, i
 
     auto result = SearchResult{};
 
-    // When we visit a node, add the amount of virtual losses specified in 
-    // cfg_virtual_loss to it to encourage other threads to explore other parts
-    // of the search tree.
     node->virtual_loss();
     if (ndepth > m_maxdepth) {
         m_maxdepth = ndepth;
@@ -249,7 +246,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
 
     // UCI requires long algebraic notation, so use_san=false
     std::string pvstring = get_pv(bh, *m_root, false);
-    float feval = m_root->get_eval(color);
+    float feval = m_root->get_raw_eval(color);
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
     int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
     int depth = m_maxdepth;

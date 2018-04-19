@@ -32,6 +32,11 @@
 
 class UCTNode {
 public:
+    // When we visit a node, add this amount of virtual losses
+    // to it to encourage other CPUs to explore other parts of the
+    // search tree.
+    static constexpr auto VIRTUAL_LOSS_COUNT = 3;
+
     using node_ptr_t = std::unique_ptr<UCTNode>;
 
     explicit UCTNode(Move move, float score, float init_eval);
