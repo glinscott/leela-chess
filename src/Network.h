@@ -110,6 +110,18 @@ public:
     static size_t get_hist_planes();
     static size_t get_num_output_policy();
 
+    static Move flip_move(Move move) {
+      Move flipped_move;
+      if (type_of(move) == PROMOTION) {
+        flipped_move = make<PROMOTION>(~from_sq(move), ~to_sq(move), promotion_type(move));
+      }
+      else {
+        flipped_move = make_move(~from_sq(move), ~to_sq(move));
+      }
+
+      return flipped_move;
+    }
+
 private:
     static bool initialized;
     static std::pair<int, int> load_network(std::istream& wtfile);
