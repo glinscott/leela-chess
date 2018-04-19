@@ -38,8 +38,8 @@
 #include "NNCache.h"
 #include "Random.h"
 
-using namespace std;
-using namespace Utils;
+using Utils::myprintf_so;
+using Utils::myprintf;
 
 namespace {
 
@@ -48,10 +48,10 @@ namespace {
   // or the starting position ("startpos") and then makes the moves given in the
   // following move list ("moves").
 
-  void position(BoardHistory& bh, istringstream& is) {
+  void position(BoardHistory& bh, std::istringstream& is) {
 
     Move m;
-    string token, fen;
+    std::string token, fen;
 
     is >> token;
 
@@ -75,19 +75,19 @@ namespace {
 
   // setoption() is called when engine receives the "setoption" UCI command. The
   // function updates the UCI option ("name") to the given value ("value").
-  void setoption(istringstream& is) {
+  void setoption(std::istringstream& is) {
 
-    string token, name, value;
+    std::string token, name, value;
 
     is >> token; // Consume "name" token
 
     // Read option name (can contain spaces)
     while (is >> token && token != "value")
-        name += string(" ", name.empty() ? 0 : 1) + token;
+        name += std::string(" ", name.empty() ? 0 : 1) + token;
 
     // Read option value (can contain spaces)
     while (is >> token)
-        value += string(" ", value.empty() ? 0 : 1) + token;
+        value += std::string(" ", value.empty() ? 0 : 1) + token;
 
       if (Options.count(name))
           Options[name] = value;
@@ -95,9 +95,9 @@ namespace {
           myprintf_so("No such option: %s\n", name.c_str());
   }
 
-  void parse_limits(istringstream& is, UCTSearch& search) {
+  void parse_limits(std::istringstream& is, UCTSearch& search) {
       Limits = LimitsType();
-      string token;
+      std::string token;
 
       search.set_visit_limit(cfg_max_visits);
       search.set_playout_limit(cfg_max_playouts);
@@ -127,7 +127,7 @@ namespace {
 
 
 // called when receiving the 'perft Depth' command
-void uci_perft(BoardHistory& bh, istringstream& is) {
+void uci_perft(BoardHistory& bh, std::istringstream& is) {
   int d = 4;
   is >> d;
   Depth depth = Depth(d);
@@ -136,7 +136,7 @@ void uci_perft(BoardHistory& bh, istringstream& is) {
 }
 
 void printVersion() {
-  stringstream options;
+  std::stringstream options;
   options << "id name lczero " PROGRAM_VERSION "\nid author The LCZero Authors";
   options << Options << "\n";
   options << "uciok\n";
@@ -146,7 +146,7 @@ void printVersion() {
 
 // Return the score from the self-play game
 int play_one_game(BoardHistory& bh) {
-  auto search = make_unique<UCTSearch>(bh.shallow_clone());
+  auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
   for (int game_ply = 0; game_ply < 450; ++game_ply) {
     if (bh.cur().is_draw()) {
       return 0;
@@ -184,14 +184,14 @@ int play_one_game() {
   return game_score;
 }
 
-void generate_training_games(istringstream& is) {
+void generate_training_games(std::istringstream& is) {
   printVersion();
   namespace fs = boost::filesystem;
-  string suffix;
+  std::string suffix;
   if (!(is >> suffix)) {
     suffix = "0";
   }
-  int64_t num_games = numeric_limits<int64_t>::max();
+  int64_t num_games = std::numeric_limits<int64_t>::max();
   is >> num_games;
 
   fs::path dir("data-" + suffix);
@@ -206,7 +206,7 @@ void generate_training_games(istringstream& is) {
 }
 
 void bench() {
-  string raw = R"EOM([Event "?"]
+  std::string raw = R"EOM([Event "?"]
 [Site "?"]
 [Date "2018.01.14"]
 [Round "1"]
@@ -226,7 +226,7 @@ Bg3 15. f4 d6 16. cxd6+ Ke8 17. Kg1 Bd7 18. a4 Rd8 {0.50s} 19. a5 Ra8 {0.54s}
 
 )EOM";
 
-  istringstream ss(raw);
+  std::istringstream ss(raw);
   PGNParser parser(ss);
   auto game = parser.parse();
 
@@ -241,7 +241,7 @@ Bg3 15. f4 d6 16. cxd6+ Ke8 17. Kg1 Bd7 18. a4 Rd8 {0.50s} 19. a5 Ra8 {0.54s}
   fclose(f);
   */
 
-  auto search = make_unique<UCTSearch>(game->bh.shallow_clone());
+  auto search = std::make_unique<UCTSearch>(game->bh.shallow_clone());
   auto save_cfg_timemanage = cfg_timemanage;
   cfg_timemanage = false;
   search->set_quiet(false);
@@ -278,15 +278,15 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
 }
 
 /// convert a board history into a command that recreates that position. pass a shallow_clone to minimise it.
-string showgame(const BoardHistory &bh)
+std::string showgame(const BoardHistory &bh)
 {
     auto it = bh.positions.begin(), it_end = bh.positions.end();
-    string fen = it->fen();
-    string result = (fen == Position::StartFEN) ? string("position startpos") : string("position fen ") + fen;
+    std::string fen = it->fen();
+    std::string result = (fen == Position::StartFEN) ? std::string("position startpos") : std::string("position fen ") + fen;
     if (++it != it_end) {
         result += " moves";
         for (; it != it_end; ++it) {
-            result += string(" ") + UCI::to_string(it->get_move());
+            result += std::string(" ") + UCI::to_string(it->get_move());
         }
     }
     return result;
@@ -299,22 +299,22 @@ string showgame(const BoardHistory &bh)
 /// run 'bench', once the command is executed the function returns immediately.
 /// In addition to the UCI ones, also some additional debug commands are supported.
 
-void UCI::loop(const string& start) {
-  string token, cmd = start;
+void UCI::loop(const std::string& start) {
+  std::string token, cmd = start;
   BoardHistory bh;
   bh.init(Position::StartFEN);
   UCTSearch search (bh.shallow_clone());//std::make_unique<UCTSearch>(bh.shallow_clone());
-  thread search_thread;
-  mutex bh_mutex;
+  std::thread search_thread;
+  std::mutex bh_mutex;
 
   do {
-      if (start.empty() && !getline(cin, cmd)) // Block here waiting for input or EOF
+      if (start.empty() && !getline(std::cin, cmd)) // Block here waiting for input or EOF
           cmd = "quit";
 
       Utils::log_input(cmd);
-      istringstream is(cmd);
+      std::istringstream is(cmd);
       token.clear(); // Avoid a stale if getline() returns empty or blank line
-      is >> skipws >> token;
+      is >> std::skipws >> token;
 
       if (token == "quit" || token == "exit") break;
 
@@ -332,7 +332,7 @@ void UCI::loop(const string& start) {
           Threads.ponder = false; // Switch to normal search
       */
 
-      unique_lock<mutex> bh_guard(bh_mutex); //locking for all commands for safety, explicitly unlock when needed
+      std::unique_lock<std::mutex> bh_guard(bh_mutex); //locking for all commands for safety, explicitly unlock when needed
 
       auto wait_search = [&bh_guard, &search, &search_thread]() {
           bh_guard.unlock();
@@ -361,9 +361,9 @@ void UCI::loop(const string& start) {
 
           parse_limits(is, search);
 
-          search_thread = thread([&bh, &search, bhc = bh.shallow_clone(), &bh_mutex]() mutable {
+          search_thread = std::thread([&bh, &search, bhc = bh.shallow_clone(), &bh_mutex]() mutable {
               Move move = search.think(std::move(bhc));
-              lock_guard<mutex> l(bh_mutex); //synchronizing with uci loop board history
+              std::lock_guard<std::mutex> l(bh_mutex); //synchronizing with uci loop board history
 
               bh.do_move(move);
               myprintf_so("bestmove %s\n", UCI::to_string(move).c_str());
@@ -402,7 +402,7 @@ void UCI::loop(const string& start) {
           bench();
       }
       else if (token == "d" || token == "showboard") { //bh is guarded by bh_guard
-          stringstream ss;
+          std::stringstream ss;
           ss << bh.cur();
           myprintf_so("%s\n", ss.str().c_str());
       }
@@ -410,13 +410,13 @@ void UCI::loop(const string& start) {
           // compare the result with "no history"
           parse_limits(is, search);
 
-          search_thread = thread([&bh, &search, bhc = bh.shallow_clone(), &bh_mutex]() mutable {
+          search_thread = std::thread([&bh, &search, bhc = bh.shallow_clone(), &bh_mutex]() mutable {
               NNCache::get_NNCache().resize(0);
               BoardHistory b;
               b.positions.push_back(bh.cur());
 
               Move move = search.think(std::move(bhc));
-              lock_guard<mutex> l(bh_mutex); //synchronizing with uci loop board history
+              std::lock_guard<std::mutex> l(bh_mutex); //synchronizing with uci loop board history
 
               bh.do_move(move);
               myprintf_so("bestmove %s\n", UCI::to_string(move).c_str());
@@ -429,7 +429,7 @@ void UCI::loop(const string& start) {
           myprintf("reset board and emptied cache\n");
       }
       else if (token == "showfen") {
-          stringstream ss;
+          std::stringstream ss;
           ss << bh.cur().fen();
           myprintf_so("%s\n", ss.str().c_str());
       }
@@ -445,7 +445,7 @@ void UCI::loop(const string& start) {
       else if (token == "usermove" || token == "play") {
           wait_search();
 
-          string ms;
+          std::string ms;
           while (is >> ms)
           {
               Move m = UCI::to_move(bh.cur(), ms);
@@ -454,7 +454,7 @@ void UCI::loop(const string& start) {
                   bh.do_move(m);
                   myprintf_so("usermove %s\n", UCI::to_string(m).c_str());
               }
-              else if (ms == std::to_string(((bh.cur().game_ply() / 2) + 1)) + string(".")) {
+              else if (ms == std::to_string(((bh.cur().game_ply() / 2) + 1)) + std::string(".")) {
                   continue; // ok to put the move number
               }
               else {
@@ -478,7 +478,7 @@ void UCI::loop(const string& start) {
       else if (token == "eval") {
           auto r = Network::get_scored_moves(bh);
           auto &moves = r.first;
-          sort(moves.begin(), moves.end());
+          std::sort(moves.begin(), moves.end());
           for (auto &m : moves) myprintf("%s : %f\n", bh.cur().move_to_san(m.second).c_str(), m.first);
           myprintf("winrate %f\n", r.second);
       }
@@ -501,9 +501,9 @@ void UCI::loop(const string& start) {
 
 /// UCI::to_string() converts a Square to a string in algebraic notation (g1, a7, etc.)
 
-string UCI::to_string(Square s) {
+std::string UCI::to_string(Square s) {
     assert(is_ok(s));
-    return string{ char('a' + file_of(s)), char('1' + rank_of(s)) };
+    return std::string{ char('a' + file_of(s)), char('1' + rank_of(s)) };
 }
 
 /// UCI::to_string() converts a Move to a string in coordinate notation (g1f3, a7a8q).
@@ -511,7 +511,7 @@ string UCI::to_string(Square s) {
 /// normal chess mode, and in e1h1 notation in chess960 mode. Internally all
 /// castling moves are always encoded as 'king captures rook'.
 
-string UCI::to_string(Move m) {
+std::string UCI::to_string(Move m) {
     
     Square from = from_sq(m);
     Square to = to_sq(m);
@@ -525,7 +525,7 @@ string UCI::to_string(Move m) {
     if (type_of(m) == CASTLING)
         to = make_square(to > from ? FILE_G : FILE_C, rank_of(from));
     
-    string move = UCI::to_string(from) + UCI::to_string(to);
+    std::string move = UCI::to_string(from) + UCI::to_string(to);
     
     if (type_of(m) == PROMOTION)
         move += " pnbrqk"[promotion_type(m)];
@@ -537,7 +537,7 @@ string UCI::to_string(Move m) {
 /// UCI::to_move() converts a string representing a move in coordinate notation
 /// (g1f3, a7a8q) to the corresponding legal Move, if any.
 
-Move UCI::to_move(const Position& pos, string const& str) {
+Move UCI::to_move(const Position& pos, std::string const& str) {
     for (const auto& m : MoveList<LEGAL>(pos))
         if (str == UCI::to_string(m))
             return m;
