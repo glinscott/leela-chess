@@ -91,9 +91,8 @@ static std::string parse_commandline(int argc, char *argv[]) {
 #ifdef USE_TUNER
         ("puct", po::value<float>())
         ("fpu_reduction", po::value<float>())
+        ("fpu_vl", po::value<float>())
         ("fpu_static_eval", "Disable dynamic node evaluation for first play urgency")
-        ("fpu_vl", "Use virtual loss for FPU calculation")
-        ("virtual_loss", po::value<float>())
         ("softmax_temp", po::value<float>())
 #endif
         ;
@@ -146,14 +145,11 @@ static std::string parse_commandline(int argc, char *argv[]) {
     if (vm.count("fpu_reduction")) {
         cfg_fpu_reduction = vm["fpu_reduction"].as<float>();
     }
+    if (vm.count("fpu_vl")) {
+        cfg_fpu_vl = vm["fpu_vl"].as<float>();
+    }
     if (vm.count("fpu_static_eval")) {
         cfg_fpu_dynamic_eval = false;
-    }
-    if (vm.count("fpu_vl")) {
-        cfg_fpu_vl = true;
-    }
-    if (vm.count("virtual_loss")) {
-        cfg_virtual_loss = vm["virtual_loss"].as<float>();
     }
     if (vm.count("softmax_temp")) {
         cfg_softmax_temp = vm["softmax_temp"].as<float>();
