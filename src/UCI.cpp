@@ -66,7 +66,7 @@ namespace {
     else
         return;
 
-    bh.set(fen);
+    bh.init(fen);
 
     // Parse move list (if any)
     while (is >> token && (m = UCI::to_move(bh.cur(), token)) != MOVE_NONE)
@@ -173,7 +173,7 @@ int play_one_game(BoardHistory& bh) {
 
 int play_one_game() {
   BoardHistory bh;
-  bh.set(Position::StartFEN);
+  bh.init(Position::StartFEN);
 
   Training::clear_training();
   int game_score = play_one_game(bh);
@@ -302,7 +302,7 @@ string showgame(const BoardHistory &bh)
 void UCI::loop(const string& start) {
   string token, cmd = start;
   BoardHistory bh;
-  bh.set(Position::StartFEN);
+  bh.init(Position::StartFEN);
   UCTSearch search (bh.shallow_clone());//std::make_unique<UCTSearch>(bh.shallow_clone());
   thread search_thread;
   mutex bh_mutex;
@@ -424,7 +424,7 @@ void UCI::loop(const string& start) {
           });
       }
       else if (token == "reset") {
-          bh.set(Position::StartFEN);
+          bh.init(Position::StartFEN);
           NNCache::get_NNCache().resize(0);
           myprintf("reset board and emptied cache\n");
       }

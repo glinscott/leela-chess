@@ -335,7 +335,7 @@ void generate_supervised_data(const std::string& filename) {
     }
     myprintf_so("\rProcessed %d games", ++games);
     BoardHistory bh;
-    bh.set(Position::StartFEN);
+    bh.init(Position::StartFEN);
     for (int i = 0; i < static_cast<int>(game->bh.positions.size()) - 1; ++i) {
       Move move = game->bh.positions[i + 1].get_move();
       Training::record(bh, move);

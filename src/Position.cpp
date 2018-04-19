@@ -1397,7 +1397,7 @@ Move Position::san_to_move(const std::string& s) const {
   return MOVE_NONE;
 }
 
-void BoardHistory::set(const std::string& fen) {
+void BoardHistory::init(const std::string& fen) {
   positions.clear();
   states.clear();
 

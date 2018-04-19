@@ -407,7 +407,7 @@ struct BoardHistory {
     return positions.back();
   }
 
-  void set(const std::string& fen);
+  void init(const std::string& fen);
   BoardHistory shallow_clone() const;
   void do_move(Move m);
   bool undo_move();
