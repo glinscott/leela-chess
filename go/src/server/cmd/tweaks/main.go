@@ -2,7 +2,8 @@ package main
 
 import (
 	"log"
-	"server/db"
+
+	"github.com/glinscott/leela-chess/go/src/server/db"
 )
 
 func updateNetworkCounts() {

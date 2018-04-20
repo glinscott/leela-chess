@@ -12,15 +12,14 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"server/db"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	client "github.com/glinscott/leela-chess/go/src/client/http"
+	"github.com/glinscott/leela-chess/go/src/server/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-
-	"client/http"
 )
 
 type StoreSuite struct {
@@ -197,7 +196,7 @@ func uploadTestNetwork(s *StoreSuite, contentString string, networkId int) {
 	s.w = httptest.NewRecorder()
 	content := []byte(contentString)
 	var buf bytes.Buffer
-	zw := gzip.NewWriterLevel(&buf, BestCompression)
+	zw, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
 	zw.Write(content)
 	zw.Close()
 

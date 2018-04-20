@@ -10,10 +10,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"server/db"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/glinscott/leela-chess/go/src/server/db"
 )
 
 func addFile(tw *tar.Writer, path string) error {
@@ -93,7 +94,7 @@ func tarGames(games []db.TrainingGame) string {
 	}
 	defer os.RemoveAll(dir)
 
-	outputPath := fmt.Sprintf("games%d.tar.gz", games[0].ID / 10000 * 10000)
+	outputPath := fmt.Sprintf("games%d.tar.gz", games[0].ID/10000*10000)
 	outputTar, err := os.Create(outputPath)
 	if err != nil {
 		log.Fatalln(err)
@@ -140,7 +141,7 @@ func deleteCompactedGames() {
 	leaveGames := 500000
 	log.Printf("Deleting from %d\n", ids[0])
 	for _, id := range ids {
-		if id + leaveGames >= ids[len(ids)-1] {
+		if id+leaveGames >= ids[len(ids)-1] {
 			log.Printf("Deleted to %d\n", id)
 			break
 		}
@@ -148,7 +149,7 @@ func deleteCompactedGames() {
 	log.Printf("Latest id %d\n", ids[len(ids)-1])
 
 	for _, id := range ids {
-		if id + leaveGames >= ids[len(ids)-1] {
+		if id+leaveGames >= ids[len(ids)-1] {
 			break
 		}
 		err := os.Remove(dir + "training." + strconv.Itoa(id) + ".gz")
@@ -169,7 +170,7 @@ func compactGames() bool {
 	if len(games) != int(numGames) {
 		return false
 	}
-	stop := int64(games[0].ID) / numGames * numGames + numGames
+	stop := int64(games[0].ID)/numGames*numGames + numGames
 	for idx, game := range games {
 		if int64(game.ID) >= stop {
 			games = games[0:idx]

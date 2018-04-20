@@ -13,13 +13,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"server/db"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-contrib/multitemplate"
 	"github.com/gin-gonic/gin"
+	"github.com/glinscott/leela-chess/go/src/server/db"
 )
 
 func checkUser(c *gin.Context) (*db.User, uint64, error) {
@@ -350,7 +350,7 @@ func getNetwork(c *gin.Context) {
 	// Serve the file
 	// NOTE: Disabled due to bandwidth, re-enable this for tests...
 	// c.File(network.Path)
-	c.Redirect(http.StatusMovedPermanently, "https://s3.amazonaws.com/lczero/" + network.Path)
+	c.Redirect(http.StatusMovedPermanently, "https://s3.amazonaws.com/lczero/"+network.Path)
 }
 
 func setBestNetwork(training_id uint, network_id uint) error {
