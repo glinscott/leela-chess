@@ -17,12 +17,11 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef TBPROBE_H
 #define TBPROBE_H
 
 #include <ostream>
 
-#include "../search.h"
+#include "../UCTSearch.h"
 
 namespace Tablebases {
 
@@ -49,9 +48,9 @@ extern int MaxCardinality;
 void init(const std::string& paths);
 WDLScore probe_wdl(Position& pos, ProbeState* result);
 int probe_dtz(Position& pos, ProbeState* result);
-bool root_probe(Position& pos, Search::RootMoves& rootMoves);
-bool root_probe_wdl(Position& pos, Search::RootMoves& rootMoves);
-void rank_root_moves(Position& pos, Search::RootMoves& rootMoves);
+//bool root_probe(Position& pos, UCTSearch::RootMoves& rootMoves, WDLScore& score);
+//bool root_probe_wdl(Position& pos, UCTSearch::RootMoves& rootMoves, WDLScore& score);
+//void filter_root_moves(Position& pos, UCTSearch::RootMoves& rootMoves);
 
 inline std::ostream& operator<<(std::ostream& os, const WDLScore v) {
 
@@ -76,4 +75,4 @@ inline std::ostream& operator<<(std::ostream& os, const ProbeState v) {
 
 }
 
-#endif
+
