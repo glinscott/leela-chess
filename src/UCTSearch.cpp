@@ -257,6 +257,8 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
              depth, visits, 1000.0 * m_playouts / (elapsed + 1),
              cp, elapsed, pvstring.c_str());
+    //winrate separate info string since it's not UCI spec
+    myprintf_so("info string winrate %5.2f%%", feval);
 }
 
 bool UCTSearch::is_running() const {
@@ -493,7 +495,8 @@ int UCTSearch::get_search_time() {
     }
 
     auto search_time = Limits.movetime ? Limits.movetime : Time.optimum();
-    search_time -= cfg_lagbuffer_ms;
+    // We must ensure search time is non-negative to use time management
+    search_time = std::max(1, search_time - cfg_lagbuffer_ms);
     return search_time;
 }
 
