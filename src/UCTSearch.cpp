@@ -493,7 +493,8 @@ int UCTSearch::get_search_time() {
     }
 
     auto search_time = Limits.movetime ? Limits.movetime : Time.optimum();
-    search_time -= cfg_lagbuffer_ms;
+    // We must ensure search time is non-negative to use time management
+    search_time = std::max(1, search_time - cfg_lagbuffer_ms);
     return search_time;
 }
 
