@@ -39,7 +39,7 @@
 #include "Training.h"
 #include "Types.h"
 #include "TimeMan.h"
-#include "syzygy/tbprobe.h
+#include "syzygy/tbprobe.h"
 #ifdef USE_OPENCL
 #include "OpenCL.h"
 #endif
