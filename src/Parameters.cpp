@@ -71,6 +71,8 @@ FILE* cfg_logfile_handle;
 bool cfg_quiet;
 bool cfg_go_nodes_as_visits;
 
+int cfg_uci_multipv;
+
 void Parameters::setup_default_parameters() {
     cfg_allow_pondering = true;
     cfg_noinitialize = false;
@@ -102,5 +104,7 @@ void Parameters::setup_default_parameters() {
     cfg_rng_seed = 0;
     cfg_weightsfile = "weights.txt";
     cfg_go_nodes_as_visits = true;
+
+    cfg_uci_multipv = 1;
 }
 

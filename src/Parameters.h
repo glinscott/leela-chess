@@ -54,6 +54,8 @@ extern FILE* cfg_logfile_handle;
 extern bool cfg_quiet;
 extern bool cfg_go_nodes_as_visits;
 
+extern int cfg_uci_multipv;
+
 class Parameters {
 public:
     static void setup_default_parameters();
