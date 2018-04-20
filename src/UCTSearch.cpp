@@ -238,13 +238,10 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     }
 
     auto bh = bh_.shallow_clone();
-    Color color = bh.cur().side_to_move();
+    const Color color = bh.cur().side_to_move();
 
-    // UCI requires long algebraic notation, so use_san=false
-    std::string pvstring = get_pv(bh, *m_root, false);
-    float feval = m_root->get_eval(color);
-    // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
-    int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
+    m_root->sort_root_children(color);
+
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
     int depth = log(float(m_nodes)) / log(1.8);
     // To report nodes, use visits.
@@ -254,9 +251,28 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // To report nps, use m_playouts to exclude nodes added by tree reuse,
     // which is similar to a ponder hit. The user will expect to know how
     // fast nodes are being added, not how big the ponder hit was.
-    myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
-             depth, visits, 1000.0 * m_playouts / (elapsed + 1),
-             cp, elapsed, pvstring.c_str());
+    auto nps = 1000.0 * m_playouts / (elapsed + 1);
+
+    int multipv_counter = 1;
+    for(const auto& node: m_root->get_children()){
+        auto node_move = node->get_move();
+        auto pvstring = UCI::move(node_move);
+
+        StateInfo st;
+        bh.cur().do_move(node_move, st);
+        // UCI requires long algebraic notation, so use_san=false
+        auto pvstring_rest = get_pv(bh, *node, false);
+        bh.cur().undo_move(node_move);
+
+        if(!pvstring_rest.empty()) pvstring.append(" ").append(pvstring_rest);
+
+        float feval = node->get_eval(color);
+        // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
+        int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
+        myprintf_so("info depth %d nodes %d nps %0.f multipv %d score cp %d time %lld pv %s\n",
+                 depth, visits, nps, multipv_counter, cp, elapsed, pvstring.c_str());
+        if(++multipv_counter > cfg_uci_multipv) break;
+    }
 }
 
 bool UCTSearch::is_running() const {
