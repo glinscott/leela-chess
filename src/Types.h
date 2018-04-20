@@ -292,7 +292,7 @@ constexpr Piece make_piece(Color c, PieceType pt) {
   return Piece((c << 3) + pt);
 }
 
-constexpr PieceType type_of(Piece pc) {
+constexpr PieceType move_type(Piece pc) {
   return PieceType(pc & 7);
 }
 
@@ -346,7 +346,7 @@ constexpr int from_to(Move m) {
  return m & 0xFFF;
 }
 
-constexpr MoveType type_of(Move m) {
+constexpr MoveType move_type(Move m) {
   return MoveType(m & (3 << 14));
 }
 
@@ -365,6 +365,11 @@ constexpr Move make(Square from, Square to, PieceType pt = KNIGHT) {
 
 constexpr bool is_ok(Move m) {
   return from_sq(m) != to_sq(m); // Catch MOVE_NULL and MOVE_NONE
+}
+
+constexpr Move flip_move(Move move) {
+    if (move == MOVE_NONE || move == MOVE_NULL) return move;
+    return Move(move ^ 0xE38); // flip bits 3,4,5,9,10,11
 }
 
 #endif // #ifndef TYPES_H_INCLUDED

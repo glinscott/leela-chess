@@ -100,7 +100,7 @@ ExtMove* generate<QUIET_CHECKS>(const Position& pos, ExtMove* moveList) {
   while (dc)
   {
      Square from = pop_lsb(&dc);
-     PieceType pt = type_of(pos.piece_on(from));
+     PieceType pt = move_type(pos.piece_on(from));
 
      if (pt == PAWN)
          continue; // Will be generated together with direct checks
@@ -169,7 +169,7 @@ ExtMove* generate<LEGAL>(const Position& pos, ExtMove* moveList) {
   moveList = pos.checkers() ? generate<EVASIONS    >(pos, moveList)
                             : generate<NON_EVASIONS>(pos, moveList);
   while (cur != moveList)
-      if (   (pinned || from_sq(*cur) == ksq || type_of(*cur) == ENPASSANT)
+      if (   (pinned || from_sq(*cur) == ksq || move_type(*cur) == ENPASSANT)
           && !pos.legal(*cur))
           *cur = (--moveList)->move;
       else

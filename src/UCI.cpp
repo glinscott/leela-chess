@@ -407,6 +407,9 @@ void UCI::loop(const std::string& start) {
           myprintf_so("position startpos%s\n", result.c_str());
       }
       else if (token == "showpgn") myprintf_so("%s\n", bh.pgn().c_str());
+      else if (token == "flip") {
+          for (auto &pos : bh.positions) pos.flip();
+      }
       else if (token == "undo") {
           wait_search();
 
@@ -476,12 +479,12 @@ string UCI::move(Move m) {
     if (m == MOVE_NULL)
         return "0000";
     
-    if (type_of(m) == CASTLING)
+    if (move_type(m) == CASTLING)
         to = make_square(to > from ? FILE_G : FILE_C, rank_of(from));
     
     string move = UCI::square(from) + UCI::square(to);
     
-    if (type_of(m) == PROMOTION)
+    if (move_type(m) == PROMOTION)
         move += " pnbrqk"[promotion_type(m)];
     
     return move;
