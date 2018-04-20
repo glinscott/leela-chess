@@ -69,10 +69,11 @@ static std::string parse_commandline(int argc, char *argv[]) {
                        "Weaken engine by limiting the number of visits.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
                        "Resign when winrate is less than x%.")
-        ("noise,n", "Apply dirichlet noise to root.")
-        ("randomize,m", "Randomize move selection at root.")
+        ("noise,n", "Before a playout, add Dirichlet noise to the root node's move probabilities.")
+        ("randomize,m", "During final move selection, select the move in proportion to estimated values (rather than 'best').")
         ("tempdecay,d", po::value<int>(),
-                       "Use decay schedule for move selection temperature.")
+                       "During final move selection, adjust move probabilities to the power of  1/temperature. "
+                       "Temp goes as ~ 1/(1+log(1+plies*decay/50)). -d 0 (temp=1) is equivalent to --randomize. -d 1 gives a move-50-temp of ~0.47. -d 10000 gives a move-50-temp of ~0.12.")
         ("seed,s", po::value<std::uint64_t>(),
                    "Random number generation seed.")
         ("weights,w", po::value<std::string>(), "File with network weights.")
@@ -169,7 +170,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
             myprintf("Using %d thread(s).\n", num_threads);
             cfg_num_threads = num_threads;
         }
-        
+
     }
 
     if (vm.count("seed")) {
