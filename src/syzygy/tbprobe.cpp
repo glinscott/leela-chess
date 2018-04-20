@@ -28,12 +28,12 @@
 #include <sstream>
 #include <type_traits>
 
-#include "../bitboard.h"
-#include "../movegen.h"
-#include "../position.h"
+#include "../Bitboard.h"
+#include "../Movegen.h"
+#include "../Position.h"
 #include "../UCTSearch.h"
 #include "../thread_win32.h"
-#include "../types.h"
+#include "../Types.h"
 
 #include "tbprobe.h"
 
@@ -1393,7 +1393,7 @@ void Tablebases::init(const std::string& paths) {
                     EntryTable.insert({KING, p1, p2, KING, p3, p4});
         }
     }
-	Utils::myprintf("info string Found %d tablebases", EntryTable.size());
+	Utils::myprintf("info string Found %d tablebases\n", EntryTable.size());
     //sync_cout << "info string Found " << EntryTable.size() << " tablebases" << sync_endl;
 }
 
