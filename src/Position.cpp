@@ -60,7 +60,9 @@ const Piece Pieces[] = { W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
 
 /// operator<<(Position) returns an ASCII representation of the position
 std::ostream& operator<<(std::ostream& os, const Position& pos) {
-
+  os << "\n Move " << ((pos.game_ply() / 2) + 1) << ", " 
+     << (pos.side_to_move() == WHITE ? "White" : "Black") << " to play";
+  if (pos.checkers()) os << " (check)";
   os << "\n +---+---+---+---+---+---+---+---+\n";
 
   for (Rank r = RANK_8; r >= RANK_1; --r)
@@ -76,14 +78,14 @@ std::ostream& operator<<(std::ostream& os, const Position& pos) {
 //     << std::setfill(' ') << std::dec << "\nCheckers: ";
 //
 //  for (Bitboard b = pos.checkers(); b; )
-//      os << UCI::square(pop_lsb(&b)) << " ";
+//      os << UCI::to_string(pop_lsb(&b)) << " ";
 //
 //  if (    int(Tablebases::MaxCardinality) >= popcount(pos.pieces())
 //      && !pos.can_castle(ANY_CASTLING))
 //  {
 //      StateInfo st;
 //      Position p;
-//      p.set(pos.fen(), pos.is_chess960(), &st, pos.this_thread());
+//      p.init(pos.fen(), pos.is_chess960(), &st, pos.this_thread());
 //      Tablebases::ProbeState s1, s2;
 //      Tablebases::WDLScore wdl = Tablebases::probe_wdl(p, &s1);
 //      int dtz = Tablebases::probe_dtz(p, &s2);
@@ -137,11 +139,11 @@ Key Position::full_key() const {
   return st->key ^ Zobrist::rule50[rule50] ^ Zobrist::repetitions[reps];
 }
 
-/// Position::set() initializes the position object with the given FEN string.
+/// Position::init() initializes the position object with the given FEN string.
 /// This function is not very robust - make sure that input FENs are correct,
 /// this is assumed to be the responsibility of the GUI.
 
-Position& Position::set(const string& fenStr, StateInfo* si) {
+Position& Position::init(const string& fenStr, StateInfo* si) {
 /*
    A FEN string defines a particular position using only the ASCII character set.
 
@@ -337,11 +339,11 @@ void Position::set_state(StateInfo* si) const {
 }
 
 
-/// Position::set() is an overload to initialize the position object with
+/// Position::init() is an overload to initialize the position object with
 /// the given endgame code string like "KBPKN". It is mainly a helper to
 /// get the material key out of an endgame code.
 
-Position& Position::set(const string& code, Color c, StateInfo* si) {
+Position& Position::init(const string& code, Color c, StateInfo* si) {
 
   assert(code.length() > 0 && code.length() < 8);
   assert(code[0] == 'K');
@@ -354,7 +356,7 @@ Position& Position::set(const string& code, Color c, StateInfo* si) {
   string fenStr = "8/" + sides[0] + char(8 - sides[0].length() + '0') + "/8/8/8/8/"
                        + sides[1] + char(8 - sides[1].length() + '0') + "/8 w - - 0 10";
 
-  return set(fenStr, si);
+  return init(fenStr, si);
 }
 
 
@@ -394,7 +396,7 @@ const string Position::fen() const {
   if (!can_castle(WHITE) && !can_castle(BLACK))
       ss << '-';
 
-  ss << (ep_square() == SQ_NONE ? " - " : " " + UCI::square(ep_square()) + " ")
+  ss << " " << (ep_square() == SQ_NONE ? "-" : UCI::to_string(ep_square())) << " "
      << st->rule50 << " " << 1 + (gamePly - (sideToMove == BLACK)) / 2;
 
   return ss.str();
@@ -926,7 +928,7 @@ bool Position::is_draw() const {  //--didn't understand this _ply_ parameter; de
   if (is_draw_by_insufficient_material())
     return true;
 
-  if (st->rule50 > 99 && (!checkers() || MoveList<LEGAL>(*this).size()))
+  if (st->rule50 > 99 && (!checkers() || !has_no_moves()))
       return true;
 
   int end = std::min(st->rule50, st->pliesFromNull);
@@ -945,6 +947,10 @@ bool Position::is_draw() const {  //--didn't understand this _ply_ parameter; de
   }
 
   return false;
+}
+
+bool Position::has_no_moves() const {
+    return MoveList<LEGAL>(*this).size() == 0;
 }
 
 bool Position::is_draw_by_insufficient_material() const {
@@ -1011,7 +1017,7 @@ void Position::flip() {
   std::getline(ss, token); // Half and full moves
   f += token;
 
-  set(f, st);
+  init(f, st);
 
   assert(pos_is_ok());
 }
@@ -1391,13 +1397,13 @@ Move Position::san_to_move(const std::string& s) const {
   return MOVE_NONE;
 }
 
-void BoardHistory::set(const std::string& fen) {
+void BoardHistory::init(const std::string& fen) {
   positions.clear();
   states.clear();
 
   positions.emplace_back();
   states.emplace_back(new StateInfo());
-  cur().set(fen, states.back().get());
+  cur().init(fen, states.back().get());
 }
 
 // Only need to copy the 8 most recent positions, as that's what is needed by
@@ -1418,10 +1424,10 @@ void BoardHistory::do_move(Move m) {
 }
 
 bool BoardHistory::undo_move() {
-	if (positions.size() == 1) return false;
-	states.pop_back();
-	positions.pop_back();
-	return true;
+    if (positions.size() == 1) return false;
+    states.pop_back();
+    positions.pop_back();
+    return true;
 }
 
 std::string BoardHistory::pgn() const {

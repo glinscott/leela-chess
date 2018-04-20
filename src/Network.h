@@ -126,8 +126,8 @@ private:
     static std::vector<float> winograd_transform_f(const std::vector<float>& f,
         const int outputs, const int channels);
     static std::vector<float> zeropad_U(const std::vector<float>& U,
-        const int outputs, const int channels,
-        const int outputs_pad, const int channels_pad);
+        const size_t outputs, const size_t channels,
+        const size_t outputs_pad, const size_t channels_pad);
     static void winograd_transform_in(const std::vector<float>& in,
                                       std::vector<float>& V,
                                       const int C);

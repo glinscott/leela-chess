@@ -74,7 +74,7 @@ void OutputChunker::flush_chunk() {
         auto chunk_name = gen_chunk_name();
         auto out = gzopen(chunk_name.c_str(), "wb9");
 
-        auto in_buff_size = m_buffer.size();
+        auto in_buff_size = (unsigned int)m_buffer.size();
         auto in_buff = std::make_unique<char[]>(in_buff_size);
         memcpy(in_buff.get(), m_buffer.data(), in_buff_size);
 
@@ -168,7 +168,7 @@ void Training::dump_training(int game_score, const std::string& out_filename) {
 // Required for all dump_training that use binary format.
 // (VERSION2 and up)
 Network::BoardPlane fix_v2(Network::BoardPlane plane) {
-    for (int i = 0, n = plane.size(); i < n; i+=8) {
+    for (size_t i = 0, n = plane.size(); i < n; i+=8) {
         for (auto j = 0; j < 4; j++) {
             bool t = plane[i+j];
             plane[i+j] = plane[i+8-j-1];
