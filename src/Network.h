@@ -111,15 +111,8 @@ public:
     static size_t get_num_output_policy();
 
     static constexpr Move flip_move(Move move) {
-      // 07070 is (in octal) as bit mask of the ranks.
-      // We separate the ranks from the rest of the move bits using bitwise operators,
-      // then invert the ranks by subtracting them from 7 (this can be done in one operation),
-      // then combine the inverted ranks with the other bits of the move that we saved earlier.
-      int ranks = (int)move & 07070;
-      int rest = move & ~(int)07070;
-      int flipped_ranks = 07070 - ranks;
-      int flipped_move = flipped_ranks | rest;
-      return (Move)flipped_move;
+      // 07070 is the bit mask for the ranks (in octal), inverting those bits flips the board.
+      return Move(move ^ 07070);
     }
 
 private:
