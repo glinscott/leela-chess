@@ -337,8 +337,8 @@ void Position::set_state(StateInfo* si) const {
 
   for (Piece pc : Pieces)
   {
-	  for (int cnt = 0; cnt < pieceCount[pc]; ++cnt)
-		  si->materialKey ^= Zobrist::psq[pc][cnt];
+    for (int cnt = 0; cnt < pieceCount[pc]; ++cnt)
+      si->materialKey ^= Zobrist::psq[pc][cnt];
   }
 }
 
@@ -699,7 +699,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
       // Update material hash key and prefetch access to materialTable
       k ^= Zobrist::psq[captured][capsq];
-	  st->materialKey ^= Zobrist::psq[captured][pieceCount[captured]];
+      st->materialKey ^= Zobrist::psq[captured][pieceCount[captured]];
 
       // Reset rule 50 counter
       st->rule50 = 0;
@@ -750,8 +750,8 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
           // Update hash keys
           k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
-		  st->materialKey ^= Zobrist::psq[promotion][pieceCount[promotion] - 1]
-			  ^ Zobrist::psq[pc][pieceCount[pc]];
+          st->materialKey ^= Zobrist::psq[promotion][pieceCount[promotion] - 1]
+              ^ Zobrist::psq[pc][pieceCount[pc]];
       }
 
       // prefetch access to pawnsTable
@@ -1426,10 +1426,10 @@ void BoardHistory::do_move(Move m) {
 }
 
 bool BoardHistory::undo_move() {
-	if (positions.size() == 1) return false;
-	states.pop_back();
-	positions.pop_back();
-	return true;
+  if (positions.size() == 1) return false;
+  states.pop_back();
+  positions.pop_back();
+  return true;
 }
 
 std::string BoardHistory::pgn() const {

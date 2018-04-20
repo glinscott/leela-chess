@@ -77,7 +77,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("seed,s", po::value<std::uint64_t>(),
                    "Random number generation seed.")
         ("weights,w", po::value<std::string>(), "File with network weights.")
-		("syzygypath,e", po::value<std::string>(), "Folder with syzygy endgame tablebases.")
+        ("syzygypath,e", po::value<std::string>(), "Folder with syzygy endgame tablebases.")
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
         ("noponder", "Disable thinking on opponent's time.")
@@ -162,9 +162,9 @@ static std::string parse_commandline(int argc, char *argv[]) {
         cfg_weightsfile = "weights.txt";
     }
 
-	if (vm.count("syzygypath")) {
-		cfg_syzygypath = vm["syzygypath"].as<std::string>();
-	}
+    if (vm.count("syzygypath")) {
+        cfg_syzygypath = vm["syzygypath"].as<std::string>();
+    }
 
     if (vm.count("threads")) {
         int num_threads = vm["threads"].as<int>();

@@ -1163,7 +1163,7 @@ void* init(Entry& e, const Position& pos) {
 
     fname =  (e.key == pos.material_key() ? w + 'v' + b : b + 'v' + w)
            + (IsWDL ? ".rtbw" : ".rtbz");
-	Utils::myprintf("%s", fname);
+    Utils::myprintf("%s", fname);
     uint8_t* data = TBFile(fname).map(&e.baseAddress, &e.mapping, TB_MAGIC[IsWDL]);
     if (data)
         e.hasPawns ? do_init(e, e.pawnTable, data) : do_init(e, e.pieceTable, data);
@@ -1180,11 +1180,11 @@ T probe_table(const Position& pos, ProbeState* result, WDLScore wdl = WDLDraw) {
 
     E* entry = EntryTable.get<E>(pos.material_key());
 
-	if (!entry || !init(*entry, pos)) {
-		Utils::myprintf("%d ", pos.material_key());
-		return *result = FAIL, T();
-	}
-	Utils::myprintf("%d", result);
+    if (!entry || !init(*entry, pos)) {
+        Utils::myprintf("%d ", pos.material_key());
+        return *result = FAIL, T();
+    }
+    Utils::myprintf("%d", result);
     return do_probe_table(pos, entry, wdl, result);
 }
 
@@ -1393,7 +1393,7 @@ void Tablebases::init(const std::string& paths) {
                     EntryTable.insert({KING, p1, p2, KING, p3, p4});
         }
     }
-	Utils::myprintf("info string Found %d tablebases\n", EntryTable.size());
+    Utils::myprintf("info string Found %d tablebases\n", EntryTable.size());
     //sync_cout << "info string Found " << EntryTable.size() << " tablebases" << sync_endl;
 }
 
