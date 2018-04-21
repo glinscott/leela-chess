@@ -388,7 +388,11 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
     Time.init(bh_.cur().side_to_move(), bh_.cur().game_ply());
     m_target_time = get_search_time();
-    m_max_time = Time.maximum();
+    if (Limits.movetime) {
+        m_max_time = m_target_time;
+    } else {
+        m_max_time = Time.maximum();
+    }
     m_start_time = Limits.timeStarted();
 
     // create a sorted list of legal moves (make sure we
