@@ -56,7 +56,10 @@ static void license_blurb() {
 static std::string parse_commandline(int argc, char *argv[]) {
     namespace po = boost::program_options;
     // Declare the supported options.
-    po::options_description v_desc("Allowed options");
+    po::options_description v_desc("If you have further questions about what an option does, see "
+                                   "the project wiki:\n"
+                                   "https://github.com/glinscott/leela-chess/wiki\n\n"
+                                   "Allowed options");
     v_desc.add_options()
         ("help,h", "Show commandline options.")
         ("threads,t", po::value<int>()->default_value
