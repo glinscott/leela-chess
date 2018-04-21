@@ -30,7 +30,7 @@ const int kAllocationSize = 1024 * 64;
 }
 
 Node* NodePool::GetNode() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  Mutex::Lock lock(mutex_);
   if (pool_.empty()) {
     AllocateNewBatch();
   }
@@ -42,26 +42,26 @@ Node* NodePool::GetNode() {
 }
 
 void NodePool::ReleaseNode(Node* node) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  Mutex::Lock lock(mutex_);
   pool_.push_back(node);
 }
 
 void NodePool::ReleaseChildren(Node* node) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  Mutex::Lock lock(mutex_);
   for (Node* iter = node->child; iter; iter = iter->sibling) {
-    ReleaseSubtree(iter);
+    ReleaseSubtreeInternal(iter);
   }
   node->child = nullptr;
 }
 
 void NodePool::ReleaseAllChildrenExceptOne(Node* root, Node* subtree) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  Mutex::Lock lock(mutex_);
   Node* child = nullptr;
   for (Node* iter = root->child; iter; iter = iter->sibling) {
     if (iter == subtree) {
       child = iter;
     } else {
-      ReleaseSubtree(iter);
+      ReleaseSubtreeInternal(iter);
     }
   }
   root->child = child;
@@ -71,20 +71,23 @@ void NodePool::ReleaseAllChildrenExceptOne(Node* root, Node* subtree) {
 }
 
 uint64_t NodePool::GetAllocatedNodeCount() const {
-  std::lock_guard<std::mutex> lock(mutex_);
+  Mutex::Lock lock(mutex_);
   return kAllocationSize * allocations_.size() - pool_.size();
 }
 
-// Mutex must be hold.
 void NodePool::ReleaseSubtree(Node* node) {
+  Mutex::Lock lock(mutex_);
+  ReleaseSubtreeInternal(node);
+}
+
+void NodePool::ReleaseSubtreeInternal(Node* node) REQUIRES(mutex_) {
   for (Node* iter = node->child; iter; iter = iter->sibling) {
-    ReleaseSubtree(iter);
+    ReleaseSubtreeInternal(iter);
     pool_.push_back(iter);
   }
 }
 
-// Mutex must be hold.
-void NodePool::AllocateNewBatch() {
+void NodePool::AllocateNewBatch() REQUIRES(mutex_) {
   allocations_.emplace_back(std::make_unique<Node[]>(kAllocationSize));
   for (int i = 0; i < kAllocationSize; ++i) {
     pool_.push_back(allocations_.back().get() + i);
@@ -106,23 +109,83 @@ std::string Node::DebugString() const {
   return oss.str();
 }
 
-int ComputeRepetitions(const Node* ref_node) {
+int Node::ComputeRepetitions() {
   // TODO(crem) implement some sort of caching.
-  if (ref_node->no_capture_ply < 2) return 0;
+  if (no_capture_ply < 2) return 0;
 
-  const Node* node = ref_node;
+  const Node* node = this;
   while (true) {
     node = node->parent;
     if (!node) break;
     node = node->parent;
     if (!node) break;
 
-    if (node->board == ref_node->board) {
+    if (node->board == board) {
       return 1 + node->repetitions;
     }
     if (node->no_capture_ply < 2) return 0;
   }
   return 0;
+}
+
+void NodeTree::MakeMove(Move move) {
+  if (current_head_->board.flipped()) move.Mirror();
+
+  Node* new_head = nullptr;
+  for (Node* n = current_head_->child; n; n = n->sibling) {
+    if (n->move == move) {
+      new_head = n;
+      break;
+    }
+  }
+  node_pool_->ReleaseAllChildrenExceptOne(current_head_, new_head);
+  if (!new_head) {
+    new_head = node_pool_->GetNode();
+    current_head_->child = new_head;
+    new_head->parent = current_head_;
+    new_head->board = current_head_->board;
+    const bool capture = new_head->board.ApplyMove(move);
+    new_head->board.Mirror();
+    new_head->ply_count = current_head_->ply_count + 1;
+    new_head->no_capture_ply = capture ? 0 : current_head_->no_capture_ply + 1;
+    new_head->repetitions = new_head->ComputeRepetitions();
+    new_head->move = move;
+  }
+  current_head_ = new_head;
+}
+
+void NodeTree::ResetToPosition(const std::string& starting_fen,
+                               const std::vector<Move>& moves) {
+  ChessBoard starting_board;
+  int no_capture_ply;
+  int full_moves;
+  starting_board.SetFromFen(starting_fen, &no_capture_ply, &full_moves);
+  if (gamebegin_node_ && gamebegin_node_->board != starting_board) {
+    // Completely different position.
+    DeallocateTree();
+    current_head_ = nullptr;
+    gamebegin_node_ = nullptr;
+  }
+
+  if (!gamebegin_node_) {
+    gamebegin_node_ = node_pool_->GetNode();
+    gamebegin_node_->board = starting_board;
+    gamebegin_node_->no_capture_ply = no_capture_ply;
+    gamebegin_node_->ply_count =
+        full_moves * 2 - (starting_board.flipped() ? 1 : 2);
+  }
+
+  current_head_ = gamebegin_node_;
+  for (const auto& move : moves) {
+    MakeMove(move);
+  }
+  node_pool_->ReleaseChildren(current_head_);
+}
+
+void NodeTree::DeallocateTree() {
+  node_pool_->ReleaseSubtree(gamebegin_node_);
+  gamebegin_node_ = nullptr;
+  current_head_ = nullptr;
 }
 
 }  // namespace lczero
