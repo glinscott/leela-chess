@@ -9,19 +9,9 @@ env:
 compiler:
   - gcc
 
-addons:
-  apt:
-    packages:
-      libboost-all-dev
-      libopenblas-dev
-      opencl-headers
-      ocl-icd-libopencl1
-      ocl-icd-opencl-dev
-      zlib1g-dev
-      clinfo
-      python3-pip
-      python3-dev
-      python-virtualenv
+before_install:
+  - apt-get -qq update
+  - apt-get install -y libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev clinfo python3-pip python3-dev python-virtualenv
 
 install:
   - clinfo
