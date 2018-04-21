@@ -266,7 +266,7 @@ bool UCTSearch::is_running() const {
 int UCTSearch::est_playouts_left() const {
     auto elapsed_millis = now() - m_start_time;
     auto playouts = m_playouts.load();
-    if (Limits.use_time_management() && !Limits.dynamic_controls_set()) {
+    if (!Limits.dynamic_controls_set() && !Limits.movetime) {
         // No time control, use playouts or visits.
         const auto playouts_left =
                 std::max(0, std::min(m_maxplayouts - playouts,
