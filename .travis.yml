@@ -2,8 +2,8 @@ language: cpp
 sudo: required
 dist: trusty
 env:
-#  - BUILD_TYPE=gpu
-#  - BUILD_TYPE=cpu
+  - BUILD_TYPE=gpu
+  - BUILD_TYPE=cpu
   - BUILD_TYPE=training
 
 compiler:
@@ -37,4 +37,6 @@ script:
   - if [$BUILD_TYPE == gpu]; then cmake --build . --target lczero --config Release -- -j2; fi
   - if [$BUILD_TYPE == cpu]; then cmake --build . --config Release -- -j2; fi
   - if [$BUILD_TYPE == cpu]; then ./tests; fi
-  - if [$BUILD_TYPE == training]; then python3 training/tf/chunkparser.py; python3 training/tf/shufflebuffer.py; fi
+#  - if [$BUILD_TYPE == training]; then python3 training/tf/chunkparser.py; python3 training/tf/shufflebuffer.py; fi
+  - python3 training/tf/chunkparser.py
+  - python3 training/tf/shufflebuffer.py
