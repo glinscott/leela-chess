@@ -266,7 +266,7 @@ bool UCTSearch::is_running() const {
 int UCTSearch::est_playouts_left() const {
     auto elapsed_millis = now() - m_start_time;
     auto playouts = m_playouts.load();
-    if (m_target_time < 0) {
+    if (!Limits.dynamic_controls_set() && !Limits.movetime) {
         // No time control, use playouts or visits.
         const auto playouts_left =
                 std::max(0, std::min(m_maxplayouts - playouts,
@@ -385,9 +385,9 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     // set up timing info
 
     Time.init(bh_.cur().side_to_move(), bh_.cur().game_ply());
-    m_target_time = get_search_time();
-    m_max_time = Time.maximum();
-    m_start_time = Limits.timeStarted();
+    m_target_time = (Limits.movetime ? Limits.movetime : Time.optimum()) - cfg_lagbuffer_ms;
+    m_max_time    = Time.maximum() - cfg_lagbuffer_ms;
+    m_start_time  = Limits.timeStarted();
 
     // create a sorted list of legal moves (make sure we
     // play something legal and decent even in time trouble)
@@ -486,25 +486,16 @@ void UCTSearch::ponder() {
     myprintf("\n%d visits, %d expanded nodes\n\n", m_root->get_visits(), (int)m_nodes);
 }
 
-// Returns the amount of time to use for a turn in milliseconds
-int UCTSearch::get_search_time() {
-    if (Limits.use_time_management() && !Limits.dynamic_controls_set()){
-        return -1;
-    }
-
-    auto search_time = Limits.movetime ? Limits.movetime : Time.optimum();
-    // We must ensure search time is non-negative to use time management
-    search_time = std::max(1, search_time - cfg_lagbuffer_ms);
-    return search_time;
-}
-
 // Used to check if we've run out of time or reached out playout limit
 bool UCTSearch::should_halt_search() {
     if (uci_stop.load(std::memory_order_seq_cst)) return true;
     if (Limits.infinite) return false;
     auto elapsed_millis = now() - m_start_time;
-    return m_target_time < 0 ? pv_limit_reached()
-        : (m_target_time < elapsed_millis || elapsed_millis > m_max_time);
+    if (Limits.movetime)
+        return (elapsed_millis > m_target_time);
+    if (Limits.dynamic_controls_set())
+        return (elapsed_millis > m_target_time || elapsed_millis > m_max_time);
+    return pv_limit_reached();
 }
 
 // Asks the search to stop politely
