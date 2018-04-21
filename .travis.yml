@@ -24,7 +24,7 @@ addons:
 
 install:
   - clinfo
-  - pip3 install --upgrade pip
+  - sudo pip3 install --upgrade pip
   - pip3 install tensorflow
   - python3 -V
   - pip3 -V
