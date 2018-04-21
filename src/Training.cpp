@@ -23,7 +23,6 @@
 #include <sstream>
 #include <algorithm>
 #include <boost/filesystem.hpp>
-#include <boost/utility.hpp>
 #include "stdlib.h"
 #include "zlib.h"
 #include "string.h"
@@ -259,7 +258,7 @@ void Training::dump_training(int game_score, OutputChunker& outchunk) {
         // Then the move probabilities
         for (auto it = begin(step.probabilities); it != end(step.probabilities); ++it) {
             out << *it;
-            if (boost::next(it) != end(step.probabilities)) {
+            if (std::next(it) != end(step.probabilities)) {
                 out << " ";
             }
         }
