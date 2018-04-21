@@ -1,6 +1,6 @@
 language: cpp
 sudo: required
-dist: trusty
+dist: xenial
 env:
   - BUILD_TYPE=gpu
   - BUILD_TYPE=cpu
@@ -35,7 +35,7 @@ install:
   - mkdir build && cd build
 
 script:
-  - if [ "$BUILD_TYPE" == "gpu" ]; then cmake ..; make --build . --target lczero --config Release -- -j2; fi
+  - if [ "$BUILD_TYPE" == "gpu" ]; then cmake ..; cmake --build . --target lczero --config Release -- -j2; fi
   - if [ "$BUILD_TYPE" == "cpu" ]; then cmake -DFEATURE_USE_CPU_ONLY=1 ..; cmake --build . --config Release -- -j2; fi
   - if [ "$BUILD_TYPE" == "cpu" ]; then ./tests; fi
   - if [ "$BUILD_TYPE" == "training" ]; then cd ../training/tf; python3 chunkparser.py; python3 shufflebuffer.py; fi
