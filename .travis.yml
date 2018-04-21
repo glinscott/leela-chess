@@ -2,8 +2,8 @@ language: cpp
 sudo: required
 dist: trusty
 env:
-  - BUILD_TYPE=gpu
-  - BUILD_TYPE=cpu
+#  - BUILD_TYPE=gpu
+#  - BUILD_TYPE=cpu
   - BUILD_TYPE=training
 
 compiler:
@@ -24,7 +24,8 @@ addons:
 
 install:
   - clinfo
-  - sudo pip3 install --upgrade https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-1.7.0-cp34-cp34m-linux_x86_64.whl
+  - pip3 install --upgrade pip
+  - pip3 install tensorflow
   - python3 -V
   - pip3 -V
 
