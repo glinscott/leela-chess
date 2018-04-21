@@ -1,31 +1,11 @@
-language: cpp
 sudo: required
-dist: xenial
-env:
-  - BUILD_TYPE=gpu
-  - BUILD_TYPE=cpu
-  - BUILD_TYPE=training
 
-compiler:
-  - gcc
+language: cpp
+services:
+  - docker
 
 before_install:
-  - apt-get -qq update
-  - apt-get install -y libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev clinfo python3-pip python3-dev python-virtualenv
-
-install:
-  - clinfo
-  - mkdir ~/tensorflow
-  - virtualenv --system-site-packages -p python3 ~/tensorflow
-  - source ~/tensorflow/bin/activate
-  - easy_install -U pip
-  - pip3 install --upgrade tensorflow
-  - python3 -V
-  - pip3 -V
-  - mkdir build && cd build
+  - docker pull ubuntu:16.04
 
 script:
-  - if [ "$BUILD_TYPE" == "gpu" ]; then cmake ..; cmake --build . --target lczero --config Release -- -j2; fi
-  - if [ "$BUILD_TYPE" == "cpu" ]; then cmake -DFEATURE_USE_CPU_ONLY=1 ..; cmake --build . --config Release -- -j2; fi
-  - if [ "$BUILD_TYPE" == "cpu" ]; then ./tests; fi
-  - if [ "$BUILD_TYPE" == "training" ]; then cd ../training/tf; python3 chunkparser.py; python3 shufflebuffer.py; fi
+  - docker build .
