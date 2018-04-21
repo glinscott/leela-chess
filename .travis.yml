@@ -19,13 +19,17 @@ addons:
       ocl-icd-opencl-dev
       zlib1g-dev
       clinfo
-      python3-dev
       python3-pip
+      python3-dev
+      python-virtualenv
 
 install:
   - clinfo
-  - sudo pip3 install --upgrade pip
-  - pip3 install tensorflow
+  - mkdir ~/tensorflow
+  - virtualenv --system-site-packages -p python3 ~/tensorflow
+  - source ~/tensorflow/bin/activate
+  - easy_install -U pip
+  - pip3 install --upgrade tensorflow
   - python3 -V
   - pip3 -V
 
