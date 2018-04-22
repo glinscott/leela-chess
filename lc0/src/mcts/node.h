@@ -21,6 +21,7 @@
 #include <memory>
 #include <mutex>
 #include "chess/board.h"
+#include "utils/mutex.h"
 
 namespace lczero {
 
@@ -71,11 +72,35 @@ struct Node {
   // Pointer to a next sibling. nullptr if there are no further siblings.
   Node* sibling;
 
+  float ComputeQ() const { return n ? q : -parent->q; }
+  // Returns U / (Puct * N[parent])
+  float ComputeU() const { return p / (1 + n + n_in_flight); }
+  int ComputeRepetitions();
   uint64_t BoardHash() const;
   std::string DebugString() const;
 };
 
-int ComputeRepetitions(const Node*);
+class NodePool;
+class NodeTree {
+ public:
+  NodeTree(NodePool* node_pool) : node_pool_(node_pool) {}
+  ~NodeTree() { DeallocateTree(); }
+  // Adds a move to current_head_;
+  void MakeMove(Move move);
+  // Sets the position in a tree, trying to reuse the tree.
+  void ResetToPosition(const std::string& starting_fen,
+                       const std::vector<Move>& moves);
+  int GetPlyCount() const { return current_head_->ply_count; }
+  bool IsBlackToMove() const { return current_head_->board.flipped(); }
+  Node* GetCurrentHead() const { return current_head_; }
+  NodePool* GetNodePool() const { return node_pool_; }
+
+ private:
+  void DeallocateTree();
+  Node* current_head_ = nullptr;
+  Node* gamebegin_node_ = nullptr;
+  NodePool* node_pool_ = nullptr;
+};
 
 class NodePool {
  public:
@@ -88,18 +113,20 @@ class NodePool {
   void ReleaseAllChildrenExceptOne(Node* root, Node* subtree);
   // Releases all children, but doesn't release the node isself.
   void ReleaseChildren(Node*);
+  // Releases all children and the node itself;
+  void ReleaseSubtree(Node*);
 
   // Returns total number of nodes allocated.
   uint64_t GetAllocatedNodeCount() const;
 
  private:
   // Release all children of the node and the node itself.
-  void ReleaseSubtree(Node*);
+  void ReleaseSubtreeInternal(Node*);
   void AllocateNewBatch();
 
-  mutable std::mutex mutex_;
-  std::vector<Node*> pool_;
-  std::vector<std::unique_ptr<Node[]>> allocations_;
+  mutable Mutex mutex_;
+  std::vector<Node*> pool_ GUARDED_BY(mutex_);
+  std::vector<std::unique_ptr<Node[]>> allocations_ GUARDED_BY(mutex_);
 };
 
 }  // namespace lczero

@@ -16,37 +16,30 @@
   along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
-
-#include <atomic>
-#include <shared_mutex>
+#include "utils/commandline.h"
 
 namespace lczero {
 
-// Implementation of reader-preferenced shared mutex. Based on fair shared
-// mutex.
-class rp_shared_mutex {
- public:
-  void lock() {
-    while (true) {
-      mutex_.lock();
-      if (waiting_readers_ == 0) return;
-      mutex_.unlock();
-    }
-  }
-  void unlock() { mutex_.unlock(); }
-  void lock_shared() {
-    ++waiting_readers_;
-    mutex_.lock_shared();
-  }
-  void unlock_shared() {
-    --waiting_readers_;
-    mutex_.unlock_shared();
-  }
+std::string CommandLine::binary_;
+std::vector<std::string> CommandLine::arguments_;
+std::vector<std::pair<std::string, std::string>> CommandLine::modes_;
 
- private:
-  std::shared_mutex mutex_;
-  std::atomic<int> waiting_readers_ = 0;
-};
+void CommandLine::Init(int argc, const char** argv) {
+  binary_ = argv[0];
+  arguments_.clear();
+  for (int i = 1; i < argc; ++i) arguments_.push_back(argv[i]);
+}
+
+bool CommandLine::ConsumeCommand(const std::string& command) {
+  if (arguments_.empty()) return false;
+  if (arguments_[0] != command) return false;
+  arguments_.erase(arguments_.begin());
+  return true;
+}
+
+void CommandLine::RegisterMode(const std::string& mode,
+                               const std::string& description) {
+  modes_.emplace_back(mode, description);
+}
 
 }  // namespace lczero

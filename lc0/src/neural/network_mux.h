@@ -16,25 +16,15 @@
   along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "engine.h"
-#include "selfplay/loop.h"
-#include "utils/commandline.h"
+#pragma once
 
-int main(int argc, const char** argv) {
-  using namespace lczero;
-  CommandLine::Init(argc, argv);
-  CommandLine::RegisterMode("uci", "(default) Act as UCI engine");
-  CommandLine::RegisterMode("selfplay", "Play games with itself");
+#include "neural/network.h"
 
-  if (CommandLine::ConsumeCommand("selfplay")) {
-    // Selfplay mode.
-    SelfPlayLoop loop;
-    loop.RunLoop();
-  } else {
-    // Consuming optional "uci" mode.
-    CommandLine::ConsumeCommand("uci");
-    // Ordinary UCI engine.
-    EngineLoop loop;
-    loop.RunLoop();
-  }
-}
+namespace lczero {
+
+// Returns a computation backend which multiplexes requests from multiple
+// calls into one to compute them in batches.
+std::unique_ptr<Network> MakeMuxingNetwork(std::unique_ptr<Network> parent,
+                                           int threads = 1,
+                                           int max_batch = 256);
+}  // namespace lczero
