@@ -419,7 +419,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         }
 
         // give output every so often
-        int depth = log(float(m_nodes)) / log(1.8);
+        int depth = log(float(m_nodes)) / log(1.2);
         if (depth != last_update) {
             last_update = depth;
             dump_analysis(Time.elapsed(), false);
