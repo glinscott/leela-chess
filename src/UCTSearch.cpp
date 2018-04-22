@@ -245,8 +245,8 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     float feval = m_root->get_eval(color);
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
     int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
-    // same for nodes to depth, assume nodes = 1.8 ^ depth.
-    int depth = log(float(m_nodes)) / log(1.8);
+    // depth should just be length of pv
+    int depth = std::count(pvstring.begin(), pvstring.end(), ' ') + 1;
     // To report nodes, use visits.
     //   - Only includes expanded nodes.
     //   - Includes nodes carried over from tree reuse.
@@ -418,7 +418,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
             increment_playouts();
         }
 
-        // assume nodes = 1.8 ^ depth.
+        // give output every so often
         int depth = log(float(m_nodes)) / log(1.8);
         if (depth != last_update) {
             last_update = depth;
