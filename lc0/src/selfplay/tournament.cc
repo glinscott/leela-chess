@@ -17,13 +17,13 @@
 */
 
 #include "selfplay/tournament.h"
-#include <random>
 #include "mcts/search.h"
 #include "neural/loader.h"
 #include "neural/network_mux.h"
 #include "neural/network_tf.h"
 #include "optionsparser.h"
 #include "selfplay/game.h"
+#include "utils/random.h"
 
 namespace lczero {
 
@@ -36,8 +36,10 @@ const char* kMaxGpuBatchStr = "Maximum GPU batch size";
 const char* kThreadsStr = "Number of CPU threads for every game";
 const char* kNnCacheSizeStr = "NNCache size";
 const char* kNetFileStr = "Network weights file path";
-const char* kNodesStr = "Number of nodes per move to search";
+const char* kPlayoutsStr = "Number of playouts per move to search";
+const char* kVisitsStr = "Number of visits per move to search";
 const char* kTimeMsStr = "Time per move, in milliseconds";
+const char* kTrainingStr = "Write training data";
 // Value for network autodiscover.
 const char* kAutoDiscover = "<autodiscover>";
 
@@ -56,8 +58,10 @@ void SelfPlayTournament::PopulateOptions(OptionsParser* options) {
   options->Add<SpinOption>(kNnCacheSizeStr, 0, 999999999, "nncache") = 200000;
   options->Add<StringOption>(kNetFileStr, "weights", 'w') = kAutoDiscover;
   options->Add<SpinOption>(kNnCacheSizeStr, 0, 999999999, "nncache") = 200000;
-  options->Add<SpinOption>(kNodesStr, -1, 999999999, "nodes") = -1;
+  options->Add<SpinOption>(kPlayoutsStr, -1, 999999999, "playouts", 'p') = -1;
+  options->Add<SpinOption>(kVisitsStr, -1, 999999999, "visits", 'v') = -1;
   options->Add<SpinOption>(kTimeMsStr, -1, 999999999, "movetime") = -1;
+  options->Add<CheckOption>(kTrainingStr, "training") = false;
 
   Search::PopulateUciParams(options);
 }
@@ -81,13 +85,11 @@ SelfPlayTournament::SelfPlayTournament(const OptionsDict& options,
       kShareTree(options.Get<bool>(kShareTreesStr)),
       kParallelism(options.Get<int>(kParallelGamesStr)),
       kGpuThreads(options.Get<int>(kGpuThreadsStr)),
-      kMaxGpuBatch(options.Get<int>(kMaxGpuBatchStr)) {
+      kMaxGpuBatch(options.Get<int>(kMaxGpuBatchStr)),
+      kTraining(options.Get<bool>(kTrainingStr)) {
   // If playing just one game, the player1 is white, otherwise randomize.
   if (kTotalGames != 1) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, 1);
-    next_game_black_ = dis(gen);
+    next_game_black_ = Random::Get().GetBool();
   }
 
   // Initializing networks.
@@ -128,8 +130,10 @@ SelfPlayTournament::SelfPlayTournament(const OptionsDict& options,
 
   // SearchLimits.
   for (int idx : {0, 1}) {
-    search_limits_[idx].nodes =
-        options.GetSubdict(kPlayerNames[idx]).Get<int>(kNodesStr);
+    search_limits_[idx].playouts =
+        options.GetSubdict(kPlayerNames[idx]).Get<int>(kPlayoutsStr);
+    search_limits_[idx].visits =
+        options.GetSubdict(kPlayerNames[idx]).Get<int>(kVisitsStr);
     search_limits_[idx].time_ms =
         options.GetSubdict(kPlayerNames[idx]).Get<int>(kTimeMsStr);
   }
@@ -195,6 +199,13 @@ void SelfPlayTournament::PlayOneGame(int game_number) {
     game_info.game_result = game.GetGameResult();
     game_info.is_black = player1_black;
     game_info.game_id = game_number;
+    game_info.moves = game.GetMoves();
+    if (kTraining) {
+      TrainingDataWriter writer(game_number);
+      game.WriteTrainingData(&writer);
+      writer.Finalize();
+      game_info.training_filename = writer.GetFileName();
+    }
     game_callback_(game_info);
 
     // Update tournament stats.
@@ -240,6 +251,11 @@ void SelfPlayTournament::RunBlocking() {
   if (kParallelism == 1) {
     // No need for multiple threads if there is one worker.
     Worker();
+    Mutex::Lock lock(mutex_);
+    if (!abort_) {
+      tournament_info_.finished = true;
+      tournament_callback_(tournament_info_);
+    }
   } else {
     StartAsync();
     Wait();
@@ -247,10 +263,19 @@ void SelfPlayTournament::RunBlocking() {
 }
 
 void SelfPlayTournament::Wait() {
-  Mutex::Lock lock(threads_mutex_);
-  while (!threads_.empty()) {
-    threads_.back().join();
-    threads_.pop_back();
+  {
+    Mutex::Lock lock(threads_mutex_);
+    while (!threads_.empty()) {
+      threads_.back().join();
+      threads_.pop_back();
+    }
+  }
+  {
+    Mutex::Lock lock(mutex_);
+    if (!abort_) {
+      tournament_info_.finished = true;
+      tournament_callback_(tournament_info_);
+    }
   }
 }
 
