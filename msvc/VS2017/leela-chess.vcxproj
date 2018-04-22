@@ -19,7 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\CL\cl2.hpp" />
     <ClInclude Include="..\..\src\config.h" />
     <ClInclude Include="..\..\src\Misc.h" />
     <ClInclude Include="..\..\src\pgn.h" />
@@ -46,7 +45,6 @@
     <ClInclude Include="..\..\src\Utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
     <ClCompile Include="..\..\src\Bitboard.cpp" />
     <ClCompile Include="..\..\src\main.cpp" />
     <ClCompile Include="..\..\src\Movegen.cpp" />
