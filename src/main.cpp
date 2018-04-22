@@ -59,6 +59,8 @@ static std::string parse_commandline(int argc, char *argv[]) {
     po::options_description v_desc("If you have further questions about what an option does, see "
                                    "the project wiki:\n"
                                    "https://github.com/glinscott/leela-chess/wiki\n\n"
+                                   "For non-deterministic play that retains strength, use "
+                                   "something like '--noise --tempdecay 100'.\n\n"
                                    "Allowed options");
     v_desc.add_options()
         ("help,h", "Show commandline options.")
@@ -67,7 +69,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
                       "Number of threads to use.")
         ("playouts,p", po::value<int>(),
                        "Weaken engine by limiting the number of playouts. "
-                       "Requires --noponder.")
+                       /*"Requires --noponder."*/)
         ("visits,v", po::value<int>(),
                        "Weaken engine by limiting the number of visits.")
         //("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
@@ -79,10 +81,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("tempdecay,d", po::value<int>(),
                        "After search is complete, adjust move probabilities to the power "
                        "of  1/temperature, where the temp depends on the specified tempdecay. "
-                       "-d 0 (temp=1) is equivalent to --randomize; for higher decays, temp goes as"
-                       " 1/log(decay), so higher decay values are closer to normal 'best only' "
-                       "choice. -d 1 gives a move-50-temp of ~0.47. -d 1000 gives a move-50-temp "
-                       " of ~0.12.")
+                       "-d 0 (temp=1) is equivalent to --randomize; for higher decays, temp scales "
+                       "as 1/log(plies*decay), so higher decay values are closer to normal "
+                       "'best only' choice. -d 1 gives a move-50-temp of ~0.47, while -d 1000 gives"
+                       " a move-50-temp of ~0.12.")
         ("seed,s", po::value<std::uint64_t>(),
                    "Random number generation seed.")
         ("weights,w", po::value<std::string>(), "File with network weights.")
