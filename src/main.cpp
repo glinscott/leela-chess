@@ -79,9 +79,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("tempdecay,d", po::value<int>(),
                        "After search is complete, adjust move probabilities to the power "
                        "of  1/temperature, where the temp depends on the specified tempdecay. "
-                       "Higher decay values are closer to normal 'best only' choice. -d 0 (temp=1) "
-                       "is equivalent to --randomize. Temp goes as ~ 1/(1+log(1+plies*decay/50)). "
-                       "-d 1 gives a move-50-temp of ~0.47. -d 1000 gives a move-50-temp of ~0.12.")
+                       "-d 0 (temp=1) is equivalent to --randomize; for higher decays, temp goes as"
+                       " 1/log(decay), so higher decay values are closer to normal 'best only' "
+                       "choice. -d 1 gives a move-50-temp of ~0.47. -d 1000 gives a move-50-temp "
+                       " of ~0.12.")
         ("seed,s", po::value<std::uint64_t>(),
                    "Random number generation seed.")
         ("weights,w", po::value<std::string>(), "File with network weights.")
