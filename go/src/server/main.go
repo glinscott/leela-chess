@@ -52,6 +52,13 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 	}
 
+	engine_version := c.PostForm("engineVersion")
+	// Not all requests include engine version, but if it is present, make sure its the latest.
+	if len(engine_version) != 0 && engine_version != "v0.7" {
+		log.Println("Rejecting old game from %s, engine version %d", user.Username, engine_version)
+		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer lczero version!!\n\n\n\n\n")	
+	}
+
 	return user, version, nil
 }
 
