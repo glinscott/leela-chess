@@ -70,8 +70,8 @@ static std::string parse_commandline(int argc, char *argv[]) {
                        "Requires --noponder.")
         ("visits,v", po::value<int>(),
                        "Weaken engine by limiting the number of visits.")
-        ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
-                       "Resign when winrate is less than x%.")
+        //("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
+        //               "Resign when winrate is less than x%.")
         ("noise,n", "Before search begins, add Dirichlet noise to the root node policy's move "
                     "probabilities.")
         ("randomize,m", "After search is complete, select from the moves in proportion to "
@@ -88,7 +88,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("weights,w", po::value<std::string>(), "File with network weights.")
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
-        ("noponder", "Disable thinking on opponent's time.")
+        //("noponder", "Disable thinking on opponent's time.")
         ("uci", "Don't initialize the engine until \"isready\" command is sent. Use this if your "
                 "GUI is freezing on startup.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
