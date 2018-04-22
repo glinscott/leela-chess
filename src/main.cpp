@@ -60,7 +60,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
                                    "the project wiki:\n"
                                    "https://github.com/glinscott/leela-chess/wiki\n\n"
                                    "For non-deterministic play that retains strength, use "
-                                   "something like '--noise --tempdecay 100'.\n\n"
+                                   "'--noise' or '--tempdecay 10'.\n\n"
                                    "Allowed options");
     v_desc.add_options()
         ("help,h", "Show commandline options.")
@@ -68,29 +68,25 @@ static std::string parse_commandline(int argc, char *argv[]) {
                       (std::min(cfg_num_threads, cfg_max_threads)),
                       "Number of threads to use.")
         ("playouts,p", po::value<int>(),
-                       "Weaken engine by limiting the number of playouts. "
-                       /*"Requires --noponder."*/)
+                       "Weaken engine by limiting the number of playouts. ")
         ("visits,v", po::value<int>(),
                        "Weaken engine by limiting the number of visits.")
-        //("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
-        //               "Resign when winrate is less than x%.")
         ("noise,n", "Before search begins, add Dirichlet noise to the root node policy's move "
                     "probabilities.")
         ("randomize,m", "After search is complete, select from the moves in proportion to "
                         "their relative values (rather than 'best only').")
         ("tempdecay,d", po::value<int>(),
-                       "After search is complete, adjust move probabilities to the power "
-                       "of  1/temperature, where the temp depends on the specified tempdecay. "
-                       "-d 0 (temp=1) is equivalent to --randomize; for higher decays, temp scales "
-                       "as 1/log(plies*decay), so higher decay values are closer to normal "
-                       "'best only' choice. -d 1 gives a move-50-temp of ~0.47, while -d 1000 gives"
-                       " a move-50-temp of ~0.12.")
+                       "After search is complete, sometimes pick weaker moves for variety. "
+                       "Larger tempdecay values will do this less often, and the effect "
+                       "is reduced for moves later in the game. `0` is equivalent to "
+                       "--randomize and results in more random moves. This is used by "
+                       "self-play games to explore new moves. `10` is a reasonable value, "
+                       "and is used by test matches on the server for variety.")
         ("seed,s", po::value<std::uint64_t>(),
                    "Random number generation seed.")
         ("weights,w", po::value<std::string>(), "File with network weights.")
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
-        //("noponder", "Disable thinking on opponent's time.")
         ("uci", "Don't initialize the engine until \"isready\" command is sent. Use this if your "
                 "GUI is freezing on startup.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
