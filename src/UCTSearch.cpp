@@ -232,9 +232,10 @@ std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent, bool use_san
     return res;
 }
 
-void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
+// returns the depth of the PV
+int UCTSearch::dump_analysis(int64_t elapsed, bool force_output, int last_depth) {
     if (cfg_quiet && !force_output) {
-        return;
+        return 0;
     }
 
     auto bh = bh_.shallow_clone();
@@ -255,7 +256,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // which is similar to a ponder hit. The user will expect to know how
     // fast nodes are being added, not how big the ponder hit was.
     myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
-             depth, visits, 1000.0 * m_playouts / (elapsed + 1),
+             std::max(last_depth, depth), visits, 1000.0 * m_playouts / (elapsed + 1),
              cp, elapsed, pvstring.c_str());
     //winrate separate info string since it's not UCI spec
     myprintf_so("info string winrate %5.2f%%\n", feval * 100.f);
@@ -411,6 +412,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
     bool keeprunning = true;
     int last_update = 0;
+    int last_depth = 0;
     do {
         auto currstate = bh_.shallow_clone();
         auto result = play_simulation(currstate, m_root.get());
@@ -419,10 +421,10 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         }
 
         // give output every so often
-        int depth = log(float(m_nodes)) / log(1.2);
-        if (depth != last_update) {
-            last_update = depth;
-            dump_analysis(Time.elapsed(), false);
+        int current_update = log(float(m_nodes)) / log(1.2);
+        if (current_update != last_update) {
+            last_update = current_update;
+            last_depth = std::max(last_depth, dump_analysis(Time.elapsed(), false, last_depth));
         }
 
         // check if we should still search
