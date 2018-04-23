@@ -160,9 +160,12 @@ int play_one_game(BoardHistory& bh) {
     }
     Limits.startTime = now();
     Move move = search->think(bh.shallow_clone());
-
-    myprintf_so("move played %s\n", UCI::move(move).c_str());
-    bh.do_move(move);
+    if(move != MOVE_NONE) {
+      myprintf_so("move played %s\n", UCI::move(move).c_str());
+      bh.do_move(move);
+    } else {
+       return bh.cur().side_to_move() == WHITE ? -1 : 1;
+    }
   }
 
   // Game termination as draw
