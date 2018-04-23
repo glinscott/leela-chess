@@ -196,8 +196,7 @@ Move UCTSearch::get_best_move() {
         return bestmove;
     }
 
-    // should we consider resigning?
-    
+    // should we consider resigning?    
        float bestscore = m_root->get_first_child()->get_eval(color);
        int visits = m_root->get_visits();
     // bad score and visited enough
@@ -207,7 +206,6 @@ Move UCTSearch::get_best_move() {
         myprintf("Score looks bad. Resigning.\n");
         bestmove = MOVE_NONE; //--i guess MOVE_NONE will mean resign.
     }
-    
 
     return bestmove;
 }
