@@ -33,7 +33,8 @@
 namespace lczero {
 
 struct SearchLimits {
-  std::int64_t nodes = -1;
+  std::int64_t visits = -1;
+  std::int64_t playouts = -1;
   std::int64_t time_ms = -1;
 };
 
@@ -85,12 +86,14 @@ class Search {
   void SendUciInfo();  // Requires nodes_mutex_ to be held.
 
   Node* PickNodeToExtend(Node* node);
-  InputPlanes EncodeNode(const Node* node);
   void ExtendNode(Node* node);
 
-  Mutex counters_mutex_;
+  mutable Mutex counters_mutex_;
   bool stop_ GUARDED_BY(counters_mutex_) = false;
   bool responded_bestmove_ GUARDED_BY(counters_mutex_) = false;
+  // Stored so that in the case of non-zero temperature GetBestMove() returns
+  // consistent results.
+  std::pair<Move, Move> best_move_ GUARDED_BY(counters_mutex_);
 
   Mutex threads_mutex_;
   std::vector<std::thread> threads_ GUARDED_BY(threads_mutex_);
@@ -102,12 +105,13 @@ class Search {
   Network* const network_;
   const SearchLimits limits_;
   const std::chrono::steady_clock::time_point start_time_;
+  const uint64_t initial_visits_;
 
   mutable SharedMutex nodes_mutex_;
   Node* best_move_node_ GUARDED_BY(nodes_mutex_) = nullptr;
   Node* last_outputted_best_move_node_ GUARDED_BY(nodes_mutex_) = nullptr;
   ThinkingInfo uci_info_ GUARDED_BY(nodes_mutex_);
-  uint64_t total_nodes_ GUARDED_BY(nodes_mutex_) = 0;
+  uint64_t total_playouts_ GUARDED_BY(nodes_mutex_) = 0;
 
   BestMoveInfo::Callback best_move_callback_;
   ThinkingInfo::Callback info_callback_;
@@ -117,6 +121,9 @@ class Search {
   const int kMiniPrefetchBatch;
   const bool kAggresiveCaching;
   const float kCpuct;
+  const float kTemperature;
+  const float kTempDecay;
+  const bool kNoise;
 };
 
 }  // namespace lczero
