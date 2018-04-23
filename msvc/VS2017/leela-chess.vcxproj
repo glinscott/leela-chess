@@ -19,8 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\CL\cl2.hpp" />
     <ClInclude Include="..\..\src\config.h" />
+    <ClInclude Include="..\..\src\Misc.h" />
     <ClInclude Include="..\..\src\pgn.h" />
     <ClInclude Include="..\..\src\Bitboard.h" />
     <ClInclude Include="..\..\src\Im2Col.h" />
@@ -45,7 +45,6 @@
     <ClInclude Include="..\..\src\Utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
     <ClCompile Include="..\..\src\Bitboard.cpp" />
     <ClCompile Include="..\..\src\main.cpp" />
     <ClCompile Include="..\..\src\Movegen.cpp" />
@@ -62,6 +61,7 @@
     <ClCompile Include="..\..\src\Training.cpp" />
     <ClCompile Include="..\..\src\Tuner.cpp" />
     <ClCompile Include="..\..\src\UCI.cpp" />
+    <ClCompile Include="..\..\src\UCIOption.cpp" />
     <ClCompile Include="..\..\src\UCTNode.cpp" />
     <ClCompile Include="..\..\src\UCTSearch.cpp" />
     <ClCompile Include="..\..\src\Utils.cpp" />

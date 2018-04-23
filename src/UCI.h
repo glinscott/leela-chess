@@ -27,11 +27,11 @@
 #include "Types.h"
 
 class Position;
+struct BoardHistory;
 
 namespace UCI {
     
 class Option;
-
 /// Custom comparator because UCI options should be case insensitive
 struct CaseInsensitiveLess {
     bool operator() (const std::string&, const std::string&) const;
@@ -42,9 +42,9 @@ typedef std::map<std::string, Option, CaseInsensitiveLess> OptionsMap;
 
 /// Option class implements an option as defined by UCI protocol
 class Option {
-    
+protected:
     typedef void (*OnChange)(const Option&);
-    
+
 public:
     Option(OnChange = nullptr);
     Option(bool v, OnChange = nullptr);
@@ -56,13 +56,33 @@ public:
     operator int() const;
     operator std::string() const;
 
-private:
+protected:
     friend std::ostream& operator<<(std::ostream&, const OptionsMap&);
     
     std::string defaultValue, currentValue, type;
     int min, max;
     size_t idx;
     OnChange on_change;
+    bool advertise {true};
+};
+
+class SilentOption : public Option {
+public:
+    SilentOption(OnChange f = nullptr) : Option(f) {
+        advertise = false;
+    }
+
+    SilentOption(bool v, OnChange f = nullptr) : Option(v, f) {
+        advertise = false;
+    }
+
+    SilentOption(const char* v, OnChange f = nullptr) : Option(v, f) {
+        advertise = false;
+    }
+
+    SilentOption(int v, int minv, int maxv, OnChange f = nullptr) : Option(v, minv, maxv, f) {
+        advertise = false;
+    }
 };
 
 void init(OptionsMap&);

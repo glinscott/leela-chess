@@ -37,6 +37,6 @@ Weights LoadWeightsFromFile(const std::string& filename);
 // Tries to find a file which looks like a weights file, and located in
 // directory of binary_name or one of subdirectories. If there are several such
 // files, returns one which has the latest modification date.
-std::string DiscoveryWeightsFile(const std::string& binary_name);
+std::string DiscoveryWeightsFile();
 
 }  // namespace lczero

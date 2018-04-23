@@ -18,35 +18,27 @@
 
 #pragma once
 
-#include <atomic>
-#include <shared_mutex>
+#include <random>
+#include <string>
+#include "utils/mutex.h"
 
 namespace lczero {
 
-// Implementation of reader-preferenced shared mutex. Based on fair shared
-// mutex.
-class rp_shared_mutex {
+class Random {
  public:
-  void lock() {
-    while (true) {
-      mutex_.lock();
-      if (waiting_readers_ == 0) return;
-      mutex_.unlock();
-    }
-  }
-  void unlock() { mutex_.unlock(); }
-  void lock_shared() {
-    ++waiting_readers_;
-    mutex_.lock_shared();
-  }
-  void unlock_shared() {
-    --waiting_readers_;
-    mutex_.unlock_shared();
-  }
+  static Random& Get();
+  double GetDouble(double max_val);
+  double GetGamma(double alpha, double beta);
+  // Both sides are included.
+  int GetInt(int min, int max);
+  std::string GetString(int length);
+  bool GetBool();
 
  private:
-  std::shared_mutex mutex_;
-  std::atomic<int> waiting_readers_ = 0;
+  Random();
+
+  Mutex mutex_;
+  std::mt19937 gen_ GUARDED_BY(mutex_);
 };
 
 }  // namespace lczero
