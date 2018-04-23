@@ -78,6 +78,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("weights,w", po::value<std::string>(), "File with network weights.")
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
+        ("dynamictemp", "Scale temperature based upon expected value.")
         ("noponder", "Disable thinking on opponent's time.")
         ("uci", "Don't initialize the engine until \"isready\" command is sent. Use this if your GUI is freezing on startup.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
@@ -169,7 +170,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
             myprintf("Using %d thread(s).\n", num_threads);
             cfg_num_threads = num_threads;
         }
-        
+
     }
 
     if (vm.count("seed")) {
@@ -220,6 +221,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
         cfg_randomize = true;
         // Setting a value for temperature decay constant also activates --randomize.
         // However, time management is not deactivated by --tempdecay
+    }
+
+    if (vm.count("dynamictemp")) {
+        cfg_dynamic_temp = true;
     }
 
     if (vm.count("playouts")) {

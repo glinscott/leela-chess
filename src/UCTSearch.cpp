@@ -117,6 +117,9 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
         if (cfg_root_temp_decay > 0) {
             root_temperature = get_root_temperature();
         }
+        if (cfg_dynamic_temp == true) {
+            root_temperature = dynamic_temperature(root_temperature);
+        }
         for (const auto& node : boost::adaptors::reverse(parent.get_children())) {
             accum += std::pow(node->get_visits()/normfactor,1/root_temperature);
         }
@@ -169,6 +172,17 @@ float UCTSearch::get_root_temperature() {
     return root_temp;
 }
 
+float UCTSearch::dynamic_temperature(float rt) {
+    auto bh = bh_.shallow_clone();
+    Color color = bh.cur().side_to_move();
+    float eval_dfd = abs(0.5 - m_root->get_eval(color)); // distance from draw
+    float max_red_percent = 90;
+    float reduction_ratio = 1 - eval_dfd * max_red_percent / 50;
+    rt = std::max(0.05f, rt * reduction_ratio);
+
+    return rt;
+}
+
 Move UCTSearch::get_best_move() {
     Color color = bh_.cur().side_to_move();
 
@@ -185,6 +199,9 @@ Move UCTSearch::get_best_move() {
         if (cfg_root_temp_decay > 0) {
             root_temperature = get_root_temperature();
             myprintf("Game ply: %d, root temperature: %5.2f \n",bh_.cur().game_ply()+1, root_temperature);
+        }
+        if (cfg_dynamic_temp == true) {
+            root_temperature = dynamic_temperature(root_temperature);
         }
         m_root->randomize_first_proportionally(root_temperature);
     }
