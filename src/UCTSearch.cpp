@@ -260,6 +260,7 @@ int UCTSearch::dump_analysis(int64_t elapsed, bool force_output, int last_depth)
              cp, elapsed, pvstring.c_str());
     //winrate separate info string since it's not UCI spec
     myprintf_so("info string winrate %5.2f%%\n", feval * 100.f);
+    return depth;
 }
 
 bool UCTSearch::is_running() const {
