@@ -426,6 +426,9 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     bool keeprunning = true;
     int last_update = 0;
     int last_depth = 0;
+
+    if (m_nodes > 0) last_depth = dump_analysis(Time.elapsed(), false); // so we don't say nothing
+
     do {
         auto currstate = bh_.shallow_clone();
         auto result = play_simulation(currstate, m_root.get());
