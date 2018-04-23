@@ -62,6 +62,7 @@ public:
     void dirichlet_noise(float epsilon, float alpha);
     void randomize_first_proportionally(float tau);
     void update(float eval = std::numeric_limits<float>::quiet_NaN());
+    UCTNode * top_child = nullptr;
 
     UCTNode* uct_select_child(Color color, bool is_root);
     UCTNode* get_first_child() const;

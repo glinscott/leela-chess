@@ -85,6 +85,18 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
         auto move = next->get_move();
         bh.do_move(move);
         result = play_simulation(bh, next);
+        bool in_pv = (next == node->top_child);
+        if (in_pv) { // if I'm still in the PV, all that matters is: did "next" change the pv?
+            // do nothing!
+        }else{ // I'm out of the PV, so the only possible way I can change it is if "next" had most visits
+            if (node->top_child == nullptr || node->top_child->get_visits() < next->get_visits()) {
+                node->top_child = next;
+                result.pv_changed = true;
+            }
+            else {
+                result.pv_changed = false;
+            }
+        }
     }
 
     if (result.valid()) {
@@ -260,6 +272,7 @@ int UCTSearch::dump_analysis(int64_t elapsed, bool force_output, int last_depth)
              cp, elapsed, pvstring.c_str());
     //winrate separate info string since it's not UCI spec
     myprintf_so("info string winrate %5.2f%%\n", feval * 100.f);
+    return depth;
 }
 
 bool UCTSearch::is_running() const {
@@ -420,10 +433,8 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
             increment_playouts();
         }
 
-        // give output every so often
-        int current_update = log(float(m_nodes)) / log(1.2);
-        if (current_update != last_update) {
-            last_update = current_update;
+        // give output every time pv changes
+        if (result.pv_changed) {
             last_depth = std::max(last_depth, dump_analysis(Time.elapsed(), false, last_depth));
         }
 
