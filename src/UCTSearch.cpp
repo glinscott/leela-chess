@@ -88,7 +88,7 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
     }
 
     if (result.valid()) {
-        node->update(result.eval());
+        node->update(color, result.eval(), result.certain());
     }
     node->virtual_loss_undo();
 
@@ -396,7 +396,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     if (!m_root->has_children()) {
         float root_eval;
         m_root->create_children(m_nodes, bh_, root_eval);
-        m_root->update(root_eval);
+        m_root->update(bh_.cur().side_to_move(), root_eval, false);
     }
     if (cfg_noise) {
         m_root->dirichlet_noise(0.25f, 0.3f);

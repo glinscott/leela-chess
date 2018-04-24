@@ -47,6 +47,8 @@ extern float cfg_puct;
 extern float cfg_softmax_temp;
 extern float cfg_fpu_reduction;
 extern bool cfg_fpu_dynamic_eval;
+extern float cfg_certain_bonus;
+extern bool cfg_use_certain; 
 extern std::string cfg_logfile;
 extern std::string cfg_weightsfile;
 extern std::string cfg_supervise;
