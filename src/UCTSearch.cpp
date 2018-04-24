@@ -81,21 +81,18 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
     }
 
     if (node->has_children() && !result.valid()) {
-        auto next = node->uct_select_child(color, node == m_root.get());
+        auto ans = node->uct_select_child(color, node == m_root.get());
+        auto next = ans.first;
+        bool pv_changed = ans.second.first;
+        bool still_in_pv = ans.second.second;
         auto move = next->get_move();
         bh.do_move(move);
         result = play_simulation(bh, next);
-        bool in_pv = (next == node->top_child);
-        if (in_pv) { // if I'm still in the PV, all that matters is: did "next" change the pv?
-            // do nothing!
-        }else{ // I'm out of the PV, so the only possible way I can change it is if "next" had most visits
-            if (node->top_child == nullptr || node->top_child->get_visits() < next->get_visits()) {
-                node->top_child = next;
-                result.pv_changed = true;
-            }
-            else {
-                result.pv_changed = false;
-            }
+        if (pv_changed) {
+            result.pv_changed = true;
+        }
+        else if(!still_in_pv){
+            result.pv_changed = false;
         }
     }
 

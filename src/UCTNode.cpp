@@ -282,7 +282,7 @@ void UCTNode::accumulate_eval(float eval) {
     atomic_add(m_whiteevals, (double)eval);
 }
 
-UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
+std::pair<UCTNode*, std::pair<bool,bool>> UCTNode::uct_select_child(Color color, bool is_root) {
     UCTNode* best = nullptr;
     auto best_value = std::numeric_limits<double>::lowest();
 
@@ -315,8 +315,10 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     // Estimated eval for unknown nodes = original parent NN eval - reduction
     // Or curent parent eval - reduction if dynamic_eval is enabled.
     auto fpu_eval = (cfg_fpu_dynamic_eval ? get_eval(color) : net_eval) - fpu_reduction;
+    auto bestit = m_children.begin();
 
-    for (const auto& child : m_children) {
+    for (auto it = m_children.begin(); it != m_children.end(); it++) {
+        const auto& child = *it;
         if (!child->active()) {
             continue;
         }
@@ -334,11 +336,19 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
         if (value > best_value) {
             best_value = value;
             best = child.get();
+            bestit = it;
         }
     }
 
+    bool pv_changed = (parentvisits == 0 ||
+        (bestit != m_children.begin() && best->get_visits() >= m_children.front()->get_visits()));
+    if (pv_changed) {
+        std::iter_swap(bestit, m_children.begin());
+    }
+
     assert(best != nullptr);
-    return best;
+    bool still_in_pv = (best == m_children.front().get());
+    return { best, {pv_changed, still_in_pv} };
 }
 
 class NodeComp : public std::binary_function<UCTNode::node_ptr_t&,
