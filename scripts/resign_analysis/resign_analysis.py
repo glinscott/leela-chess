@@ -25,6 +25,7 @@ def parseGames(filenames, resignrate):
     games = len(filenames)
     correct_resigns = 0
     incorrect_resigns = 0
+    very_incorrect_resigns = 0
     total_plys = 0
     resign_plys = 0
     for filename in filenames:
@@ -54,17 +55,25 @@ def parseGames(filenames, resignrate):
                     resign_plynum = plynum
                     #print("debug stm, winrate, plynum", stm, winrate, plynum)
         #print("debug who_resigned {} resign_playnum {} total_plynum {}".format(who_resigned, resign_plynum, plynum))
+        if ((score !=  1 and who_resigned == "Black") or
+            (score != -1 and who_resigned == "White")):
+            incorrect_resigns += 1
+            #print("debug incorrect resign filename {} who_resigned {} resign_playnum {} total_plynum {}".format(
+                #filename, who_resigned, resign_plynum, plynum))
         if ((score == -1 and who_resigned == "Black") or
             (score ==  1 and who_resigned == "White")):
-            #print("debug incorrect resign")
-            incorrect_resigns += 1
+            very_incorrect_resigns += 1
+            #print("debug very incorrect resign filename {} who_resigned {} resign_playnum {} total_plynum {}".format(
+                #filename, who_resigned, resign_plynum, plynum))
         elif who_resigned != None:
             #print("debug correct resign")
             correct_resigns += 1
-    print("Analyze resign rate {:0.0f}%".format(resignrate))
-    print("incorrect {:0.0f}%\ncorrect {:0.0f}%\nplies saved {:0.0f}%".format(
-        incorrect_resigns/games*100, correct_resigns/games*100, (total_plys-resign_plys)/total_plys*100))
-    print()
+    print("Resign rate {:2.0f}% Incorrect {:4.1f}% Very Incorrect {:4.1f}% Correct {:4.1f}% Plies saved {:4.1f}%".format(
+        resignrate,
+        incorrect_resigns/games*100,
+        very_incorrect_resigns/games*100,
+        correct_resigns/games*100,
+        (total_plys-resign_plys)/total_plys*100))
 
 if __name__ == "__main__":
     usage_str = """
@@ -80,5 +89,8 @@ Process flow:
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=usage_str)
     parser.add_argument("data", metavar="files", type=str, nargs="+", help="client debug log files (logs-###/*.log)")
     args = parser.parse_args()
-    for rr in (50.0, 20.0, 10.0, 5.0, 2.0, 1.0, 0.0):
+    print("Analyzing {} games".format(len(args.data)))
+    print("Incorrect resign = would have resigned, but drew or won.")
+    print("Very Incorrect resign = would have resigned, won.")
+    for rr in (0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0):
         parseGames(args.data, rr)
