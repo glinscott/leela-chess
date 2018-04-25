@@ -1,7 +1,7 @@
 project('lc0', 'cpp')
   #        default_options : ['cpp_std=c++17'])
 
-add_global_arguments('-std=c++17', language : 'cpp')
+add_global_arguments('-std=c++17', '-Wthread-safety', language : 'cpp')
 cc = meson.get_compiler('cpp')
 
 # Installed from https://github.com/FloopCZ/tensorflow_cc
@@ -31,16 +31,24 @@ deps += cc.find_library('stdc++fs')
 files = [
   'src/chess/bitboard.cc',
   'src/chess/board.cc',
-  'src/neural/loader.cc',
-  'src/neural/network_tf.cc',
-  'src/neural/network_random.cc',
-  'src/neural/cache.cc',
-  'src/mcts/search.cc',
   'src/mcts/node.cc',
-  'src/engine.cc',
-  'src/uciloop.cc',
-  'src/ucioptions.cc',
+  'src/mcts/search.cc',
+  'src/neural/cache.cc',
+  'src/neural/loader.cc',
+  'src/neural/writer.cc',
+  'src/neural/network_mux.cc',
+  'src/neural/network_random.cc',
+  'src/neural/network_tf.cc',
   'src/utils/transpose.cc',
+  'src/utils/commandline.cc',
+  'src/utils/optionsdict.cc',
+  'src/utils/random.cc',
+  'src/engine.cc',
+  'src/optionsparser.cc',
+  'src/selfplay/game.cc',
+  'src/selfplay/tournament.cc',
+  'src/selfplay/loop.cc',
+  'src/uciloop.cc',
 ]
 
 includes = []
