@@ -85,9 +85,11 @@ public:
     SearchResult play_simulation(BoardHistory& bh, UCTNode* const node);
 
 private:
+    std::string last_pv;
+    int last_depth;
     void dump_stats(BoardHistory& pos, UCTNode& parent);
     std::string get_pv(BoardHistory& pos, UCTNode& parent, bool use_san);
-    int dump_analysis(int64_t elapsed, bool force_output, int last_depth = 0);
+    void dump_analysis(int64_t elapsed, bool force_output);
     Move get_best_move();
     float get_root_temperature();
 

@@ -81,19 +81,10 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
     }
 
     if (node->has_children() && !result.valid()) {
-        auto ans = node->uct_select_child(color, node == m_root.get());
-        auto next = ans.first;
-        bool pv_changed = ans.second.first;
-        bool still_in_pv = ans.second.second;
+        auto next = node->uct_select_child(color, node == m_root.get());
         auto move = next->get_move();
         bh.do_move(move);
         result = play_simulation(bh, next);
-        if (pv_changed) {
-            result.pv_changed = true;
-        }
-        else if(!still_in_pv){
-            result.pv_changed = false;
-        }
     }
 
     if (result.valid()) {
@@ -242,9 +233,9 @@ std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent, bool use_san
 }
 
 // returns the depth of the PV
-int UCTSearch::dump_analysis(int64_t elapsed, bool force_output, int last_depth) {
+void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     if (cfg_quiet && !force_output) {
-        return 0;
+        return;
     }
 
     auto bh = bh_.shallow_clone();
@@ -252,11 +243,14 @@ int UCTSearch::dump_analysis(int64_t elapsed, bool force_output, int last_depth)
 
     // UCI requires long algebraic notation, so use_san=false
     std::string pvstring = get_pv(bh, *m_root, false);
+    if (pvstring == last_pv) return;
+    last_pv = pvstring;
     float feval = m_root->get_eval(color);
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
     int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
     // depth should just be length of pv
     int depth = std::count(pvstring.begin(), pvstring.end(), ' ') + 1;
+    last_depth = std::max(last_depth, depth);
     // To report nodes, use visits.
     //   - Only includes expanded nodes.
     //   - Includes nodes carried over from tree reuse.
@@ -265,11 +259,11 @@ int UCTSearch::dump_analysis(int64_t elapsed, bool force_output, int last_depth)
     // which is similar to a ponder hit. The user will expect to know how
     // fast nodes are being added, not how big the ponder hit was.
     myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
-             std::max(last_depth, depth), visits, 1000.0 * m_playouts / (elapsed + 1),
+             last_depth, visits, 1000.0 * m_playouts / (elapsed + 1),
              cp, elapsed, pvstring.c_str());
     //winrate separate info string since it's not UCI spec
     myprintf_so("info string winrate %5.2f%%\n", feval * 100.f);
-    return depth;
+    return;
 }
 
 bool UCTSearch::is_running() const {
@@ -422,20 +416,23 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
     bool keeprunning = true;
     int last_update = 0;
-    int last_depth = 0;
+    last_pv = "";
+    last_depth = 0;
 
-    if (m_nodes > 0) last_depth = dump_analysis(Time.elapsed(), false); // so we don't say nothing
+    if (m_nodes > 0) dump_analysis(Time.elapsed(), false); // so we don't say nothing
 
     do {
         auto currstate = bh_.shallow_clone();
         auto result = play_simulation(currstate, m_root.get());
         if (result.valid()) {
             increment_playouts();
+            last_update++;
         }
 
         // give output every time pv changes
-        if (result.pv_changed) {
-            last_depth = std::max(last_depth, dump_analysis(Time.elapsed(), false, last_depth));
+        if (last_update == 50) {
+            last_update = 0;
+            dump_analysis(Time.elapsed(), false);
         }
 
         // check if we should still search
