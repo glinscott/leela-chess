@@ -315,7 +315,6 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     // Estimated eval for unknown nodes = original parent NN eval - reduction
     // Or curent parent eval - reduction if dynamic_eval is enabled.
     auto fpu_eval = (cfg_fpu_dynamic_eval ? get_eval(color) : net_eval) - fpu_reduction;
-    auto bestit = m_children.begin();
 
     for (const auto& child: m_children) {
         if (!child->active()) {

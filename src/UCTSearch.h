@@ -39,7 +39,6 @@ public:
     SearchResult() = default;
     bool valid() const { return m_valid;  }
     float eval() const { return m_eval;  }
-    bool pv_changed = false;
     static SearchResult from_eval(float eval) {
         return SearchResult(eval);
     }

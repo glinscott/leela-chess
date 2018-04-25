@@ -232,7 +232,6 @@ std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent, bool use_san
     return res;
 }
 
-// returns the depth of the PV
 void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     if (cfg_quiet && !force_output) {
         return;
