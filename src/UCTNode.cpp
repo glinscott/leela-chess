@@ -270,6 +270,27 @@ float UCTNode::get_eval(int tomove) const {
     }
 }
 
+float UCTNode::get_raw_eval(int tomove) const {
+    // For use in the FPU, a dynamic evaluation which is unaffected by
+    // virtual losses is also required.
+    auto visits = get_visits();
+    if (visits > 0) {
+        auto whiteeval = get_whiteevals();
+        auto score = static_cast<float>(whiteeval / (double)visits);
+        if (tomove == BLACK) {
+            score = 1.0f - score;
+        }
+        return score;
+    } else {
+        // If a node has not been visited yet, the eval is that of the parent.
+        auto eval = m_init_eval;
+        if (tomove == BLACK) {
+            eval = 1.0f - eval;
+        }
+        return eval;
+    }
+}
+
 double UCTNode::get_whiteevals() const {
     return m_whiteevals;
 }
@@ -291,8 +312,8 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     // Count parentvisits manually to avoid issues with transpositions.
     auto total_visited_policy = 0.0f;
     auto parentvisits = size_t{0};
-    // Net eval can be obtained from an unvisited child. This is invalid
-    // if there are no unvisited children, but then this isn't used in that case.
+    // Static parent eval can be obtained from an unvisited child. This is invalid
+    // if there are no unvisited children, but in this case FPU is not used anyway.
     auto net_eval = 0.0f;
     for (const auto& child : m_children) {
         parentvisits += child->get_visits();
@@ -311,10 +332,15 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     if (!is_root || !cfg_noise) {
         fpu_reduction = cfg_fpu_reduction * std::sqrt(total_visited_policy);
     }
+    auto fpu_vl_factor = 1.0f;
+    // Simulate the effect of virtual loss on parent node calculation,
+    //  without actually using it (because of multithreading issues)
+    fpu_vl_factor = (parentvisits+1)/(parentvisits+1+cfg_fpu_vl);
 
-    // Estimated eval for unknown nodes = original parent NN eval - reduction
-    // Or curent parent eval - reduction if dynamic_eval is enabled.
-    auto fpu_eval = (cfg_fpu_dynamic_eval ? get_eval(color) : net_eval) - fpu_reduction;
+    // Estimated eval for unknown nodes = original parent NN eval*vl_factor - reduction (if static
+    // FPU eval is enabled), current parent eval*vl_factor - reduction if no parameters are enabled
+    auto fpu_eval = (cfg_fpu_dynamic_eval ? get_raw_eval(color) : net_eval)*fpu_vl_factor - fpu_reduction;
+    //myprintf("Move ID: %5d  Static parent eval: %8.5f  dynamic parent eval: %8.5f  Visits: %4d VL adjusted: %8.5f  FPU eval: %8.5f%\n ", get_move(), net_eval, get_raw_eval(color), int(parentvisits)+1, fpu_eval+fpu_reduction, fpu_eval);
 
     for (const auto& child : m_children) {
         if (!child->active()) {

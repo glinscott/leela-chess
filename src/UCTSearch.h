@@ -81,7 +81,7 @@ public:
     void increment_playouts();
     bool should_halt_search();
     void please_stop();
-    SearchResult play_simulation(BoardHistory& bh, UCTNode* const node);
+    SearchResult play_simulation(BoardHistory& bh, UCTNode* const node, int sdepth);
 
 private:
     void dump_stats(BoardHistory& pos, UCTNode& parent);
@@ -95,6 +95,7 @@ private:
     std::unique_ptr<UCTNode> m_root;
     std::atomic<int> m_nodes{0};
     std::atomic<int> m_playouts{0};
+    std::atomic<int> m_maxdepth{0};
     int64_t m_target_time{0};
     int64_t m_max_time{0};
     int64_t m_start_time{0};
