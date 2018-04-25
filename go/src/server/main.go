@@ -47,7 +47,7 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 	if err != nil {
 		return nil, 0, errors.New("Invalid version")
 	}
-	if version < 5 {
+	if version < 7 {
 		log.Println("Rejecting old game from %s, version %d", user.Username, version)
 		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 	}
@@ -58,7 +58,7 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 func nextGame(c *gin.Context) {
 	user, _, err := checkUser(c)
 	if err != nil {
-		log.Println(err)
+		log.Println(strings.TrimSpace(err.Error()))
 		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
@@ -262,8 +262,13 @@ func uploadNetwork(c *gin.Context) {
 func uploadGame(c *gin.Context) {
 	user, version, err := checkUser(c)
 	if err != nil {
-		log.Println(err)
+		log.Println(strings.TrimSpace(err.Error()))
 		c.String(http.StatusBadRequest, err.Error())
+		return
+	}
+	if version, err := strconv.ParseFloat(c.PostForm("engineVersion")[1:], 64); err != nil || version < 0.7 - 1e-6{
+		log.Printf("Rejecting game with old lczero version %s", c.PostForm("engineVersion"))
+		c.String(http.StatusBadRequest, "\n\n\n\n\nYou must upgrade to a newer lczero version!!\n\n\n\n\n")
 		return
 	}
 
@@ -408,7 +413,7 @@ func checkMatchFinished(match_id uint) error {
 func matchResult(c *gin.Context) {
 	user, version, err := checkUser(c)
 	if err != nil {
-		log.Println(err)
+		log.Println(strings.TrimSpace(err.Error()))
 		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
