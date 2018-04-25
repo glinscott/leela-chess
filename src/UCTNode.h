@@ -53,6 +53,7 @@ public:
     float get_score() const;
     void set_score(float score);
     float get_eval(int tomove) const;
+    float get_raw_eval(int tomove) const;
     double get_whiteevals() const;
     void set_visits(int visits);
     void set_whiteevals(double whiteevals);
@@ -63,7 +64,7 @@ public:
     void randomize_first_proportionally(float tau);
     void update(float eval = std::numeric_limits<float>::quiet_NaN());
 
-    UCTNode* uct_select_child(Color color, bool is_root);
+    UCTNode* uct_select_child(Color color, int root_visits);
     UCTNode* get_first_child() const;
     const std::vector<node_ptr_t>& get_children() const;
 

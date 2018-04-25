@@ -88,18 +88,6 @@ namespace UCI {
         }
     }
 
-    void on_fpudynamiceval(const Option& o) {
-        bool value = o;
-
-        cfg_fpu_dynamic_eval = value;
-
-        if (value) {
-            myprintf("cfg_fpu_dynamic_eval enabled\n");
-        } else {
-            myprintf("cfg_fpu_dynamic_eval disabled\n");
-        }
-    }
-
     void on_puct(const Option& o) {
         std::string value = o;
 
@@ -140,7 +128,6 @@ namespace UCI {
         o["Quiet"]                  << Option(cfg_quiet, on_quiet);
         o["Softmax Temp"]           << SilentOption(std::to_string(cfg_softmax_temp).c_str(), on_softmaxtemp);
         o["FPU Reduction"]          << Option(std::to_string(cfg_fpu_reduction).c_str(), on_fpureduction);
-        o["FPU Dynamic Eval"]       << SilentOption(cfg_fpu_dynamic_eval, on_fpudynamiceval);
         o["Puct"]                   << Option(std::to_string(cfg_puct).c_str(), on_puct);
         o["SlowMover"]              << Option(cfg_slowmover, 1, std::numeric_limits<int>::max(), on_slowmover);
         o["Go Nodes Visits"]        << Option(cfg_go_nodes_as_visits, on_nodes_as_visits);
