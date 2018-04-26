@@ -39,7 +39,10 @@ struct Node {
   V3TrainingData GetV3TrainingData(GameInfo::GameResult result) const;
   int ComputeRepetitions();
   uint64_t BoardHash() const;
+  // Returns move from white's point of view (not flipped for black).
+  Move GetMoveAsWhite() const;
   std::string DebugString() const;
+  void ResetStats();
 
   // Move corresponding to this node. From the point of view of a player,
   // i.e. black's e7e5 is stored as e2e4.

@@ -270,6 +270,27 @@ float UCTNode::get_eval(int tomove) const {
     }
 }
 
+float UCTNode::get_raw_eval(int tomove) const {
+    // For use in the FPU, a dynamic evaluation which is unaffected by
+    // virtual losses is also required.
+    auto visits = get_visits();
+    if (visits > 0) {
+        auto whiteeval = get_whiteevals();
+        auto score = static_cast<float>(whiteeval / (double)visits);
+        if (tomove == BLACK) {
+            score = 1.0f - score;
+        }
+        return score;
+    } else {
+        // If a node has not been visited yet, the eval is that of the parent.
+        auto eval = m_init_eval;
+        if (tomove == BLACK) {
+            eval = 1.0f - eval;
+        }
+        return eval;
+    }
+} 
+
 double UCTNode::get_whiteevals() const {
     return m_whiteevals;
 }
