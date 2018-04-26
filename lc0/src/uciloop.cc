@@ -52,7 +52,7 @@ ParseCommand(const std::string& line) {
 
   std::istringstream iss(line);
   std::string token;
-  iss >> std::noskipws >> token >> std::ws;
+  iss >> /* std::noskipws >> */ token >> std::ws;
 
   auto command = kKnownCommands.find(token);
   if (command == kKnownCommands.end()) {
@@ -64,8 +64,8 @@ ParseCommand(const std::string& line) {
     auto iter = command->second.find(token);
     if (iter == command->second.end()) {
       if (!value) throw Exception("Unexpected token: " + token);
-      *value += token + whitespace;
-      iss >> whitespace;
+      *value += whitespace + token;
+      whitespace = " ";
     } else {
       value = &params[token];
       iss >> std::ws;
@@ -94,6 +94,7 @@ void UciLoop::RunLoop() {
   std::cout.setf(std::ios::unitbuf);
   std::string line;
   while (std::getline(std::cin, line)) {
+    if (debug_log_) debug_log_ << '>' << line << std::endl << std::flush;
     try {
       auto command = ParseCommand(line);
       if (!DispatchCommand(command.first, command.second)) break;
@@ -125,7 +126,7 @@ bool UciLoop::DispatchCommand(
       std::string move;
       while (iss >> move) moves.push_back(move);
     }
-    CmdPosition(GetOrEmpty(params, "startpos"), moves);
+    CmdPosition(GetOrEmpty(params, "fen"), moves);
   } else if (command == "go") {
     GoParams go_params;
     if (ContainsKey(params, "infinite")) {
@@ -134,9 +135,9 @@ bool UciLoop::DispatchCommand(
       }
       go_params.infinite = true;
     }
-#define OPTION(x)                                     \
-  if (ContainsKey(params, #x)) {                      \
-    go_params.x == std::stoi(GetOrEmpty(params, #x)); \
+#define OPTION(x)                                    \
+  if (ContainsKey(params, #x)) {                     \
+    go_params.x = std::stoi(GetOrEmpty(params, #x)); \
   }
     OPTION(wtime);
     OPTION(btime);
@@ -158,9 +159,18 @@ bool UciLoop::DispatchCommand(
   return true;
 }
 
+void UciLoop::SetLogFilename(const std::string& filename) {
+  if (filename.empty()) {
+    debug_log_.close();
+  } else {
+    debug_log_.open(filename.c_str(), std::ios::app);
+  }
+}
+
 void UciLoop::SendResponse(const std::string& response) {
   static std::mutex output_mutex;
   std::lock_guard<std::mutex> lock(output_mutex);
+  if (debug_log_) debug_log_ << '<' << response << std::endl << std::flush;
   std::cout << response << std::endl;
 }
 

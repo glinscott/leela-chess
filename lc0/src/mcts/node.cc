@@ -19,7 +19,9 @@
 #include "mcts/node.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstring>
+#include <iostream>
 #include <sstream>
 #include "utils/hashcat.h"
 
@@ -95,8 +97,20 @@ void NodePool::AllocateNewBatch() REQUIRES(mutex_) {
 }
 
 uint64_t Node::BoardHash() const {
-  return board.Hash();
-  // return HashCat({board.Hash(), no_capture_ply, repetitions});
+  // return board.Hash();
+  return HashCat({board.Hash(), no_capture_ply, repetitions});
+}
+
+void Node::ResetStats() {
+  n_in_flight = 0;
+  n = 0;
+  v = 0.0;
+  q = 0.0;
+  w = 0.0;
+  p = 0.0;
+  max_depth = 0;
+  full_depth = 0;
+  is_terminal = 0;
 }
 
 std::string Node::DebugString() const {
@@ -126,6 +140,103 @@ int Node::ComputeRepetitions() {
     if (node->no_capture_ply < 2) return 0;
   }
   return 0;
+}
+
+Move Node::GetMoveAsWhite() const {
+  Move m = move;
+  if (!board.flipped()) m.Mirror();
+  return m;
+}
+
+namespace {
+const int kMoveHistory = 8;
+const int kPlanesPerBoard = 13;
+const int kAuxPlaneBase = kPlanesPerBoard * kMoveHistory;
+}  // namespace
+
+InputPlanes Node::EncodeForNN() const {
+  InputPlanes result(kAuxPlaneBase + 8);
+
+  const bool we_are_black = board.flipped();
+  if (board.castlings().we_can_000()) result[kAuxPlaneBase + 0].SetAll();
+  if (board.castlings().we_can_00()) result[kAuxPlaneBase + 1].SetAll();
+  if (board.castlings().they_can_000()) result[kAuxPlaneBase + 2].SetAll();
+  if (board.castlings().they_can_00()) result[kAuxPlaneBase + 3].SetAll();
+  if (we_are_black) result[kAuxPlaneBase + 4].SetAll();
+  result[kAuxPlaneBase + 5].Fill(no_capture_ply);
+
+  const Node* node = this;
+  bool flip = false;
+  for (int i = 0; i < kMoveHistory; ++i, flip = !flip) {
+    if (!node) break;
+    ChessBoard board = node->board;
+    if (flip) board.Mirror();
+
+    const int base = i * kPlanesPerBoard;
+    result[base + 0].mask = (board.ours() * board.pawns()).as_int();
+    result[base + 1].mask = (board.our_knights()).as_int();
+    result[base + 2].mask = (board.ours() * board.bishops()).as_int();
+    result[base + 3].mask = (board.ours() * board.rooks()).as_int();
+    result[base + 4].mask = (board.ours() * board.queens()).as_int();
+    result[base + 5].mask = (board.our_king()).as_int();
+
+    result[base + 6].mask = (board.theirs() * board.pawns()).as_int();
+    result[base + 7].mask = (board.their_knights()).as_int();
+    result[base + 8].mask = (board.theirs() * board.bishops()).as_int();
+    result[base + 9].mask = (board.theirs() * board.rooks()).as_int();
+    result[base + 10].mask = (board.theirs() * board.queens()).as_int();
+    result[base + 11].mask = (board.their_king()).as_int();
+
+    const int repetitions = node->repetitions;
+    if (repetitions >= 1) result[base + 12].SetAll();
+
+    node = node->parent;
+  }
+
+  return result;
+}
+
+V3TrainingData Node::GetV3TrainingData(GameInfo::GameResult game_result) const {
+  V3TrainingData result;
+
+  // Set version.
+  result.version = 3;
+
+  // Populate probabilities.
+  float total_n = n - 1;  // First visit was expansion of it inself.
+  std::memset(result.probabilities, 0, sizeof(result.probabilities));
+  for (Node* iter = child; iter; iter = iter->sibling) {
+    result.probabilities[iter->move.as_nn_index()] = iter->n / total_n;
+  }
+
+  // Populate planes.
+  InputPlanes planes = EncodeForNN();
+  int plane_idx = 0;
+  for (auto& plane : result.planes) {
+    plane = planes[plane_idx++].mask;
+  }
+
+  // Populate castlings.
+  result.castling_us_ooo = board.castlings().we_can_000() ? 1 : 0;
+  result.castling_us_oo = board.castlings().we_can_00() ? 1 : 0;
+  result.castling_them_ooo = board.castlings().they_can_000() ? 1 : 0;
+  result.castling_them_oo = board.castlings().they_can_00() ? 1 : 0;
+
+  // Other params.
+  result.side_to_move = board.flipped() ? 1 : 0;
+  result.move_count = 0;
+  result.rule50_count = no_capture_ply;
+
+  // Game result.
+  if (game_result == GameInfo::WHITE_WON) {
+    result.result = board.flipped() ? -1 : 1;
+  } else if (game_result == GameInfo::BLACK_WON) {
+    result.result = board.flipped() ? 1 : -1;
+  } else {
+    result.result = 0;
+  }
+
+  return result;
 }
 
 void NodeTree::MakeMove(Move move) {
@@ -175,11 +286,21 @@ void NodeTree::ResetToPosition(const std::string& starting_fen,
         full_moves * 2 - (starting_board.flipped() ? 1 : 2);
   }
 
+  Node* old_head = current_head_;
   current_head_ = gamebegin_node_;
+  bool seen_old_head = (gamebegin_node_ == old_head);
   for (const auto& move : moves) {
     MakeMove(move);
+    if (old_head == current_head_) seen_old_head = true;
   }
-  node_pool_->ReleaseChildren(current_head_);
+
+  // If we didn't see old head, it means that new position is shorter.
+  // As we killed the search tree already, trim it to redo the search.
+  if (!seen_old_head) {
+    assert(!current_head_->sibling);
+    node_pool_->ReleaseChildren(current_head_);
+    current_head_->ResetStats();
+  }
 }
 
 void NodeTree::DeallocateTree() {
