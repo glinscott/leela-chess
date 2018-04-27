@@ -84,8 +84,6 @@ public:
     SearchResult play_simulation(BoardHistory& bh, UCTNode* const node);
 
 private:
-    std::string last_pv;
-    int last_depth;
     void dump_stats(BoardHistory& pos, UCTNode& parent);
     std::string get_pv(BoardHistory& pos, UCTNode& parent, bool use_san);
     void dump_analysis(int64_t elapsed, bool force_output);
@@ -103,6 +101,8 @@ private:
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
     int m_maxvisits;
+    std::string m_last_pv;
+    int m_last_depth;
 
     bool quiet_ = true;
     std::atomic<bool> uci_stop{false};

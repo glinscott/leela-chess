@@ -242,14 +242,14 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
 
     // UCI requires long algebraic notation, so use_san=false
     std::string pvstring = get_pv(bh, *m_root, false);
-    if (pvstring == last_pv) return;
-    last_pv = pvstring;
+    if (pvstring == m_last_pv) return;
+    m_last_pv = pvstring;
     float feval = m_root->get_eval(color);
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
     int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
     // depth should just be length of pv
     int depth = std::count(pvstring.begin(), pvstring.end(), ' ') + 1;
-    last_depth = std::max(last_depth, depth);
+    m_last_depth = std::max(m_last_depth, depth);
     // To report nodes, use visits.
     //   - Only includes expanded nodes.
     //   - Includes nodes carried over from tree reuse.
@@ -258,7 +258,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // which is similar to a ponder hit. The user will expect to know how
     // fast nodes are being added, not how big the ponder hit was.
     myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
-             last_depth, visits, 1000.0 * m_playouts / (elapsed + 1),
+             m_last_depth, visits, 1000.0 * m_playouts / (elapsed + 1),
              cp, elapsed, pvstring.c_str());
     //winrate separate info string since it's not UCI spec
     myprintf_so("info string winrate %5.2f%%\n", feval * 100.f);
@@ -415,8 +415,8 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
     bool keeprunning = true;
     int last_update = 0;
-    last_pv = "";
-    last_depth = 0;
+    m_last_pv = "";
+    m_last_depth = 0;
 
     if (m_nodes > 0) dump_analysis(Time.elapsed(), false); // so we don't say nothing
 
