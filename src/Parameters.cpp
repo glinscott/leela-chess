@@ -63,7 +63,6 @@ bool cfg_tune_only;
 float cfg_puct;
 float cfg_softmax_temp;
 float cfg_fpu_reduction;
-bool cfg_fpu_dynamic_eval;
 std::string cfg_weightsfile;
 std::string cfg_logfile;
 std::string cfg_supervise;
@@ -88,8 +87,7 @@ void Parameters::setup_default_parameters() {
 #endif
     cfg_puct = 0.85f;
     cfg_softmax_temp = 1.0f;
-    cfg_fpu_reduction = 0.0f;
-    cfg_fpu_dynamic_eval = true;
+    cfg_fpu_reduction = 0.5f;
     cfg_root_temp_decay = 0;
     cfg_min_resign_moves = 20;
     cfg_resignpct = 10;

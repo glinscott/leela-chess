@@ -303,39 +303,27 @@ void UCTNode::accumulate_eval(float eval) {
     atomic_add(m_whiteevals, (double)eval);
 }
 
-UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
+UCTNode* UCTNode::uct_select_child(Color color, int root_visits) {
     UCTNode* best = nullptr;
     auto best_value = std::numeric_limits<double>::lowest();
 
     LOCK(m_nodemutex, lock);
 
     // Count parentvisits manually to avoid issues with transpositions.
-    auto total_visited_policy = 0.0f;
     auto parentvisits = size_t{0};
-    // Net eval can be obtained from an unvisited child. This is invalid
-    // if there are no unvisited children, but then this isn't used in that case.
-    auto net_eval = 0.0f;
     for (const auto& child : m_children) {
-        parentvisits += child->get_visits();
-        if (child->get_visits() > 0) {
-            total_visited_policy += child->get_score();
-        } else {
-            net_eval = child->get_eval(color);
-        }
+        parentvisits += child->get_visits(); 
     }
 
     auto numerator = std::sqrt((double)parentvisits);
-    auto fpu_reduction = 0.0f;
+    auto fpu_factor = 1.0f;
     // Lower the expected eval for moves that are likely not the best.
-    // Do not do this if we have introduced noise at this node exactly
-    // to explore more.
-    if (!is_root || !cfg_noise) {
-        fpu_reduction = cfg_fpu_reduction * std::sqrt(total_visited_policy);
-    }
+    fpu_factor = (parentvisits+1)/(parentvisits+1+cfg_fpu_reduction*std::sqrt((float)root_visits));
 
-    // Estimated eval for unknown nodes = original parent NN eval - reduction
-    // Or curent parent eval - reduction if dynamic_eval is enabled.
-    auto fpu_eval = (cfg_fpu_dynamic_eval ? get_eval(color) : net_eval) - fpu_reduction;
+    // Estimated eval for unknown nodes = current parent eval * fpu_factor. This factor is determined by the node parent visits,
+    // total root visit count and a tuneable constant cfg_fpu_reduction
+    auto fpu_eval = get_raw_eval(color)*fpu_factor;
+    //myprintf("Move ID: %5d  Parent eval: %8.5f  Root visits: %4d  Visits: %4d  FPU eval: %8.5f%\n ", get_move(), get_raw_eval(color), root_visits, int(parentvisits)+1, fpu_eval);
 
     for (const auto& child : m_children) {
         if (!child->active()) {
