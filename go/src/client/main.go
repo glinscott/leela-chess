@@ -260,8 +260,13 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 		case best_move := <-p.BestMove:
 			err := game.MoveStr(best_move)
 			if err != nil {
-				log.Println("Error decoding: " + best_move + " for game:\n" + game.String())
-				return 0, "", "", err
+				log.Println("Assuming resign: " + best_move + " for game:\n" + game.String())
+				if game.Position().Turn() == chess.White {
+					result = 1
+				}
+				} else {
+					result = -1
+				}				
 			}
 			if len(move_history) == 0 {
 				move_history = " moves"
