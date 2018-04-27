@@ -651,8 +651,18 @@ func frontPage(c *gin.Context) {
 		c.String(500, "Internal error")
 		return
 	}
-	progress = filterProgress(progress)
+	if c.DefaultQuery("full_elo", "0") == "0" {
+		progress = filterProgress(progress)
+	}
 
+	/*
+	c.HTML(http.StatusOK, "index", gin.H{
+		"active_users": 0,
+		"games_played": 0,
+		"Users":        []gin.H{},
+		"progress":     progress,
+	})
+	*/
 	c.HTML(http.StatusOK, "index", gin.H{
 		"active_users": users["active_users"],
 		"games_played": users["games_played"],
@@ -662,6 +672,13 @@ func frontPage(c *gin.Context) {
 }
 
 func user(c *gin.Context) {
+	// TODO(gary): Optimize this!
+	c.HTML(http.StatusOK, "user", gin.H{
+		"user":  c.Param("name"),
+		"games": []gin.H{},
+	})
+	return
+
 	name := c.Param("name")
 	user := db.User{
 		Username: name,
@@ -697,6 +714,11 @@ func user(c *gin.Context) {
 }
 
 func game(c *gin.Context) {
+	c.HTML(http.StatusOK, "game", gin.H{
+		"pgn": "Disabled for now -- server load too high from scaping",
+	})
+	return
+
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		log.Println(err)
