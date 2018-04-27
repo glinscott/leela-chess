@@ -289,7 +289,7 @@ float UCTNode::get_raw_eval(int tomove) const {
         }
         return eval;
     }
-}
+} 
 
 double UCTNode::get_whiteevals() const {
     return m_whiteevals;

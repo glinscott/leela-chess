@@ -135,7 +135,6 @@ void Search::Worker() {
   // Exit check is at the end of the loop as at least one iteration is
   // necessary.
   while (true) {
-    int new_nodes = 0;
     nodes_to_process.clear();
     auto computation = CachingComputation(network_->NewComputation(), cache_);
 
@@ -147,7 +146,6 @@ void Search::Worker() {
       // If we hit the node that is already processed (by our batch or in
       // another thread) stop gathering and process smaller batch.
       if (!node) break;
-      ++new_nodes;
 
       nodes_to_process.push_back(node);
       // If node is already known as terminal (win/lose/draw according to rules
@@ -198,7 +196,7 @@ void Search::Worker() {
         }
         // Add Dirichlet noise if enabled and at root.
         if (kNoise && node == root_node_) {
-          ApplyDirichletNoise(node, 0.03, 0.25);
+          ApplyDirichletNoise(node, 0.25, 0.3);
         }
         ++idx_in_computation;
       }
@@ -207,7 +205,6 @@ void Search::Worker() {
     {
       // Update nodes.
       SharedMutex::Lock lock(nodes_mutex_);
-      total_playouts_ += new_nodes;
       for (Node* node : nodes_to_process) {
         float v = node->v;
         // Maximum depth the node is explored.
@@ -255,6 +252,7 @@ void Search::Worker() {
           }
         }
       }
+      total_playouts_ += nodes_to_process.size();
     }
     MaybeOutputInfo();
     MaybeTriggerStop();
@@ -287,7 +285,7 @@ int Search::PrefetchIntoCache(Node* node, int budget,
   // Populate all subnodes and their scores.
   typedef std::pair<float, Node*> ScoredNode;
   std::vector<ScoredNode> scores;
-  float factor = kCpuct * std::sqrt(node->n + 1);
+  float factor = kCpuct * std::sqrt(std::max(node->n, 1u));
   for (Node* iter = node->child; iter; iter = iter->sibling) {
     scores.emplace_back(factor * iter->ComputeU() + iter->ComputeQ(), iter);
   }
@@ -334,11 +332,11 @@ namespace {
 // Returns a child with most visits.
 Node* GetBestChild(Node* parent) {
   Node* best_node = nullptr;
-  int best = -1;
+  std::pair<int, float> best(-1, 0.0);
   for (Node* node = parent->child; node; node = node->sibling) {
-    int n = node->n + node->n_in_flight;
-    if (n > best) {
-      best = n;
+    std::pair<int, float> val(node->n + node->n_in_flight, node->p);
+    if (val > best) {
+      best = val;
       best_node = node;
     }
   }
@@ -374,7 +372,8 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) {
   uci_info_.seldepth = root_node_->max_depth;
   uci_info_.time = GetTimeSinceStart();
   uci_info_.nodes = total_playouts_ + initial_visits_;
-  uci_info_.hashfull = cache_->GetSize() * 1000LL / cache_->GetCapacity();
+  uci_info_.hashfull =
+      cache_->GetSize() * 1000LL / std::max(cache_->GetCapacity(), 1);
   uci_info_.nps =
       uci_info_.time ? (total_playouts_ * 1000 / uci_info_.time) : 0;
   uci_info_.score = -191 * log(2 / (best_move_node_->q * 0.99 + 1) - 1);
@@ -415,18 +414,25 @@ void Search::SendMovesStats() const {
   ThinkingInfo info;
   for (const Node* node : nodes) {
     std::ostringstream oss;
+    oss << std::fixed;
     oss << std::left << std::setw(5) << node->GetMoveAsWhite().as_string();
     oss << " -> ";
     oss << std::right << std::setw(7) << node->n << " (+" << std::setw(2)
         << node->n_in_flight << ") ";
-    oss << "(Q: " << std::setw(5) << std::setprecision(2) << node->v * 100
+    oss << "(V: " << std::setw(6) << std::setprecision(2) << node->v * 100
         << "%) ";
     oss << "(P: " << std::setw(5) << std::setprecision(2) << node->p * 100
         << "%) ";
-    oss << "(Q: " << std::setw(5) << std::setprecision(2) << node->ComputeQ()
+    oss << "(Q: " << std::setw(8) << std::setprecision(5) << node->ComputeQ()
         << ") ";
-    oss << "(U: " << std::setw(5) << std::setprecision(2)
-        << node->ComputeU() * kCpuct * std::sqrt(node->parent->n + 1) << ") ";
+    oss << "(U: " << std::setw(6) << std::setprecision(5)
+        << node->ComputeU() * kCpuct * std::sqrt(std::max(node->parent->n, 1u))
+        << ") ";
+
+    oss << "(Q+U: " << std::setw(8) << std::setprecision(5)
+        << node->ComputeQ() + node->ComputeU() * kCpuct *
+                                  std::sqrt(std::max(node->parent->n, 1u))
+        << ") ";
     info.comment = oss.str();
     info_callback_(info);
   }
@@ -435,16 +441,23 @@ void Search::SendMovesStats() const {
 void Search::MaybeTriggerStop() {
   Mutex::Lock lock(counters_mutex_);
   SharedMutex::Lock nodes_lock(nodes_mutex_);
+  if (stop_) return;
+  // Don't stop when the root node is not yet expanded.
+  if (total_playouts_ == 0) return;
+  // Stop if reached playouts limit.
   if (limits_.playouts >= 0 && total_playouts_ >= limits_.playouts) {
     stop_ = true;
   }
+  // Stop if reached visits limit.
   if (limits_.visits >= 0 &&
       total_playouts_ + initial_visits_ >= limits_.visits) {
     stop_ = true;
   }
+  // Stop if reached time limit.
   if (limits_.time_ms >= 0 && GetTimeSinceStart() >= limits_.time_ms) {
     stop_ = true;
   }
+  // If we are the first to see that stop is needed.
   if (stop_ && !responded_bestmove_) {
     SendUciInfo();
     if (kVerboseStats) SendMovesStats();
@@ -539,7 +552,7 @@ Node* Search::PickNodeToExtend(Node* node) {
 
     // Now we are not in leave, we need to go deeper.
     SharedMutex::SharedLock lock(nodes_mutex_);
-    float factor = kCpuct * std::sqrt(node->n + 1);
+    float factor = kCpuct * std::sqrt(std::max(node->n, 1u));
     float best = -100.0f;
     for (Node* iter = node->child; iter; iter = iter->sibling) {
       const float score = factor * iter->ComputeU() + iter->ComputeQ();
