@@ -418,8 +418,6 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     m_last_pv = "";
     m_last_depth = 0;
 
-    if (m_nodes > 0) dump_analysis(Time.elapsed(), false); // so we don't say nothing
-
     do {
         auto currstate = bh_.shallow_clone();
         auto result = play_simulation(currstate, m_root.get());
