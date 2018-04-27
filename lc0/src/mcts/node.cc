@@ -19,6 +19,7 @@
 #include "mcts/node.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstring>
 #include <iostream>
 #include <sstream>
@@ -96,8 +97,20 @@ void NodePool::AllocateNewBatch() REQUIRES(mutex_) {
 }
 
 uint64_t Node::BoardHash() const {
-  return board.Hash();
-  // return HashCat({board.Hash(), no_capture_ply, repetitions});
+  // return board.Hash();
+  return HashCat({board.Hash(), no_capture_ply, repetitions});
+}
+
+void Node::ResetStats() {
+  n_in_flight = 0;
+  n = 0;
+  v = 0.0;
+  q = 0.0;
+  w = 0.0;
+  p = 0.0;
+  max_depth = 0;
+  full_depth = 0;
+  is_terminal = 0;
 }
 
 std::string Node::DebugString() const {
@@ -127,6 +140,12 @@ int Node::ComputeRepetitions() {
     if (node->no_capture_ply < 2) return 0;
   }
   return 0;
+}
+
+Move Node::GetMoveAsWhite() const {
+  Move m = move;
+  if (!board.flipped()) m.Mirror();
+  return m;
 }
 
 namespace {
@@ -177,6 +196,16 @@ InputPlanes Node::EncodeForNN() const {
   return result;
 }
 
+namespace {
+// Reverse bits in every byte of a number
+uint64_t ReverseBitsInBytes(uint64_t v) {
+  v = ((v >> 1) & 0x5555555555555555ull) | ((v & 0x5555555555555555ull) << 1);
+  v = ((v >> 2) & 0x3333333333333333ull) | ((v & 0x3333333333333333ull) << 2);
+  v = ((v >> 4) & 0x0F0F0F0F0F0F0F0Full) | ((v & 0x0F0F0F0F0F0F0F0Full) << 4);
+  return v;
+}
+}  // namespace
+
 V3TrainingData Node::GetV3TrainingData(GameInfo::GameResult game_result) const {
   V3TrainingData result;
 
@@ -187,16 +216,14 @@ V3TrainingData Node::GetV3TrainingData(GameInfo::GameResult game_result) const {
   float total_n = n - 1;  // First visit was expansion of it inself.
   std::memset(result.probabilities, 0, sizeof(result.probabilities));
   for (Node* iter = child; iter; iter = iter->sibling) {
-    Move m = iter->move;
-    if (board.flipped()) m.Mirror();
-    result.probabilities[m.as_nn_index()] = iter->n / total_n;
+    result.probabilities[iter->move.as_nn_index()] = iter->n / total_n;
   }
 
   // Populate planes.
   InputPlanes planes = EncodeForNN();
   int plane_idx = 0;
   for (auto& plane : result.planes) {
-    plane = planes[plane_idx++].mask;
+    plane = ReverseBitsInBytes(planes[plane_idx++].mask);
   }
 
   // Populate castlings.
@@ -269,11 +296,21 @@ void NodeTree::ResetToPosition(const std::string& starting_fen,
         full_moves * 2 - (starting_board.flipped() ? 1 : 2);
   }
 
+  Node* old_head = current_head_;
   current_head_ = gamebegin_node_;
+  bool seen_old_head = (gamebegin_node_ == old_head);
   for (const auto& move : moves) {
     MakeMove(move);
+    if (old_head == current_head_) seen_old_head = true;
   }
-  node_pool_->ReleaseChildren(current_head_);
+
+  // If we didn't see old head, it means that new position is shorter.
+  // As we killed the search tree already, trim it to redo the search.
+  if (!seen_old_head) {
+    assert(!current_head_->sibling);
+    node_pool_->ReleaseChildren(current_head_);
+    current_head_->ResetStats();
+  }
 }
 
 void NodeTree::DeallocateTree() {

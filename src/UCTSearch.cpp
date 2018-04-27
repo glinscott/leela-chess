@@ -157,6 +157,10 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
 
         myprintf_so("%s\n", pvstring.c_str());
     }
+    // winrate separate info string since it's not UCI spec
+    float feval = m_root->get_eval(color);
+    myprintf_so("info string stm %s winrate %5.2f%%\n",
+        color == Color::WHITE ? "White" : "Black", feval * 100.f);
     myprintf("\n");
 }
 
@@ -244,7 +248,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     std::string pvstring = get_pv(bh, *m_root, false);
     if (pvstring == m_last_pv) return;
     m_last_pv = pvstring;
-    float feval = m_root->get_eval(color);
+    float feval = m_root->get_raw_eval(color);
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
     int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
     // depth should just be length of pv
@@ -260,9 +264,6 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
              m_last_depth, visits, 1000.0 * m_playouts / (elapsed + 1),
              cp, elapsed, pvstring.c_str());
-    //winrate separate info string since it's not UCI spec
-    myprintf_so("info string winrate %5.2f%%\n", feval * 100.f);
-    return;
 }
 
 bool UCTSearch::is_running() const {
