@@ -615,7 +615,9 @@ func getProgress() ([]gin.H, error) {
 
 func filterProgress(result []gin.H) []gin.H {
 	// Show just the last 100 networks
-	result = result[len(result)-100:]
+	if len(result) > 100 {
+		result = result[len(result)-100:]
+	}
 
 	// Ensure the ordering is correct now (HACK)
 	tmp := []gin.H{}
