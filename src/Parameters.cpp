@@ -64,7 +64,9 @@ float cfg_puct;
 float cfg_softmax_temp;
 float cfg_fpu_reduction;
 bool cfg_fpu_dynamic_eval;
+bool cfg_syzygydraw;
 std::string cfg_weightsfile;
+std::string cfg_syzygypath;
 std::string cfg_logfile;
 std::string cfg_supervise;
 FILE* cfg_logfile_handle;
@@ -80,7 +82,7 @@ void Parameters::setup_default_parameters() {
 
     cfg_max_playouts = MAXINT_DIV2;
     cfg_max_visits   = 800;
-    cfg_lagbuffer_ms = 50;
+    cfg_lagbuffer_ms = 80;
 #ifdef USE_OPENCL
     cfg_gpus = { };
     cfg_sgemm_exhaustive = false;
@@ -90,6 +92,7 @@ void Parameters::setup_default_parameters() {
     cfg_softmax_temp = 1.0f;
     cfg_fpu_reduction = 0.0f;
     cfg_fpu_dynamic_eval = true;
+    cfg_syzygydraw = true;
     cfg_root_temp_decay = 0;
     cfg_min_resign_moves = 20;
     cfg_resignpct = 10;
@@ -101,6 +104,7 @@ void Parameters::setup_default_parameters() {
     cfg_quiet = false;
     cfg_rng_seed = 0;
     cfg_weightsfile = "weights.txt";
-    cfg_go_nodes_as_visits = true;
+    cfg_go_nodes_as_visits = true; 
+    cfg_syzygypath = "C:\\Chess\\tb";
 }
 

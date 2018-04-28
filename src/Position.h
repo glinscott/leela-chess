@@ -44,6 +44,7 @@ struct StateInfo {
   Square epSquare;
 
   // Not copied when making a move (will be recomputed anyhow)
+  Key        materialKey;
   Key        key;
   Bitboard   checkersBB;
   Piece      capturedPiece;
@@ -267,6 +268,10 @@ inline bool Position::castling_impeded(CastlingRight cr) const {
 
 inline Square Position::castling_rook_square(CastlingRight cr) const {
   return castlingRookSquare[cr];
+}
+
+inline Key Position::material_key() const {
+	return st->materialKey;
 }
 
 template<PieceType Pt>

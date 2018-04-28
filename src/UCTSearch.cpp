@@ -39,6 +39,7 @@
 #include "Training.h"
 #include "Types.h"
 #include "TimeMan.h"
+#include "syzygy/tbprobe.h"
 #ifdef USE_OPENCL
 #include "OpenCL.h"
 #endif
@@ -59,23 +60,47 @@ void UCTSearch::set_quiet(bool quiet) {
 }
 
 SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
-    const auto& cur = bh.cur();
+    Position& cur = bh.cur();
     const auto color = cur.side_to_move();
 
     auto result = SearchResult{};
 
     node->virtual_loss();
+    int piecesCount = cur.count<ALL_PIECES>();
 
     if (!node->has_children()) {
         bool drawn = cur.is_draw();
         if (drawn || !MoveList<LEGAL>(cur).size()) {
             float score = (drawn || !cur.checkers()) ? 0.0 : (color == Color::WHITE ? -1.0 : 1.0);
             result = SearchResult::from_score(score);
-        } else if (m_nodes < MAX_TREE_SIZE) {
-            float eval;
-            auto success = node->create_children(m_nodes, bh, eval);
-            if (success) {
-                result = SearchResult::from_eval(eval);
+        }
+        else if (m_nodes < MAX_TREE_SIZE) {
+            Tablebases::ProbeState err = Tablebases::ProbeState::FAIL;
+            if (piecesCount <= Tablebases::MaxCardinality && cur.rule50_count() == 0 && !cur.can_castle(ANY_CASTLING))
+            {                
+                Tablebases::WDLScore wdl = Tablebases::probe_wdl(cur, &err);
+                if (err != Tablebases::ProbeState::FAIL) {
+                    if (wdl == Tablebases::WDLLoss) {
+                        myprintf("loss");
+                        result = SearchResult::from_score(color == Color::WHITE ? -1.0 : 1.0);
+                    }
+                    else if (wdl == Tablebases::WDLWin) {
+                        myprintf("win");
+                        result = SearchResult::from_score(color == Color::WHITE ? 1.0 : -1.0);
+                    }
+                    else {
+                        myprintf("draw");
+                        result = SearchResult::from_score(0.0);
+                    }
+                }
+                //myprintf("%d", err);
+            }
+            if (err == Tablebases::ProbeState::FAIL) {
+                float eval;
+                auto success = node->create_children(m_nodes, bh, eval);
+                if (success) {
+                    result = SearchResult::from_eval(eval);
+                }
             }
         }
     }
