@@ -85,8 +85,8 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
                     } else {
                         result = SearchResult::from_score(0.0);
                     }
+                    ++m_tbhits;
                 }
-                ++m_tbhits;
             }
             if (err == Tablebases::ProbeState::FAIL) {
                 float eval;
