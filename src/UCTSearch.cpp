@@ -86,6 +86,7 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
                         result = SearchResult::from_score(0.0);
                     }
                 }
+                ++m_tbhits;
             }
             if (err == Tablebases::ProbeState::FAIL) {
                 float eval;
@@ -275,8 +276,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // To report nps, use m_playouts to exclude nodes added by tree reuse,
     // which is similar to a ponder hit. The user will expect to know how
     // fast nodes are being added, not how big the ponder hit was.
-    myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
-             depth, visits, 1000.0 * m_playouts / (elapsed + 1),
+    myprintf_so("info depth %d nodes %d nps %0.f tbhits %d score cp %d time %lld pv %s\n",
              cp, elapsed, pvstring.c_str());
 }
 
@@ -391,6 +391,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
     m_playouts = 0;
     m_nodes = m_root->count_nodes();
+    m_tbhits = 0;
     // TODO: Both UCI and the next line do shallow_clone.
     // Could optimize this.
     bh_ = new_bh.shallow_clone();
