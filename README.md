@@ -74,7 +74,7 @@ A central server uses these self-play game data as inputs for the training proce
 
 The weights from the distributed training are downloadable from http://lczero.org/networks. The best one is the top network that has some games played on it.
 
-Weights that we trained to prove the engine was solid are here https://github.com/glinscott/lczero-weights. Currently, the best weights were obtained through supervised learning on a human dataset with elo ratings > 2000.
+Weights that we trained to prove the engine was solid are here https://github.com/glinscott/lczero-weights. The best weights obtained through supervised learning on a human dataset were with elo ratings > 2000.
 
 # Training a new net using self-play
 
