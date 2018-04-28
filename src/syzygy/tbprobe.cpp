@@ -387,7 +387,7 @@ class TBTables {
 
     typedef std::tuple<Key, TBTable<WDL>*, TBTable<DTZ>*> Entry;
 
-    static const int Size = 1 << 12; // 4K table, indexed by key's 12 lsb
+    static const int Size = 1 << 13; // 8K table, indexed by key's 13 lsb
 
     Entry hashTable[Size];
 
