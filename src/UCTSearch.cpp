@@ -277,6 +277,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // which is similar to a ponder hit. The user will expect to know how
     // fast nodes are being added, not how big the ponder hit was.
     myprintf_so("info depth %d nodes %d nps %0.f tbhits %d score cp %d time %lld pv %s\n",
+             depth, visits, 1000.0 * m_playouts / (elapsed + 1), int(m_tbhits),
              cp, elapsed, pvstring.c_str());
 }
 
