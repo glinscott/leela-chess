@@ -103,7 +103,7 @@ Then, make sure to set up your config. Important fields to edit are the path the
 network is stored in, and the path to the input data.
 ```
 cd training/tf
-./parse.py configs/your-config.yaml
+python configureparser.py configs/your-config.yaml
 ```
 
 That will bring up Tensorflow and start running training. You can look at the config file in `training/tf/configs/example.yaml` to get an idea of all the configurable parameters. This config file is meant to be a unified configuration for all the executable pythonscripts in the training directory.  After starting the above command, you should see output like this:
