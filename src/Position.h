@@ -38,6 +38,7 @@
 struct StateInfo {
 
   // Copied when making a move
+  Key    materialKey;
   int    castlingRights;
   int    rule50;
   int    pliesFromNull;
@@ -267,6 +268,10 @@ inline bool Position::castling_impeded(CastlingRight cr) const {
 
 inline Square Position::castling_rook_square(CastlingRight cr) const {
   return castlingRookSquare[cr];
+}
+
+inline Key Position::material_key() const {
+    return st->materialKey;    
 }
 
 template<PieceType Pt>

@@ -39,6 +39,7 @@
 #include "Training.h"
 #include "Types.h"
 #include "TimeMan.h"
+#include "syzygy/tbprobe.h"
 #ifdef USE_OPENCL
 #include "OpenCL.h"
 #endif
@@ -72,10 +73,26 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
             float score = (drawn || !cur.checkers()) ? 0.0 : (color == Color::WHITE ? -1.0 : 1.0);
             result = SearchResult::from_score(score);
         } else if (m_nodes < MAX_TREE_SIZE) {
-            float eval;
-            auto success = node->create_children(m_nodes, bh, eval);
-            if (success) {
-                result = SearchResult::from_eval(eval);
+            Tablebases::ProbeState err = Tablebases::ProbeState::FAIL;
+            if (cur.rule50_count() == 0 && cur.count<ALL_PIECES>() <= Tablebases::MaxCardinality && !cur.can_castle(ANY_CASTLING)) {
+                Position to_lookup = cur;
+                Tablebases::WDLScore wdl = Tablebases::probe_wdl(to_lookup, &err);
+                if (err != Tablebases::ProbeState::FAIL) {
+                    if (wdl == Tablebases::WDLLoss) {
+                        result = SearchResult::from_score(color == Color::WHITE ? -1.0 : 1.0);
+                    } else if (wdl == Tablebases::WDLWin) {
+                        result = SearchResult::from_score(color == Color::WHITE ? 1.0 : -1.0);
+                    } else {
+                        result = SearchResult::from_score(0.0);
+                    }
+                }
+            }
+            if (err == Tablebases::ProbeState::FAIL) {
+                float eval;
+                auto success = node->create_children(m_nodes, bh, eval);
+                if (success) {
+                    result = SearchResult::from_eval(eval);
+                }
             }
         }
     }
