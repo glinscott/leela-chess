@@ -97,7 +97,6 @@ type TrainingGame struct {
 
 	Version   uint
 	Path      string
-	Pgn       string
 	Compacted bool
 
 	EngineVersion string

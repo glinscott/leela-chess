@@ -765,7 +765,6 @@ func game(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "game", gin.H{
-		"pgn": game.Pgn,
 	})
 }
 
@@ -985,8 +984,11 @@ func viewTrainingData(c *gin.Context) {
 	}
 
 	files := []gin.H{}
-	game_id := uint(30000)
-	for game_id < id {
+	game_id := int(id + 1 - 500000)
+	if game_id < 0 {
+		game_id = 0
+	}
+	for game_id < int(id) {
 		files = append([]gin.H{
 			gin.H{"url": fmt.Sprintf("https://s3.amazonaws.com/lczero/training/games%d.tar.gz", game_id)},
 		}, files...)
