@@ -101,6 +101,8 @@ private:
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
     int m_maxvisits;
+    std::string m_last_pv;
+    int m_last_depth;
 
     bool quiet_ = true;
     std::atomic<bool> uci_stop{false};

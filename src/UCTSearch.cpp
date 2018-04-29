@@ -246,11 +246,14 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
 
     // UCI requires long algebraic notation, so use_san=false
     std::string pvstring = get_pv(bh, *m_root, false);
+    if (pvstring == m_last_pv) return;
+    m_last_pv = pvstring;
     float feval = m_root->get_raw_eval(color);
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
     int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
-    // same for nodes to depth, assume nodes = 1.8 ^ depth.
-    int depth = log(float(m_nodes)) / log(1.8);
+    // depth should just be length of pv
+    int depth = std::count(pvstring.begin(), pvstring.end(), ' ') + 1;
+    m_last_depth = std::max(m_last_depth, depth);
     // To report nodes, use visits.
     //   - Only includes expanded nodes.
     //   - Includes nodes carried over from tree reuse.
@@ -259,7 +262,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // which is similar to a ponder hit. The user will expect to know how
     // fast nodes are being added, not how big the ponder hit was.
     myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
-             depth, visits, 1000.0 * m_playouts / (elapsed + 1),
+             m_last_depth, visits, 1000.0 * m_playouts / (elapsed + 1),
              cp, elapsed, pvstring.c_str());
 }
 
@@ -413,17 +416,20 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
     bool keeprunning = true;
     int last_update = 0;
+    m_last_pv = "";
+    m_last_depth = 0;
+
     do {
         auto currstate = bh_.shallow_clone();
         auto result = play_simulation(currstate, m_root.get());
         if (result.valid()) {
             increment_playouts();
+            last_update++;
         }
 
-        // assume nodes = 1.8 ^ depth.
-        int depth = log(float(m_nodes)) / log(1.8);
-        if (depth != last_update) {
-            last_update = depth;
+        // give output every time pv changes
+        if (last_update == 50) {
+            last_update = 0;
             dump_analysis(Time.elapsed(), false);
         }
 
