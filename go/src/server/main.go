@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math"
 	"mime/multipart"
@@ -321,7 +322,6 @@ func uploadGame(c *gin.Context) {
 		TrainingRunID: training_run.ID,
 		NetworkID:     network.ID,
 		Version:       uint(version),
-		Pgn:           c.PostForm("pgn"),
 		EngineVersion: c.PostForm("engineVersion"),
 	}
 	err = db.GetDB().Create(&game).Error
@@ -344,6 +344,16 @@ func uploadGame(c *gin.Context) {
 	if err := c.SaveUploadedFile(file, game.Path); err != nil {
 		log.Println(err.Error())
 		c.String(500, "Saving file")
+		return
+	}
+
+	// Save pgn
+	pgn_path := fmt.Sprintf("pgns/run%d/%d.pgn", training_run.ID, game.ID)
+	os.MkdirAll(filepath.Dir(pgn_path), os.ModePerm)
+	err = ioutil.WriteFile(pgn_path, []byte(c.PostForm("pgn")), 0644)
+	if err != nil {
+		log.Println(err.Error())
+		c.String(500, "Saving pgn")
 		return
 	}
 
