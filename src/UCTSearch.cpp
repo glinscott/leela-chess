@@ -157,6 +157,10 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
 
         myprintf_so("%s\n", pvstring.c_str());
     }
+    // winrate separate info string since it's not UCI spec
+    float feval = m_root->get_eval(color);
+    myprintf_so("info string stm %s winrate %5.2f%%\n",
+        color == Color::WHITE ? "White" : "Black", feval * 100.f);
     myprintf("\n");
 }
 
@@ -242,7 +246,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
 
     // UCI requires long algebraic notation, so use_san=false
     std::string pvstring = get_pv(bh, *m_root, false);
-    float feval = m_root->get_eval(color);
+    float feval = m_root->get_raw_eval(color);
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
     int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
@@ -257,8 +261,6 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
              depth, visits, 1000.0 * m_playouts / (elapsed + 1),
              cp, elapsed, pvstring.c_str());
-    //winrate separate info string since it's not UCI spec
-    myprintf_so("info string winrate %5.2f%%\n", feval * 100.f);
 }
 
 bool UCTSearch::is_running() const {

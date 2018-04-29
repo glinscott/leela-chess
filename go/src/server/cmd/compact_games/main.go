@@ -42,6 +42,11 @@ func addFile(tw *tar.Writer, path string) error {
 }
 
 func tarGame(game *db.TrainingGame, dir string, tw *tar.Writer) error {
+	if len(game.Path) == 0 {
+		log.Printf("Skipping empty path\n")
+		return nil
+	}
+
 	if !strings.HasSuffix(game.Path, ".gz") {
 		log.Fatal("Not reading gz file?")
 	}
