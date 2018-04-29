@@ -102,3 +102,9 @@ type TrainingGame struct {
 
 	EngineVersion string
 }
+
+type ServerData struct {
+	gorm.Model
+
+	TrainingPgnUploaded int
+}

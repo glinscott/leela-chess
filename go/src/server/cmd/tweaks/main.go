@@ -51,8 +51,8 @@ func makeRunActive() {
 func newMatch() {
 	match := db.Match{
 		TrainingRunID: 1,
-		CandidateID:   138,
-		CurrentBestID: 125,
+		CandidateID:   168,
+		CurrentBestID: 162,
 		Done:          false,
 		GameCap:       400,
 		Parameters:    `["--tempdecay=10"]`,

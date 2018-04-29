@@ -57,9 +57,13 @@ server {
 	location / {
 		proxy_cache cache;
 
-		# TODO(gary): Should set these from the server...
+		# TODO(gary): Should set the cache-control per page from the server...
 		proxy_ignore_headers Cache-Control;
 		proxy_cache_valid any 1m;
+		# This is critical to avoid thundering herd.  Otherwise, when the 1m timer expires, we will
+		# continue allowing requests through until one finally hits the cache.  This can easily
+		# overload the system.
+		proxy_cache_use_stale updating;
 
 		proxy_pass http://backend;
 	}
