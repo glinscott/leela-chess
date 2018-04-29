@@ -106,7 +106,7 @@ private:
     bool quiet_ = true;
     std::atomic<bool> uci_stop{false};
 
-    std::unordered_set<Move> m_tbpruned;
+    std::unordered_set<int> m_tbpruned;
 
     int get_search_time();
 };

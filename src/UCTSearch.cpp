@@ -316,7 +316,7 @@ size_t UCTSearch::prune_noncontenders() {
     for (const auto& node : m_root->get_children()) {
         const auto has_enough_visits =
             node->get_visits() >= min_required_visits;
-        node->set_active(has_enough_visits && !m_tbpruned.count(node->get_move()));
+        node->set_active(has_enough_visits && !m_tbpruned.count((int)node->get_move()));
         if (!node->active()) {
             ++pruned_nodes;
         }
@@ -431,7 +431,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         if (Tablebases::root_probe(cur_pos, m_root->get_children()) || Tablebases::root_probe_wdl(cur_pos, m_root->get_children())) {
             for (const auto& node : m_root->get_children()) {
                 if (!node->active()) {
-                    m_tbpruned.insert(node->get_move());
+                    m_tbpruned.insert((int)node->get_move());
                 }
             }
         }
