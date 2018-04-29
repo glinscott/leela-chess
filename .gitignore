@@ -32,4 +32,3 @@ training/tf/models/
 /go/src/client/settings.json
 *.vspx
 *.psess
-/lc0/LC0VSProj/*
