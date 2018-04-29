@@ -222,7 +222,7 @@ void UCTNode::ensure_first_not_pruned(const std::unordered_set<int>& pruned_move
     }
 
     // Now swap the child at index with the first child
-    assert(index < m_children.size());
+    assert(selectedIndex < m_children.size());
     std::iter_swap(begin(m_children), begin(m_children) + selectedIndex);
 }
 
