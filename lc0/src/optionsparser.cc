@@ -320,6 +320,67 @@ void IntOption::SetVal(OptionsDict* dict, const ValueType& val) const {
 }
 
 /////////////////////////////////////////////////////////////////
+// FloatOption
+/////////////////////////////////////////////////////////////////
+
+FloatOption::FloatOption(const std::string& name, float min, float max,
+                         const std::string& long_flag, char short_flag,
+                         std::function<void(float)> setter)
+    : Option(name, long_flag, short_flag),
+      min_(min),
+      max_(max),
+      setter_(setter) {}
+
+void FloatOption::SetValue(const std::string& value, OptionsDict* dict) {
+  SetVal(dict, std::stof(value));
+}
+
+bool FloatOption::ProcessLongFlag(const std::string& flag,
+                                  const std::string& value, OptionsDict* dict) {
+  if (flag == GetLongFlag()) {
+    SetVal(dict, std::stof(value));
+    return true;
+  }
+  return false;
+}
+
+bool FloatOption::ProcessShortFlagWithValue(char flag, const std::string& value,
+                                            OptionsDict* dict) {
+  if (flag == GetShortFlag()) {
+    SetVal(dict, std::stof(value));
+    return true;
+  }
+  return false;
+}
+
+std::string FloatOption::GetHelp(const OptionsDict& dict) const {
+  std::string long_flag = GetLongFlag();
+  if (!long_flag.empty()) {
+    long_flag += "=" + std::to_string(min_) + ".." + std::to_string(max_);
+  }
+  return FormatFlag(GetShortFlag(), long_flag, GetName(),
+                    std::to_string(GetVal(dict)) +
+                        "  min: " + std::to_string(min_) +
+                        "  max: " + std::to_string(max_));
+}
+
+std::string FloatOption::GetOptionString(const OptionsDict& dict) const {
+  return "type string default " + std::to_string(GetVal(dict));
+}
+
+void FloatOption::SendValue(const OptionsDict& dict) const {
+  if (setter_) setter_(GetVal(dict));
+}
+
+FloatOption::ValueType FloatOption::GetVal(const OptionsDict& dict) const {
+  return dict.Get<ValueType>(GetName());
+}
+
+void FloatOption::SetVal(OptionsDict* dict, const ValueType& val) const {
+  dict->Set<ValueType>(GetName(), val);
+}
+
+/////////////////////////////////////////////////////////////////
 // BoolOption
 /////////////////////////////////////////////////////////////////
 
@@ -375,6 +436,70 @@ BoolOption::ValueType BoolOption::GetVal(const OptionsDict& dict) const {
 }
 
 void BoolOption::SetVal(OptionsDict* dict, const ValueType& val) const {
+  dict->Set<ValueType>(GetName(), val);
+}
+
+/////////////////////////////////////////////////////////////////
+// ChoiceOption
+/////////////////////////////////////////////////////////////////
+
+ChoiceOption::ChoiceOption(const std::string& name,
+                           const std::vector<std::string>& choices,
+                           const std::string& long_flag, char short_flag,
+                           std::function<void(const std::string&)> setter)
+    : Option(name, long_flag, short_flag), setter_(setter), choices_(choices) {}
+
+void ChoiceOption::SetValue(const std::string& value, OptionsDict* dict) {
+  SetVal(dict, value);
+}
+
+bool ChoiceOption::ProcessLongFlag(const std::string& flag,
+                                   const std::string& value,
+                                   OptionsDict* dict) {
+  if (flag == GetLongFlag()) {
+    SetVal(dict, value);
+    return true;
+  }
+  return false;
+}
+
+bool ChoiceOption::ProcessShortFlagWithValue(char flag,
+                                             const std::string& value,
+                                             OptionsDict* dict) {
+  if (flag == GetShortFlag()) {
+    SetVal(dict, value);
+    return true;
+  }
+  return false;
+}
+
+std::string ChoiceOption::GetHelp(const OptionsDict& dict) const {
+  std::string values;
+  for (const auto& choice : choices_) {
+    if (!values.empty()) values += ',';
+    values += choice;
+  }
+  return FormatFlag(GetShortFlag(), GetLongFlag() + "=CHOICE", GetName(),
+                    GetVal(dict) + "  values: " + values);
+}
+
+std::string ChoiceOption::GetOptionString(const OptionsDict& dict) const {
+  std::string res = "type combo default " + GetVal(dict);
+  for (const auto& choice : choices_) {
+    res += " var " + choice;
+  }
+  return res;
+}
+
+void ChoiceOption::SendValue(const OptionsDict& dict) const {
+  if (setter_) setter_(GetVal(dict));
+}
+
+std::string ChoiceOption::GetVal(const OptionsDict& dict) const {
+  return dict.Get<ValueType>(GetName());
+}
+
+void ChoiceOption::SetVal(OptionsDict* dict, const ValueType& val) const {
   dict->Set<ValueType>(GetName(), val);
 }
 
