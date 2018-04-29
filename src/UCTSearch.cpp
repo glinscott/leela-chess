@@ -210,6 +210,9 @@ Move UCTSearch::get_best_move() {
         }
         m_root->randomize_first_proportionally(root_temperature);
     }
+    if (m_tbpruned.size() > 0) {
+        m_root->ensure_first_not_pruned(m_tbpruned);
+    }
 
     Move bestmove = m_root->get_first_child()->get_move();
 
