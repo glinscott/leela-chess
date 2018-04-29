@@ -28,8 +28,8 @@
 #include "Bitboard.h"
 #include "Movegen.h"
 #include "Position.h"
-#include "Random.h"
 #include "UCI.h"
+#include "Misc.h"
 
 using std::string;
 
@@ -100,14 +100,14 @@ std::ostream& operator<<(std::ostream& os, const Position& pos) {
 
 void Position::init() {
 
-  Random rng(1070372);
+  PRNG rng(1070372);
 
   for (Piece pc : Pieces)
       for (Square s = SQ_A1; s <= SQ_H8; ++s)
-          Zobrist::psq[pc][s] = rng.RandInt<Key>();
+          Zobrist::psq[pc][s] = rng.rand<Key>();
 
   for (File f = FILE_A; f <= FILE_H; ++f)
-      Zobrist::enpassant[f] = rng.RandInt<Key>();
+      Zobrist::enpassant[f] = rng.rand<Key>();
 
   for (int cr = NO_CASTLING; cr <= ANY_CASTLING; ++cr)
   {
@@ -116,16 +116,16 @@ void Position::init() {
       while (b)
       {
           Key k = Zobrist::castling[1ULL << pop_lsb(&b)];
-          Zobrist::castling[cr] ^= k ? k : rng.RandInt<Key>();
+          Zobrist::castling[cr] ^= k ? k : rng.rand<Key>();
       }
   }
 
-  Zobrist::side = rng.RandInt<Key>();
+  Zobrist::side = rng.rand<Key>();
   for (int i = 0; i < 102/RULE50_SCALE; ++i) {
-      Zobrist::rule50[i] = rng.RandInt<Key>();
+      Zobrist::rule50[i] = rng.rand<Key>();
   }
   for (int i = 0; i <= 2; ++i) {
-      Zobrist::repetitions[i] = rng.RandInt<Key>();
+      Zobrist::repetitions[i] = rng.rand<Key>();
   }
 }
 

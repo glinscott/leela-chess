@@ -21,7 +21,7 @@
 #include <algorithm>
 
 #include "Bitboard.h"
-#include "Random.h"
+#include "Misc.h"
 
 uint8_t PopCnt16[1 << 16];
 int SquareDistance[SQUARE_NB][SQUARE_NB];
@@ -293,14 +293,14 @@ namespace {
         if (HasPext)
             continue;
 
-        Random rng(seeds[Is64Bit][rank_of(s)]);
+        PRNG rng(seeds[Is64Bit][rank_of(s)]);
 
         // Find a magic for square 's' picking up an (almost) random number
         // until we find the one that passes the verification test.
         for (int i = 0; i < size; )
         {
             for (m.magic = 0; popcount((m.magic * m.mask) >> 56) < 6; )
-                m.magic = rng.SparseRand<Bitboard>();
+                m.magic = rng.sparse_rand<Bitboard>();
 
             // A good magic must map every possible occupancy to an index that
             // looks up the correct sliding attack in the attacks[s] database.
