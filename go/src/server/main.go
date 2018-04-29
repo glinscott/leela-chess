@@ -324,8 +324,19 @@ func uploadGame(c *gin.Context) {
 		Pgn:           c.PostForm("pgn"),
 		EngineVersion: c.PostForm("engineVersion"),
 	}
-	db.GetDB().Create(&game)
-	db.GetDB().Model(&game).Update("path", filepath.Join("games", fmt.Sprintf("run%d/training.%d.gz", training_run.ID, game.ID)))
+	err = db.GetDB().Create(&game).Error
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Internal error")
+		return
+	}
+
+	err = db.GetDB().Model(&game).Update("path", filepath.Join("games", fmt.Sprintf("run%d/training.%d.gz", training_run.ID, game.ID))).Error
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Internal error")
+		return
+	}
 
 	os.MkdirAll(filepath.Dir(game.Path), os.ModePerm)
 
