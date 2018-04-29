@@ -22,7 +22,7 @@
 #include <memory>
 #include <atomic>
 #include <tuple>
-#include <unordered_map>
+#include <unordered_set>
 
 #include "Position.h"
 #include "UCTNode.h"
@@ -105,6 +105,8 @@ private:
 
     bool quiet_ = true;
     std::atomic<bool> uci_stop{false};
+
+    std::unordered_set<Move> m_tbpruned;
 
     int get_search_time();
 };

@@ -1439,11 +1439,11 @@ int Tablebases::probe_dtz(Position& pos, ProbeState* result) {
     return minDTZ == 0xFFFF ? -1 : minDTZ;
 }
 
-/*
+
 // Use the DTZ tables to rank root moves.
 //
 // A return value false indicates that not all probes were successful.
-bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
+bool Tablebases::root_probe(Position& pos, const std::vector<UCTNode::node_ptr_t>& rootMoves) {
 
     ProbeState result;
     StateInfo st;
@@ -1454,12 +1454,15 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
     // Check whether a position was repeated since the last zeroing move.
     bool rep = pos.has_repeated();
 
-    int dtz, bound = Options["Syzygy50MoveRule"] ? 900 : 1;
+    int dtz, bound = true ? 900 : 1;
+    std::vector<int> ranks;
+    ranks.reserve(rootMoves.size());
+    int best_rank = -1000;
 
     // Probe and rank each move
     for (auto& m : rootMoves)
     {
-        pos.do_move(m.pv[0], st);
+        pos.do_move(m->get_move(), st);
 
         // Calculate dtz for the current move counting from the root position
         if (pos.rule50_count() == 0)
@@ -1482,7 +1485,7 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
             && MoveList<LEGAL>(pos).size() == 0)
             dtz = 1;
 
-        pos.undo_move(m.pv[0]);
+        pos.undo_move(m->get_move());
 
         if (result == FAIL)
             return false;
@@ -1492,16 +1495,15 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
         int r =  dtz > 0 ? (dtz + cnt50 <= 99 && !rep ? 1000 : 1000 - (dtz + cnt50))
                : dtz < 0 ? (-dtz * 2 + cnt50 < 100 ? -1000 : -1000 + (-dtz + cnt50))
                : 0;
-        m.TBRank = r;
-
-        // Determine the score to be displayed for this move. Assign at least
-        // 1 cp to cursed wins and let it grow to 49 cp as the positions gets
-        // closer to a real win.
-        m.TBScore =  r >= bound ? VALUE_MATE - MAX_PLY - 1
-                   : r >  0     ? Value((std::max( 3, r - 800) * int(PawnValueEg)) / 200)
-                   : r == 0     ? VALUE_DRAW
-                   : r > -bound ? Value((std::min(-3, r + 800) * int(PawnValueEg)) / 200)
-                   :             -VALUE_MATE + MAX_PLY + 1;
+        if (r > best_rank) best_rank = r;
+        ranks.push_back(r);
+    }
+    // Disable all but the equal best moves.
+    int counter = 0;
+    for (auto& m : rootMoves)
+    {
+        m->set_active(ranks[counter] == best_rank);
+        counter++;
     }
 
     return true;
@@ -1512,35 +1514,39 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
 // This is a fallback for the case that some or all DTZ tables are missing.
 //
 // A return value false indicates that not all probes were successful.
-bool Tablebases::root_probe_wdl(Position& pos, Search::RootMoves& rootMoves) {
+bool Tablebases::root_probe_wdl(Position& pos, const std::vector<UCTNode::node_ptr_t>& rootMoves) {
 
     static const int WDL_to_rank[] = { -1000, -899, 0, 899, 1000 };
 
     ProbeState result;
     StateInfo st;
-
-    bool rule50 = Options["Syzygy50MoveRule"];
+    std::vector<int> ranks;
+    ranks.reserve(rootMoves.size());
+    int best_rank = -1000;
 
     // Probe and rank each move
     for (auto& m : rootMoves)
     {
-        pos.do_move(m.pv[0], st);
+        pos.do_move(m->get_move(), st);
 
         WDLScore wdl = -probe_wdl(pos, &result);
 
-        pos.undo_move(m.pv[0]);
+        pos.undo_move(m->get_move());
 
         if (result == FAIL)
             return false;
 
-        m.TBRank = WDL_to_rank[wdl + 2];
+        ranks.push_back(WDL_to_rank[wdl + 2]);
+        if (ranks.back() > best_rank) best_rank = ranks.back();
+    }
 
-        if (!rule50)
-            wdl =  wdl > WDLDraw ? WDLWin
-                 : wdl < WDLDraw ? WDLLoss : WDLDraw;
-        m.TBScore = WDL_to_value[wdl + 2];
+    // Disable all but the equal best moves.
+    int counter = 0;
+    for (auto& m : rootMoves)
+    {
+        m->set_active(ranks[counter] == best_rank);
+        counter++;
     }
 
     return true;
 }
-*/

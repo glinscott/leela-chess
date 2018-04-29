@@ -156,6 +156,7 @@ public:
   int game_ply() const;
   bool is_draw() const;
   int repetitions_count() const;
+  bool has_repeated() const;
   int rule50_count() const;
 
   // Position consistency check, for debugging

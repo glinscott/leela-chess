@@ -316,8 +316,8 @@ size_t UCTSearch::prune_noncontenders() {
     for (const auto& node : m_root->get_children()) {
         const auto has_enough_visits =
             node->get_visits() >= min_required_visits;
-        node->set_active(has_enough_visits);
-        if (!has_enough_visits) {
+        node->set_active(has_enough_visits && !m_tbpruned.count(node->get_move()));
+        if (!node->active()) {
             ++pruned_nodes;
         }
     }
@@ -421,6 +421,20 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     }
     if (cfg_noise) {
         m_root->dirichlet_noise(0.25f, 0.3f);
+    }
+    // Track which nodes were pruned by table base to ensure they don't get
+    // unpruned later.
+    m_tbpruned.clear();
+    if (bh_.cur().count<ALL_PIECES>() <= Tablebases::MaxCardinality && !bh_.cur().can_castle(ANY_CASTLING)) {
+        // This copy should not be required, just being paranoid since root_probe mutates the pos argument.
+        Position cur_pos = bh_.cur();
+        if (Tablebases::root_probe(cur_pos, m_root->get_children()) || Tablebases::root_probe_wdl(cur_pos, m_root->get_children())) {
+            for (const auto& node : m_root->get_children()) {
+                if (!node->active()) {
+                    m_tbpruned.insert(node->get_move());
+                }
+            }
+        }
     }
 
     m_run = true;
