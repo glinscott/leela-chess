@@ -351,8 +351,14 @@ func uploadGame(c *gin.Context) {
 }
 
 func getNetwork(c *gin.Context) {
+	// lczero.org/cached/ is behind the cloudflare CDN.  Redirect to there to ensure
+	// we hit the CDN.
+	c.Redirect(http.StatusMovedPermanently, "http://lczero.org/cached/network/sha/" + c.Query("sha"))
+}
+
+func cachedGetNetwork(c *gin.Context) {
 	network := db.Network{
-		Sha: c.Query("sha"),
+		Sha: c.Param("sha"),
 	}
 
 	// Check for existing network
@@ -364,9 +370,8 @@ func getNetwork(c *gin.Context) {
 	}
 
 	// Serve the file
-	// NOTE: Disabled due to bandwidth, re-enable this for tests...
-	// c.File(network.Path)
-	c.Redirect(http.StatusMovedPermanently, "https://s3.amazonaws.com/lczero/" + network.Path)
+	c.File(network.Path)
+	// c.Redirect(http.StatusMovedPermanently, "https://s3.amazonaws.com/lczero/" + network.Path)
 }
 
 func setBestNetwork(training_id uint, network_id uint) error {
@@ -1007,6 +1012,7 @@ func setupRouter() *gin.Engine {
 
 	router.GET("/", frontPage)
 	router.GET("/get_network", getNetwork)
+	router.GET("/cached/network/sha/:sha", cachedGetNetwork)
 	router.GET("/user/:name", user)
 	router.GET("/game/:id", game)
 	router.GET("/networks", viewNetworks)
