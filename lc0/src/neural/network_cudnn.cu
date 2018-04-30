@@ -146,12 +146,12 @@ class FCLayer : public BaseLayer {
 };
 
 // Each residual block has (4 kernels per block)
-// A convolution of 128 filters of kernel size 3 × 3 with stride 1
+// A convolution of 128 filters of kernel size 3 Ã— 3 with stride 1
 
 // Batch normalisation
 // A rectifier non - linearity
 
-// A convolution of 128 filters of kernel size 3 × 3 with stride 1
+// A convolution of 128 filters of kernel size 3 Ã— 3 with stride 1
 
 // Batch normalisation
 // A skip connection that adds the input to the block
@@ -507,8 +507,6 @@ class CudnnNetwork : public Network {
 
     const int numInputPlanes = kInputPlanes;
     const int numFilters = weights.input.biases.size();
-    assert(numFilters == 128);  // need to make sure nothing breaks after
-                                // changing the no. of filters!
 
     numBlocks_ = weights.residual.size();
 
@@ -723,7 +721,7 @@ class CudnnNetwork : public Network {
     }
 
     // get rid of the BN layer by adjusting weights and biases of the
-    // convolution idea proposed by Henrik Forstén and first implemented in
+    // convolution idea proposed by Henrik ForstÃ©n and first implemented in
     // leela go zero
     if (foldBNLayer) {
       const int outputs = block.biases.size();
