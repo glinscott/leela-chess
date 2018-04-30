@@ -35,6 +35,7 @@
 #include "UCI.h"
 #include "UCTSearch.h"
 #include "Utils.h"
+#include "syzygy/tbprobe.h"
 
 using namespace std;
 using namespace Utils;
@@ -183,6 +184,8 @@ namespace {
   }
 
   void generate_training_games(istringstream& is) {
+    // Ensure tablebases are not used for training games.
+    Tablebases::init("");
     printVersion();
 
     namespace fs = boost::filesystem;
