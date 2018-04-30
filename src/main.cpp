@@ -367,15 +367,15 @@ int main(int argc, char* argv[]) {
   thread_pool.initialize(cfg_num_threads);
   // Random::GetRng().seedrandom(cfg_rng_seed);
   if (!cfg_noinitialize && cfg_supervise.empty()) {
-      Network::initialize();
+    Network::initialize();
   }
 
   if (!cfg_supervise.empty()) {	 
-	  // Since we are generating supervised data we don't need to load and initialize a network from a file
-	  Network::set_format_version(2);
-	  Network::init_move_map();
-      generate_supervised_data(cfg_supervise);
-      return 0;
+	// Since we are generating supervised data we don't need to load and initialize a network from a file
+	Network::set_format_version(2);
+	Network::init_move_map();
+    generate_supervised_data(cfg_supervise);
+    return 0;
   }
 
   UCI::init(Options);
