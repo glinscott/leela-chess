@@ -108,6 +108,10 @@ size_t Network::get_format_version() {
     return m_format_version;
 }
 
+void Network::set_format_version(size_t format_version) {
+	m_format_version = format_version;
+}
+
 size_t Network::get_input_channels() {
     return m_format_version == 1 ? V1_INPUT_CHANNELS : V2_INPUT_CHANNELS;
 }
