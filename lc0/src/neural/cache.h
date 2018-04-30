@@ -26,6 +26,8 @@ struct CachedNNRequest {
   typedef std::pair<uint16_t, float> IdxAndProb;
   float q;
   std::vector<IdxAndProb> p;
+public:
+  CachedNNRequest(std::size_t capacity) : p(capacity) {}
 };
 
 typedef LruCache<uint64_t, CachedNNRequest> NNCache;
