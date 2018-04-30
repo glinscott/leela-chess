@@ -393,6 +393,7 @@ class TBTables {
 
     std::deque<TBTable<WDL>> wdlTable;
     std::deque<TBTable<DTZ>> dtzTable;
+    size_t m_dtzsize{0};
 
     void insert(Key key, TBTable<WDL>* wdl, TBTable<DTZ>* dtz) {
         Entry* entry = &hashTable[(uint32_t)key & (Size - 1)];
@@ -420,8 +421,10 @@ public:
         memset(hashTable, 0, sizeof(hashTable));
         wdlTable.clear();
         dtzTable.clear();
+        m_dtzsize = size_t{0};
     }
     size_t size() const { return wdlTable.size(); }
+    size_t dtz_size() const { return m_dtzsize; }
     void add(const std::vector<PieceType>& pieces);
 };
 
@@ -438,10 +441,16 @@ void TBTables::add(const std::vector<PieceType>& pieces) {
 
     TBFile file(code.insert(code.find('K', 1), "v") + ".rtbw"); // KRK -> KRvK
 
-    if (!file.is_open()) // Only WDL file is checked
+    if (!file.is_open()) // Only WDL file is required
         return;
 
     file.close();
+
+    TBFile file2(code + ".rtbz"); // KRK -> KRvK
+
+    if (file2.is_open()) m_dtzsize++;
+
+    file2.close();
 
     MaxCardinality = std::max((int)pieces.size(), MaxCardinality);
 
@@ -1334,7 +1343,8 @@ void Tablebases::init(const std::string& paths) {
                     TBTables.add({KING, p1, p2, KING, p3, p4});
         }
     }
-    Utils::myprintf("info string Found %d tablebases\n", TBTables.size());
+    Utils::myprintf("info string Found %d wdl tablebases\n", TBTables.size());
+    Utils::myprintf("info string Found %d dtz tablebases\n", TBTables.dtz_size());
 }
 
 // Probe the WDL table for a particular position.
