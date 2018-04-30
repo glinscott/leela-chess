@@ -371,9 +371,9 @@ int main(int argc, char* argv[]) {
   }
 
   if (!cfg_supervise.empty()) {	 
-	// Since we are generating supervised data we don't need to load and initialize a network from a file
-	Network::set_format_version(2);
-	Network::init_move_map();
+    // Since we are generating supervised data we don't need to load and initialize a network from a file
+    Network::set_format_version(2);
+    Network::init_move_map();
     generate_supervised_data(cfg_supervise);
     return 0;
   }
