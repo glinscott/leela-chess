@@ -106,11 +106,11 @@ public:
     static int lookup(Move move, Color c);
     static void gather_features(const BoardHistory& pos, NNPlanes& planes);
     static size_t get_format_version();
-	static void set_format_version(size_t format_version);
+    static void set_format_version(size_t format_version);
     static size_t get_input_channels();
     static size_t get_hist_planes();
     static size_t get_num_output_policy();
-	static void init_move_map();
+    static void init_move_map();
 
 private:
     static bool initialized;

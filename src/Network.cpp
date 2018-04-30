@@ -109,7 +109,7 @@ size_t Network::get_format_version() {
 }
 
 void Network::set_format_version(size_t format_version) {
-	m_format_version = format_version;
+    m_format_version = format_version;
 }
 
 size_t Network::get_input_channels() {

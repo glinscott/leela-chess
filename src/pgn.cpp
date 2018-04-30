@@ -57,27 +57,27 @@ std::unique_ptr<PGNGame> PGNParser::parse() {
 
     // Skip comments
     if (s[0] == '{') {
-	  do {
-	    is_ >> s;
-	  } while (s.back() != '}');
+      do {
+        is_ >> s;
+      } while (s.back() != '}');
       continue;
     }
 
     // Skip the move numbers
     if ((i % 3) == 0) {
-	  // Some PGN files have this movement format: 1.d4 (no space after the dot) instead of 1. d4 
-	  if (s.back() != '.')
-	  {		
-		size_t pos = 0;
-		if ((pos = s.find(delimiter)) != std::string::npos) {
-		  s = s.substr(pos + 1, std::string::npos);
-		  ++i;
-		}		
+      // Some PGN files have this movement format: 1.d4 (no space after the dot) instead of 1. d4 
+      if (s.back() != '.')
+      {		
+        size_t pos = 0;
+        if ((pos = s.find(delimiter)) != std::string::npos) {
+          s = s.substr(pos + 1, std::string::npos);
+          ++i;
+        }		
 	  }	  
-	  else {
-	    ++i;
-		continue;
-	  }            
+      else {
+        ++i;
+        continue;
+      }            
     }
 
     ++i;
