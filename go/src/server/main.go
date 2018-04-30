@@ -250,6 +250,9 @@ func uploadNetwork(c *gin.Context) {
 		GameCap:       400,
 		Parameters:    `["--tempdecay=10"]`,
 	}
+	if c.DefaultPostForm("testonly", "0") == "1" {
+		match.TestOnly = true
+	}
 	err = db.GetDB().Create(&match).Error
 	if err != nil {
 		log.Println(err)
