@@ -25,6 +25,8 @@
     <ClCompile Include="..\src\neural\writer.cc" />
     <ClCompile Include="..\src\optionsparser.cc" />
     <ClCompile Include="..\src\selfplay\game.cc" />
+    <ClCompile Include="..\src\selfplay\loop.cc" />
+    <ClCompile Include="..\src\selfplay\tournament.cc" />
     <ClCompile Include="..\src\uciloop.cc" />
     <ClCompile Include="..\src\utils\commandline.cc" />
     <ClCompile Include="..\src\utils\optionsdict.cc" />
