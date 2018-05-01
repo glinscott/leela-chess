@@ -106,13 +106,8 @@ void Training::record(const BoardHistory& state, Move move) {
     auto step = TimeStep{};
     step.to_move = state.cur().side_to_move();
     step.planes = Network::NNPlanes{};
-    Network::gather_features(state, step.planes);
-
-    // TODO: Does the SL flow require you to load a network file?
-    // Because now Network parses the file and stores m_format_version.
-    // Probably we will need a setter function
-    // e.g. Network::set_format_version(2)
-    throw std::runtime_error("Need to update SL flow");
+    Network::gather_features(state, step.planes);	
+    
     step.probabilities.resize(Network::get_num_output_policy());
     step.probabilities[Network::lookup(move, state.cur().side_to_move())] = 1.0;
     m_data.emplace_back(step);
