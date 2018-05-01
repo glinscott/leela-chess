@@ -25,17 +25,14 @@ std::unique_ptr<PGNGame> PGNParser::parse() {
   const std::string delimiter = ".";
   const std::string kResultToken = "[Result \"";
   for (;;) {
+    if (is_.eof()) {
+      return nullptr;
+    }
     getline(is_, s);
     if (s.substr(0, kResultToken.size()) == kResultToken) {
       result = s.substr(kResultToken.size(), s.size() - kResultToken.size() - 2);
-    }
-    if (s.empty()) {
       break;
     }
-  }
-
-  if (is_.eof()) {
-    return nullptr;
   }
 
   std::unique_ptr<PGNGame> game(new PGNGame);
