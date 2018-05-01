@@ -21,7 +21,7 @@ import (
 
 	"client/http"
 
-	"github.com/notnil/chess"
+	"github.com/Tilps/chess"
 )
 
 var HOSTNAME = flag.String("hostname", "http://162.217.248.187", "Address of the server")
