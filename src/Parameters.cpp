@@ -49,6 +49,7 @@ int cfg_max_visits;
 int cfg_lagbuffer_ms;
 int cfg_resignpct;
 int cfg_noise;
+int cfg_num_multipv;
 int cfg_randomize;
 int cfg_timemanage;
 int cfg_slowmover;
@@ -93,6 +94,7 @@ void Parameters::setup_default_parameters() {
     cfg_root_temp_decay = 0;
     cfg_min_resign_moves = 20;
     cfg_resignpct = 10;
+    cfg_num_multipv = 1;
     cfg_noise = false;
     cfg_randomize = false;
     cfg_timemanage = true;

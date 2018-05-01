@@ -86,6 +86,7 @@ public:
 private:
     void dump_stats(BoardHistory& pos, UCTNode& parent);
     std::string get_pv(BoardHistory& pos, UCTNode& parent, bool use_san);
+    std::string get_pv_from(UCTNode& variant,BoardHistory& state, UCTNode& parent, bool use_san);
     void dump_analysis(int64_t elapsed, bool force_output);
     Move get_best_move();
     float get_root_temperature();

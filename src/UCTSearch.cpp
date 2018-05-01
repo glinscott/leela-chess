@@ -236,6 +236,32 @@ std::string UCTSearch::get_pv(BoardHistory& state, UCTNode& parent, bool use_san
     return res;
 }
 
+std::string UCTSearch::get_pv_from(UCTNode& variant,BoardHistory& state, 
+                                   UCTNode& parent, bool use_san) {
+    if (!parent.has_children()) {
+        return std::string();
+    }
+
+    auto best_move = variant.get_move();
+    auto res = use_san ? state.cur().move_to_san(best_move) : UCI::move(best_move);
+
+    StateInfo st;
+    state.cur().do_move(best_move, st);
+
+    auto next = get_pv(state, variant, use_san);
+    if (!next.empty()) {
+        res.append(" ").append(next);
+    }
+    state.cur().undo_move(best_move);
+    return res;
+}
+
+struct NodeAndEval {
+    NodeAndEval(UCTNode *n,float e) : node(n), eval(e) {}
+    UCTNode *node;
+    float eval;
+};
+
 void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     if (cfg_quiet && !force_output) {
         return;
@@ -244,23 +270,40 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     auto bh = bh_.shallow_clone();
     Color color = bh.cur().side_to_move();
 
-    // UCI requires long algebraic notation, so use_san=false
-    std::string pvstring = get_pv(bh, *m_root, false);
-    float feval = m_root->get_raw_eval(color);
-    // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
-    int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
-    // same for nodes to depth, assume nodes = 1.8 ^ depth.
-    int depth = log(float(m_nodes)) / log(1.8);
-    // To report nodes, use visits.
-    //   - Only includes expanded nodes.
-    //   - Includes nodes carried over from tree reuse.
-    auto visits = m_root->get_visits();
-    // To report nps, use m_playouts to exclude nodes added by tree reuse,
-    // which is similar to a ponder hit. The user will expect to know how
-    // fast nodes are being added, not how big the ponder hit was.
-    myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
-             depth, visits, 1000.0 * m_playouts / (elapsed + 1),
-             cp, elapsed, pvstring.c_str());
+    //m_root->sort_root_children(color);
+    const std::vector<UCTNode::node_ptr_t> &moves_u = m_root->get_children();
+    std::vector<NodeAndEval> moves;
+    for(const auto& i : moves_u){
+        NodeAndEval ne(i.get(),i->get_raw_eval(color));
+        moves.emplace_back(ne);
+    }
+
+    std::stable_sort(moves.begin(),moves.end(),[color](const NodeAndEval& a, const NodeAndEval& b)->bool{
+       return a.eval > b.eval;
+    }); 
+
+    const int N = std::min<int>(cfg_num_multipv,moves.size());
+    for(int pv=0;pv<N;++pv)
+    {
+        NodeAndEval& variant = moves.at(pv);
+        // UCI requires long algebraic notation, so use_san=false
+        std::string pvstring = get_pv_from(*variant.node, bh, *m_root, false);
+        float feval = variant.eval;
+        // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
+        int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
+        // same for nodes to depth, assume nodes = 1.8 ^ depth.
+        int depth = log(float(m_nodes)) / log(1.8);
+        // To report nodes, use visits.
+        //   - Only includes expanded nodes.
+        //   - Includes nodes carried over from tree reuse.
+        auto visits = m_root->get_visits();
+        // To report nps, use m_playouts to exclude nodes added by tree reuse,
+        // which is similar to a ponder hit. The user will expect to know how
+        // fast nodes are being added, not how big the ponder hit was.
+        myprintf_so("info depth %d nodes %d nps %0.f score cp %d multipv %d time %lld pv %s\n",
+                 depth, visits, 1000.0 * m_playouts / (elapsed + 1),
+                 cp, pv+1, elapsed, pvstring.c_str());
+    }
 }
 
 bool UCTSearch::is_running() const {
