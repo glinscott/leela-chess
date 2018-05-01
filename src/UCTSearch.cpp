@@ -201,7 +201,6 @@ Move UCTSearch::get_best_move() {
        int visits = m_root->get_visits();
     // bad score and visited enough
     if (bestscore < ((float)cfg_resignpct / 100.0f)
-        && visits > 500
         && bh_.cur().game_ply() > cfg_min_resign_moves) { //--set cfg_min_resign_moves very high to forbid resigning...?
         myprintf("Score looks bad. Resigning.\n");
         bestmove = MOVE_NONE; //--i guess MOVE_NONE will mean resign.
