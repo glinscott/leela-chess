@@ -31,6 +31,7 @@ extern int cfg_max_playouts;
 extern int cfg_max_visits;
 extern int cfg_lagbuffer_ms;
 extern int cfg_resignpct;
+extern int cfg_num_multipv;
 extern int cfg_noise;
 extern int cfg_randomize;
 extern int cfg_timemanage;

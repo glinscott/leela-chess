@@ -125,6 +125,12 @@ namespace UCI {
         }
     }
 
+
+    void on_multipv(const Option& o) {
+        cfg_num_multipv = o;
+        myprintf("Set multipv to  %d.\n", cfg_num_multipv);
+    }
+
 /// Our case insensitive less() function as required by UCI protocol
     bool CaseInsensitiveLess::operator() (const string& s1, const string& s2) const {
 
@@ -144,6 +150,7 @@ namespace UCI {
         o["Puct"]                   << Option(std::to_string(cfg_puct).c_str(), on_puct);
         o["SlowMover"]              << Option(cfg_slowmover, 1, std::numeric_limits<int>::max(), on_slowmover);
         o["Go Nodes Visits"]        << Option(cfg_go_nodes_as_visits, on_nodes_as_visits);
+        o["MultiPV"]                << Option(cfg_num_multipv, 1,100,on_multipv);
     }
 
 /// operator<<() is used to print all the options default values in chronological
