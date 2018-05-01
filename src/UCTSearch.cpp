@@ -39,6 +39,7 @@
 #include "Training.h"
 #include "Types.h"
 #include "TimeMan.h"
+#include "syzygy/tbprobe.h"
 #ifdef USE_OPENCL
 #include "OpenCL.h"
 #endif
@@ -72,10 +73,27 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node) {
             float score = (drawn || !cur.checkers()) ? 0.0 : (color == Color::WHITE ? -1.0 : 1.0);
             result = SearchResult::from_score(score);
         } else if (m_nodes < MAX_TREE_SIZE) {
-            float eval;
-            auto success = node->create_children(m_nodes, bh, eval);
-            if (success) {
-                result = SearchResult::from_eval(eval);
+            Tablebases::ProbeState err = Tablebases::ProbeState::FAIL;
+            if (cur.rule50_count() == 0 && cur.count<ALL_PIECES>() <= Tablebases::MaxCardinality && !cur.can_castle(ANY_CASTLING)) {
+                Position to_lookup = cur;
+                Tablebases::WDLScore wdl = Tablebases::probe_wdl(to_lookup, &err);
+                if (err != Tablebases::ProbeState::FAIL) {
+                    if (wdl == Tablebases::WDLLoss) {
+                        result = SearchResult::from_score(color == Color::WHITE ? -1.0 : 1.0);
+                    } else if (wdl == Tablebases::WDLWin) {
+                        result = SearchResult::from_score(color == Color::WHITE ? 1.0 : -1.0);
+                    } else {
+                        result = SearchResult::from_score(0.0);
+                    }
+                    ++m_tbhits;
+                }
+            }
+            if (err == Tablebases::ProbeState::FAIL) {
+                float eval;
+                auto success = node->create_children(m_nodes, bh, eval);
+                if (success) {
+                    result = SearchResult::from_eval(eval);
+                }
             }
         }
     }
@@ -192,6 +210,9 @@ Move UCTSearch::get_best_move() {
         }
         m_root->randomize_first_proportionally(root_temperature);
     }
+    if (m_tbpruned.size() > 0) {
+        m_root->ensure_first_not_pruned(m_tbpruned);
+    }
 
     Move bestmove = m_root->get_first_child()->get_move();
 
@@ -258,8 +279,8 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // To report nps, use m_playouts to exclude nodes added by tree reuse,
     // which is similar to a ponder hit. The user will expect to know how
     // fast nodes are being added, not how big the ponder hit was.
-    myprintf_so("info depth %d nodes %d nps %0.f score cp %d time %lld pv %s\n",
-             depth, visits, 1000.0 * m_playouts / (elapsed + 1),
+    myprintf_so("info depth %d nodes %d nps %0.f tbhits %d score cp %d time %lld pv %s\n",
+             depth, visits, 1000.0 * m_playouts / (elapsed + 1), int(m_tbhits),
              cp, elapsed, pvstring.c_str());
 }
 
@@ -298,8 +319,8 @@ size_t UCTSearch::prune_noncontenders() {
     for (const auto& node : m_root->get_children()) {
         const auto has_enough_visits =
             node->get_visits() >= min_required_visits;
-        node->set_active(has_enough_visits);
-        if (!has_enough_visits) {
+        node->set_active(has_enough_visits && !m_tbpruned.count((int)node->get_move()));
+        if (!node->active()) {
             ++pruned_nodes;
         }
     }
@@ -374,6 +395,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
     m_playouts = 0;
     m_nodes = m_root->count_nodes();
+    m_tbhits = 0;
     // TODO: Both UCI and the next line do shallow_clone.
     // Could optimize this.
     bh_ = new_bh.shallow_clone();
@@ -402,6 +424,20 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     }
     if (cfg_noise) {
         m_root->dirichlet_noise(0.25f, 0.3f);
+    }
+    // Track which nodes were pruned by table base to ensure they don't get
+    // unpruned later.
+    m_tbpruned.clear();
+    if (bh_.cur().count<ALL_PIECES>() <= Tablebases::MaxCardinality && !bh_.cur().can_castle(ANY_CASTLING)) {
+        // This copy should not be required, just being paranoid since root_probe mutates the pos argument.
+        Position cur_pos = bh_.cur();
+        if (Tablebases::root_probe(cur_pos, m_root->get_children()) || Tablebases::root_probe_wdl(cur_pos, m_root->get_children())) {
+            for (const auto& node : m_root->get_children()) {
+                if (!node->active()) {
+                    m_tbpruned.insert((int)node->get_move());
+                }
+            }
+        }
     }
 
     m_run = true;
