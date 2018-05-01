@@ -26,7 +26,6 @@
 
 #include "mcts/node.h"
 #include "neural/cache.h"
-#include "neural/network_tf.h"
 #include "utils/random.h"
 
 namespace lczero {
@@ -35,23 +34,22 @@ namespace {
 const char* kMiniBatchSizeStr = "Minibatch size for NN inference";
 const char* kMiniPrefetchBatchStr = "Max prefetch nodes, per NN call";
 const char* kAggresiveCachingStr = "Try hard to find what to cache";
-const char* kCpuctStr = "Cpuct MCTS option (x100)";
-const char* kTemperatureStr = "Initial temperature (x100)";
-const char* kTempDecayStr = "Per move temperature decay (x100)";
+const char* kCpuctStr = "Cpuct MCTS option";
+const char* kTemperatureStr = "Initial temperature";
+const char* kTempDecayStr = "Per move temperature decay";
 const char* kNoiseStr = "Add Dirichlet noise at root node";
 const char* kVerboseStatsStr = "Display verbose move stats";
-
 }  // namespace
 
 void Search::PopulateUciParams(OptionsParser* options) {
-  options->Add<SpinOption>(kMiniBatchSizeStr, 1, 1024, "minibatch-size") = 16;
-  options->Add<SpinOption>(kMiniPrefetchBatchStr, 0, 1024, "max-prefetch") = 64;
-  options->Add<CheckOption>(kAggresiveCachingStr, "aggressive-caching") = false;
-  options->Add<SpinOption>(kCpuctStr, 0, 9999, "cpuct") = 170;
-  options->Add<SpinOption>(kTemperatureStr, 0, 9999, "temperature", 'm') = 0;
-  options->Add<SpinOption>(kTempDecayStr, 0, 100, "tempdecay") = 0;
-  options->Add<CheckOption>(kNoiseStr, "noise", 'n') = false;
-  options->Add<CheckOption>(kVerboseStatsStr, "verbose-move-stats") = false;
+  options->Add<IntOption>(kMiniBatchSizeStr, 1, 1024, "minibatch-size") = 128;
+  options->Add<IntOption>(kMiniPrefetchBatchStr, 0, 1024, "max-prefetch") = 32;
+  options->Add<BoolOption>(kAggresiveCachingStr, "aggressive-caching") = false;
+  options->Add<FloatOption>(kCpuctStr, 0, 100, "cpuct") = 1.7;
+  options->Add<FloatOption>(kTemperatureStr, 0, 100, "temperature", 'm') = 0.0;
+  options->Add<FloatOption>(kTempDecayStr, 0, 1.00, "tempdecay") = 0.0;
+  options->Add<BoolOption>(kNoiseStr, "noise", 'n') = false;
+  options->Add<BoolOption>(kVerboseStatsStr, "verbose-move-stats") = false;
 }
 
 Search::Search(Node* root_node, NodePool* node_pool, Network* network,
@@ -70,9 +68,9 @@ Search::Search(Node* root_node, NodePool* node_pool, Network* network,
       kMiniBatchSize(options.Get<int>(kMiniBatchSizeStr)),
       kMiniPrefetchBatch(options.Get<int>(kMiniPrefetchBatchStr)),
       kAggresiveCaching(options.Get<bool>(kAggresiveCachingStr)),
-      kCpuct(options.Get<int>(kCpuctStr) / 100.0f),
-      kTemperature(options.Get<int>(kTemperatureStr) / 100.0f),
-      kTempDecay(options.Get<int>(kTempDecayStr) / 100.0f),
+      kCpuct(options.Get<float>(kCpuctStr)),
+      kTemperature(options.Get<float>(kTemperatureStr)),
+      kTempDecay(options.Get<float>(kTempDecayStr)),
       kNoise(options.Get<bool>(kNoiseStr)),
       kVerboseStats(options.Get<bool>(kVerboseStatsStr)) {}
 
@@ -287,7 +285,9 @@ int Search::PrefetchIntoCache(Node* node, int budget,
   std::vector<ScoredNode> scores;
   float factor = kCpuct * std::sqrt(std::max(node->n, 1u));
   for (Node* iter = node->child; iter; iter = iter->sibling) {
-    scores.emplace_back(factor * iter->ComputeU() + iter->ComputeQ(), iter);
+    if (iter->p == 0.0f) continue;
+    // Flipping sign of a score to be able to easily sort.
+    scores.emplace_back(-factor * iter->ComputeU() - iter->ComputeQ(), iter);
   }
 
   int first_unsorted_index = 0;
@@ -311,7 +311,8 @@ int Search::PrefetchIntoCache(Node* node, int budget,
     Node* n = scores[i].second;
     // Last node gets the same budget as prev-to-last node.
     if (i != scores.size() - 1) {
-      const float next_score = scores[i + 1].first;
+      // Sign of the score was flipped for sorting, flipping back.
+      const float next_score = -scores[i + 1].first;
       const float q = n->ComputeQ();
       if (next_score > q) {
         budget_to_spend = std::min(
@@ -441,7 +442,6 @@ void Search::SendMovesStats() const {
 void Search::MaybeTriggerStop() {
   Mutex::Lock lock(counters_mutex_);
   SharedMutex::Lock nodes_lock(nodes_mutex_);
-  if (stop_) return;
   // Don't stop when the root node is not yet expanded.
   if (total_playouts_ == 0) return;
   // Stop if reached playouts limit.

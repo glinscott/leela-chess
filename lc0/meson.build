@@ -26,7 +26,20 @@ tensorflow_cc = declare_dependency(
 deps = []
 deps += tensorflow_cc
 deps += cc.find_library('stdc++fs')
+deps += cc.find_library('libcublas', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
+deps += cc.find_library('libcudnn', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
+deps += cc.find_library('libcudart', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
 # deps += dependency('libprofiler')
+
+nvcc = find_program('nvcc')
+cuda_files = [
+  'src/neural/network_cudnn.cu',
+]
+
+cuda_gen = generator(nvcc,
+    output: '@BASENAME@.o',
+    arguments: ['--std=c++14', '-c', '@INPUT@', '-o', '@OUTPUT@', '-I', '../src'],
+)
 
 files = [
   'src/chess/bitboard.cc',
@@ -34,6 +47,7 @@ files = [
   'src/mcts/node.cc',
   'src/mcts/search.cc',
   'src/neural/cache.cc',
+  'src/neural/factory.cc',
   'src/neural/loader.cc',
   'src/neural/writer.cc',
   'src/neural/network_mux.cc',
@@ -49,6 +63,7 @@ files = [
   'src/selfplay/tournament.cc',
   'src/selfplay/loop.cc',
   'src/uciloop.cc',
+  cuda_gen.process(cuda_files)
 ]
 
 includes = []
@@ -65,11 +80,6 @@ test_deps += dependency('gtest')
 
 test('ChessBoard',
   executable('chessboard_test', 'src/chess/board_test.cc',
-  files, include_directories: includes, dependencies: test_deps
-))
-
-test('Network',
-  executable('network_test', 'src/neural/network_test.cc',
   files, include_directories: includes, dependencies: test_deps
 ))
 
