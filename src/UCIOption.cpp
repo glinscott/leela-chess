@@ -72,6 +72,11 @@ namespace UCI {
         cfg_syzygydraw = value;
     }
   
+    void set_float_cfg(float& cfg_param, const std::string& value) {
+        cfg_syzygypath = cfg_param;
+        myprintf("Syzygy Path set to string: %s\n", value.c_str());
+    }
+  
     bool set_float_cfg(float& cfg_param, const std::string& value) {
         try {
             cfg_param = std::strtof(value.c_str(), nullptr);
@@ -150,7 +155,8 @@ namespace UCI {
     void init(OptionsMap& o) {
         o["Threads"]                << Option(cfg_num_threads, 1, cfg_max_threads, on_threads);
         o["Quiet"]                  << Option(cfg_quiet, on_quiet);
-        o["SyzygyDraw"]             << Option(cfg_syzygydraw, on_syzygydraw);
+        o["SyzygyDraw"]             << SilentOption(cfg_syzygydraw, on_syzygydraw);
+        o["SyzygyPath"]             << Option(cfg_syzygypath, on_syzygypath);
         o["Softmax Temp"]           << SilentOption(std::to_string(cfg_softmax_temp).c_str(), on_softmaxtemp);
         o["FPU Reduction"]          << Option(std::to_string(cfg_fpu_reduction).c_str(), on_fpureduction);
         o["FPU Dynamic Eval"]       << SilentOption(cfg_fpu_dynamic_eval, on_fpudynamiceval);
