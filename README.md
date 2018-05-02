@@ -43,7 +43,7 @@ Of course, we also appreciate code reviews, pull requests and Windows testers!
 ## Example of compiling - Ubuntu 16.04
 
     # Install dependencies
-    sudo apt install g++ git libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
+    sudo apt install cmake g++ git libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
 
     # Test for OpenCL support & compatibility
     sudo apt install clinfo && clinfo
