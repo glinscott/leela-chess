@@ -150,7 +150,7 @@ namespace UCI {
     void init(OptionsMap& o) {
         o["Threads"]                << Option(cfg_num_threads, 1, cfg_max_threads, on_threads);
         o["Quiet"]                  << Option(cfg_quiet, on_quiet);
-        o["Quiet"]                  << Option(cfg_syzygydraw, on_syzygydraw);
+        o["SyzygyDraw"]             << Option(cfg_syzygydraw, on_syzygydraw);
         o["Softmax Temp"]           << SilentOption(std::to_string(cfg_softmax_temp).c_str(), on_softmaxtemp);
         o["FPU Reduction"]          << Option(std::to_string(cfg_fpu_reduction).c_str(), on_fpureduction);
         o["FPU Dynamic Eval"]       << SilentOption(cfg_fpu_dynamic_eval, on_fpudynamiceval);
