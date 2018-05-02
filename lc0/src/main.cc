@@ -28,6 +28,7 @@ int main(int argc, const char** argv) {
   using namespace lczero;
   CommandLine::Init(argc, argv);
   CommandLine::RegisterMode("uci", "(default) Act as UCI engine");
+
   CommandLine::RegisterMode("selfplay", "Play games with itself");
 
   if (CommandLine::ConsumeCommand("selfplay")) {

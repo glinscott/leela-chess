@@ -22,7 +22,7 @@
 #include <memory>
 #include <atomic>
 #include <tuple>
-#include <unordered_map>
+#include <unordered_set>
 
 #include "Position.h"
 #include "UCTNode.h"
@@ -96,6 +96,7 @@ private:
     std::atomic<int> m_nodes{0};
     std::atomic<int> m_playouts{0};
     std::atomic<int> m_maxdepth{0};
+    std::atomic<int> m_tbhits{0};
     int64_t m_target_time{0};
     int64_t m_max_time{0};
     int64_t m_start_time{0};
@@ -105,6 +106,8 @@ private:
 
     bool quiet_ = true;
     std::atomic<bool> uci_stop{false};
+
+    std::unordered_set<int> m_tbpruned;
 
     int get_search_time();
 };
