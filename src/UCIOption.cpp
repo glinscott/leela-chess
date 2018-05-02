@@ -72,9 +72,9 @@ namespace UCI {
         cfg_syzygydraw = value;
     }
   
-    void set_float_cfg(float& cfg_param, const std::string& value) {
-        cfg_syzygypath = cfg_param;
-        myprintf("Syzygy Path set to string: %s\n", value.c_str());
+    void on_syzygypath(const Option& o) {
+        cfg_syzygypath = o;
+        myprintf("Syzygy Path set to string: %s\n", o.c_str());
         Tablebases::init(cfg_syzygypath);
     }
   
