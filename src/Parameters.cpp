@@ -93,7 +93,7 @@ void Parameters::setup_default_parameters() {
     cfg_fpu_dynamic_eval = true;
     cfg_root_temp_decay = 0;
     cfg_min_resign_moves = 20;
-    cfg_resignpct = 10;
+    cfg_resignpct = -1;
     cfg_noise = false;
     cfg_randomize = false;
     cfg_timemanage = true;

@@ -222,17 +222,13 @@ Move UCTSearch::get_best_move() {
     }
 
     // should we consider resigning?
-    /*
-       float bestscore = m_root->get_first_child()->get_eval(color);
-       int visits = m_root->get_visits();
-    // bad score and visited enough
+    float bestscore = m_root->get_first_child()->get_eval(color);
+    // bad score
     if (bestscore < ((float)cfg_resignpct / 100.0f)
-        && visits > 500
-        && m_rootstate.game_ply() > cfg_min_resign_moves) { //--set cfg_min_resign_moves very high to forbid resigning...?
+        && bh_.cur().game_ply() > cfg_min_resign_moves) {
         myprintf("Score looks bad. Resigning.\n");
-        bestmove = MOVE_NONE; //--i guess MOVE_NONE will mean resign.
+        bestmove = MOVE_NONE; // MOVE_NONE means resign.
     }
-    */
 
     return bestmove;
 }
