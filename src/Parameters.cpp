@@ -89,7 +89,7 @@ void Parameters::setup_default_parameters() {
 #endif
     cfg_puct = 0.6f;
     cfg_softmax_temp = 1.0f;
-    cfg_fpu_reduction = 0.0f;
+    cfg_fpu_reduction = 0.1f;
     cfg_fpu_dynamic_eval = true;
     cfg_root_temp_decay = 0;
     cfg_min_resign_moves = 20;
