@@ -66,6 +66,7 @@ float cfg_fpu_reduction;
 bool cfg_fpu_dynamic_eval;
 std::string cfg_weightsfile;
 std::string cfg_syzygypath; 
+bool cfg_syzygydraw;
 std::string cfg_logfile;
 std::string cfg_supervise;
 FILE* cfg_logfile_handle;
@@ -103,6 +104,7 @@ void Parameters::setup_default_parameters() {
     cfg_rng_seed = 0;
     cfg_weightsfile = "weights.txt";
     cfg_syzygypath = "syzygy";
+    cfg_syzygydraw = false;
     cfg_go_nodes_as_visits = true;
 }
 
