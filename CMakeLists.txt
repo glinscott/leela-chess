@@ -98,10 +98,10 @@ if (APPLE)
   include_directories ("/System/Library/Frameworks/Accelerate.framework/Versions/Current/Headers")
 endif ()
 
-file (GLOB lczero_SRC "${SrcPath}/*.cpp" "${SrcPath}/*.h")
+file (GLOB lczero_SRC "${SrcPath}/*.cpp" "${SrcPath}/*.h" "${SrcPath}/syzygy/*.cpp" "${SrcPath}/syzygy/*.h")
 
 set (lczero_MAIN "${SrcPath}/main.cpp")
-file (GLOB lczero_SRC "${SrcPath}/*.cpp")
+file (GLOB lczero_SRC "${SrcPath}/*.cpp" "${SrcPath}/syzygy/*.cpp")
 list (REMOVE_ITEM lczero_SRC ${lczero_MAIN})
 
 # Reuse for lczero and gtest

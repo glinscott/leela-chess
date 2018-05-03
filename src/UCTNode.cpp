@@ -207,6 +207,25 @@ void UCTNode::randomize_first_proportionally(float tau) {
     std::iter_swap(begin(m_children), begin(m_children) + index);
 }
 
+void UCTNode::ensure_first_not_pruned(const std::unordered_set<int>& pruned_moves) {
+    size_t selectedIndex = size_t{0};
+    for (size_t i = 0; i < m_children.size(); i++) {
+        if (!pruned_moves.count((int)m_children[i]->get_move())) {
+            selectedIndex = i;
+            break;
+        }
+    }
+
+    // Take the early out
+    if (selectedIndex == 0) {
+        return;
+    }
+
+    // Now swap the child at index with the first child
+    assert(selectedIndex < m_children.size());
+    std::iter_swap(begin(m_children), begin(m_children) + selectedIndex);
+}
+
 Move UCTNode::get_move() const {
     return m_move;
 }
@@ -335,7 +354,7 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
 
     // Estimated eval for unknown nodes = original parent NN eval - reduction
     // Or curent parent eval - reduction if dynamic_eval is enabled.
-    auto fpu_eval = (cfg_fpu_dynamic_eval ? get_eval(color) : net_eval) - fpu_reduction;
+    auto fpu_eval = (cfg_fpu_dynamic_eval ? get_raw_eval(color) : net_eval) - fpu_reduction;
 
     for (const auto& child : m_children) {
         if (!child->active()) {
