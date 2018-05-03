@@ -195,7 +195,9 @@ namespace UCI {
 
 
 /// Option class constructors and conversion operators
-
+    Option::Option(std::__cxx11::string& v, OnChange f) : type("string"), min(0), max(0), on_change(f)
+    { defaultValue = currentValue = v; }
+      
     Option::Option(const char* v, OnChange f) : type("string"), min(0), max(0), on_change(f)
     { defaultValue = currentValue = v; }
 
