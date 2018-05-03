@@ -22,6 +22,7 @@
 #include "Utils.h"
 #include "UCI.h"
 #include "Parameters.h"
+#include "syzygy/tbprobe.h"
 
 using std::string;
 
@@ -157,7 +158,7 @@ namespace UCI {
         o["Threads"]                << Option(cfg_num_threads, 1, cfg_max_threads, on_threads);
         o["Quiet"]                  << Option(cfg_quiet, on_quiet);
         o["SyzygyDraw"]             << SilentOption(cfg_syzygydraw, on_syzygydraw);
-        o["SyzygyPath"]             << Option(cfg_syzygypath, on_syzygypath);
+        o["SyzygyPath"]             << Option(std::to_string(cfg_syzygypath).c_str(), on_syzygypath);
         o["Softmax Temp"]           << SilentOption(std::to_string(cfg_softmax_temp).c_str(), on_softmaxtemp);
         o["FPU Reduction"]          << Option(std::to_string(cfg_fpu_reduction).c_str(), on_fpureduction);
         o["FPU Dynamic Eval"]       << SilentOption(cfg_fpu_dynamic_eval, on_fpudynamiceval);
