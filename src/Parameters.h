@@ -49,6 +49,7 @@ extern float cfg_fpu_reduction;
 extern bool cfg_fpu_dynamic_eval;
 extern std::string cfg_logfile;
 extern std::string cfg_weightsfile;
+extern std::string cfg_syzygypath;
 extern std::string cfg_supervise;
 extern FILE* cfg_logfile_handle;
 extern bool cfg_quiet;

@@ -29,6 +29,7 @@
 #include "Network.h"
 #include "Position.h"
 #include "SMP.h"
+#include <unordered_set>
 
 class UCTNode {
 public:
@@ -62,6 +63,7 @@ public:
     void virtual_loss_undo(void);
     void dirichlet_noise(float epsilon, float alpha);
     void randomize_first_proportionally(float tau);
+    void ensure_first_not_pruned(const std::unordered_set<int>& pruned_moves);
     void update(float eval = std::numeric_limits<float>::quiet_NaN());
 
     UCTNode* uct_select_child(Color color, bool is_root);
