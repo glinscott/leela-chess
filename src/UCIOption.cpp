@@ -74,8 +74,9 @@ namespace UCI {
     }
   
     void on_syzygypath(const Option& o) {
-        cfg_syzygypath = o;
-        myprintf("Syzygy Path set to string: %s\n", o.c_str());
+        std::string value = o;
+        cfg_syzygypath = value;
+        myprintf("Syzygy Path set to string: %s\n", value.c_str());
         Tablebases::init(cfg_syzygypath);
     }
   
