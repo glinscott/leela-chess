@@ -18,11 +18,27 @@
 
 #pragma once
 
-#include "neural/network.h"
+#include <random>
+#include <string>
+#include "utils/mutex.h"
 
 namespace lczero {
 
-// Creates a network which just returns random values (for plain nps testing).
-std::unique_ptr<Network> MakeRandomNetwork();
+class Random {
+ public:
+  static Random& Get();
+  double GetDouble(double max_val);
+  double GetGamma(double alpha, double beta);
+  // Both sides are included.
+  int GetInt(int min, int max);
+  std::string GetString(int length);
+  bool GetBool();
+
+ private:
+  Random();
+
+  Mutex mutex_;
+  std::mt19937 gen_ GUARDED_BY(mutex_);
+};
 
 }  // namespace lczero

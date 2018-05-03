@@ -17,156 +17,100 @@
 #    along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
+import re
 import argparse
 
-class GameStats:
-    def __init__(self, filename):
-        self.filename = filename
-        self.total_moves = None
-        self.resign_movenum = None
-        self.resign_type = None     # "Correct", "Incorrect"
-        self.winner = None
-
-class TotalStats:
-    def __init__(self):
-        self.num_games = 0
-        self.no_resign_count = 0
-        self.correct_resign_count = 0
-        self.incorrect_resign_count = 0
-        self.game_len_sum = 0
-        self.resigned_game_len_sum = 0
-    def calcOverall(self, b, w):
-        self.num_games = b.num_games + w.num_games
-        self.no_resign_count = b.no_resign_count + w.no_resign_count
-        self.correct_resign_count = b.correct_resign_count + w.correct_resign_count
-        self.incorrect_resign_count = b.incorrect_resign_count + w.incorrect_resign_count
-        self.game_len_sum = b.game_len_sum + w.game_len_sum
-        self.resigned_game_len_sum = b.resigned_game_len_sum + w.resigned_game_len_sum
-
-def to_move_str(to_move):
-    if (to_move): return "W"
-    else: return "B"
-
-def parseGames(filenames, resignrate, verbose):
-    gsd = {}
+def parseGames(filenames, resignrate):
+    #print("Begin Analyze resign rate {:0.0f}%".format(resignrate))
+    games = len(filenames)
+    correct_resigns = 0
+    incorrect_resigns = 0
+    very_incorrect_resigns = 0
+    total_plys = 0
+    resign_plys = 0
+    draws = 0
     for filename in filenames:
-        training_filename = filename.replace(".debug", "")
-        gs = GameStats(filename)
-        gsd[filename] = gs
-        with open(filename) as fh, open(training_filename) as tfh:
-            movenum = 0
-            version = fh.readline()
-            assert version == "1\n"
-            while 1:
-                movenum += 1
-                for _ in range(16):
-                    line = tfh.readline()               # Board input planes
-                if not line: break
-                to_move = int(tfh.readline())           # 0 = black, 1 = white
-                policy_weights = tfh.readline()         # 361 moves + 1 pass
-                side_to_move_won = int(tfh.readline())  # 1 = side to move won, -1 = lost
-                if not gs.winner:
-                    if side_to_move_won == 1: gs.winner = to_move
-                    else : gs.winner = 1 - to_move
-                (netwinrate, root_uctwinrate, child_uctwinrate, bestmovevisits) = fh.readline().split()
-                netwinrate = float(netwinrate)
-                root_uctwinrate = float(root_uctwinrate)
-                child_uctwinrate = float(child_uctwinrate)
-                bestmovevisits = int(bestmovevisits)
-                if side_to_move_won == 1:
-                    if verbose >= 2: print("+", to_move, movenum, netwinrate, child_uctwinrate, bestmovevisits)
-                    if not gs.resign_type and child_uctwinrate < resignrate:
-                        if verbose >= 1:
-                            print("Incorrect resign -- %s rr=%0.3f wr=%0.3f winner=%s movenum=%d" %
-                                (filename, resignrate, child_uctwinrate, to_move_str(to_move), movenum))
-                            if verbose >= 2:
-                                print("policy_weights", policy_weights)
-                        gs.resign_type = "Incorrect"
-                        gs.resign_movenum = movenum
-                else:
-                    if verbose >= 2: print("-", to_move, movenum, netwinrate, child_uctwinrate, bestmovevisits)
-                    if not gs.resign_type and child_uctwinrate < resignrate:
-                        if verbose >= 2: print("Correct resign -- %s" % (filename))
-                        gs.resign_type = "Correct"
-                        gs.resign_movenum = movenum
-            gs.total_moves = movenum
-    return gsd
-
-def resignStats(gsd, resignrate):
-    stats = [ TotalStats(), TotalStats(), TotalStats() ]   # B wins, W wins, Overall
-    for gs in gsd.values():
-        stats[gs.winner].num_games += 1
-        if not gs.resign_type:
-            stats[gs.winner].no_resign_count += 1
-            stats[gs.winner].resigned_game_len_sum += gs.total_moves
-        elif gs.resign_type == "Correct":
-            stats[gs.winner].correct_resign_count += 1
-            stats[gs.winner].resigned_game_len_sum += gs.resign_movenum
-        else:
-            assert gs.resign_type == "Incorrect"
-            stats[gs.winner].incorrect_resign_count += 1
-            stats[gs.winner].resigned_game_len_sum += gs.resign_movenum
-        stats[gs.winner].game_len_sum += gs.total_moves
-    stats[2].calcOverall(stats[0], stats[1])
-    print("Black won %d/%d (%0.2f%%)" % (
-        stats[0].num_games,
-        stats[0].num_games+stats[1].num_games,
-        100.0 * stats[0].num_games / (stats[0].num_games+stats[1].num_games)))
-    for winner in (0,1,2):
-        if winner==0:
-            print("Of games Black won:")
-        elif winner==1:
-            print("Of games White won:")
-        else:
-            print("Of all games:")
-        if stats[winner].num_games == 0:
-            print("    No games to report")
-            continue
-        avg_len = 1.0*stats[winner].game_len_sum/stats[winner].num_games
-        resigned_avg_len = 1.0*stats[winner].resigned_game_len_sum/stats[winner].num_games
-        avg_reduction = 1.0*(avg_len-resigned_avg_len)/avg_len
-        print("    Incorrect uct resigns = %d/%d (%0.2f%%)" % (
-            stats[winner].incorrect_resign_count,
-            stats[winner].num_games,
-            100.0 * stats[winner].incorrect_resign_count / stats[winner].num_games))
-        print("    Correct uct resigns = %d/%d (%0.2f%%)" % (
-            stats[winner].correct_resign_count,
-            stats[winner].num_games,
-            100.0 * stats[winner].correct_resign_count / stats[winner].num_games))
-        print("    No Resign = %d/%d (%0.2f%%)" % (
-            stats[winner].no_resign_count,
-            stats[winner].num_games,
-            100.0 * stats[winner].no_resign_count / stats[winner].num_games))
-        print("    Average game length = %d. Average game length with resigns = %d (%0.2f%% reduction)" % (
-            avg_len, resigned_avg_len, avg_reduction*100))
-    print()
+        #print("debug filename: {}".format(filename))
+        plynum = 0
+        who_resigned = None
+        resign_plynum = None
+        for line in open(filename).readlines():
+            m = re.match("^Score: (\S+)", line)
+            if m:
+                (score,) = m.groups()
+                score = float(score)
+                #print("debug Score", score)
+            m = re.match("^info string stm\s+(\S+) winrate\s+(\S+)%", line)
+            if m:
+                plynum += 1
+                total_plys += 1
+                if who_resigned:
+                    # We already found who resigned.
+                    # continue after just counting plys
+                    continue
+                resign_plys += 1
+                (stm, winrate) = m.groups()
+                winrate = float(winrate)
+                if winrate < resignrate:
+                    who_resigned = stm
+                    resign_plynum = plynum
+                    #print("debug stm, winrate, plynum", stm, winrate, plynum)
+        #print("debug who_resigned {} resign_playnum {} total_plynum {}".format(who_resigned, resign_plynum, plynum))
+        if ((score !=  1 and who_resigned == "Black") or
+            (score != -1 and who_resigned == "White")):
+            incorrect_resigns += 1
+            #print("debug incorrect resign filename {} who_resigned {} resign_playnum {} total_plynum {}".format(
+                #filename, who_resigned, resign_plynum, plynum))
+        elif who_resigned != None:
+            #print("debug correct resign")
+            correct_resigns += 1
+        if ((score == -1 and who_resigned == "Black") or
+            (score ==  1 and who_resigned == "White")):
+            very_incorrect_resigns += 1
+            #print("debug very incorrect resign filename {} who_resigned {} resign_playnum {} total_plynum {}".format(
+                #filename, who_resigned, resign_plynum, plynum))
+        if score == 0:
+            draws += 1
+    assert incorrect_resigns >= very_incorrect_resigns
+    assert incorrect_resigns + correct_resigns <= games
+    resigned_games = incorrect_resigns + correct_resigns
+    if resigned_games == 0:
+        print("RR {:2.0f}% NR 100%".format(resignrate))
+    else:
+        print("RR {:2.0f}% Draw {:4.1f}% NR {:4.1f}% I {:4.1f}%/{:4.1f}% VI {:4.1f}%/{:4.1f}% C {:4.1f}%/{:4.1f}% PS {:4.1f}%".format(
+            resignrate,
+            draws/games*100,
+            (games - resigned_games)/games*100,
+            incorrect_resigns/games*100,
+            incorrect_resigns/resigned_games*100,
+            very_incorrect_resigns/games*100,
+            very_incorrect_resigns/resigned_games*100,
+            correct_resigns/games*100,
+            correct_resigns/resigned_games*100,
+            (total_plys-resign_plys)/total_plys*100))
 
 if __name__ == "__main__":
     usage_str = """
-This script analyzes the debug output from leelaz
+This script analyzes the debug output from `client -debug`
 to determine the impact of various resign thresholds.
 
 Process flow:
-  Run autogtp with debug on:
-    autogtp -k savedir -d savedir
-
-  Unzip training and debug files:
-    gunzip savedir/*.gz
+  Run `client -debug`
 
   Analyze results with this script:
-    ./resign_analysis.py savedir/*.txt.debug.0
-
-Note the script takes the debug files hash.txt.debug.0
-as the input arguments, but it also expects the training
-files hash.txt.0 to be in the same directory."""
+    ./resign_analysis.py logs-###/*.log
+"""
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=usage_str)
-    default_resignrates="0.5,0.2,0.15,0.1,0.05,0.02,0.01"
-    parser.add_argument("--r", metavar="Resign_rates", dest="resignrates", type=str, default=default_resignrates, help="comma separated resign thresholds (default %s)" % (default_resignrates))
-    parser.add_argument("--v", metavar="Verbose", dest="verbose", type=int, default=0, help="Verbosity level (default 0)")
-    parser.add_argument("data", metavar="files", type=str, nargs="+", help="Debug data files (*.txt.debug.0)")
+    parser.add_argument("data", metavar="files", type=str, nargs="+", help="client debug log files (logs-###/*.log)")
     args = parser.parse_args()
-    resignrates = [float(i) for i in args.resignrates.split(",")]
-    for resignrate in (resignrates):
-        print("Resign rate: %0.2f" % (resignrate))
-        gsd = parseGames(args.data, resignrate, args.verbose)
-        resignStats(gsd, resignrate)
+    print("Analyzing {} games".format(len(args.data)))
+    print("RR   - Resign Rate")
+    print("Draw - number of drawn games")
+    print("NR   - No Resign")
+    print("I    - Incorect Resign (would have resigned, but drew or won)")
+    print("VI   - Very Incorect Resign (would have resigned, but won)")
+    print("C    - Correct Resign (would have resigned, and actually lost")
+    print("PS   - Plies Saved")
+    print("I, VI, C display two values. Including / excluding the NR games")
+    for rr in (0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0):
+        parseGames(args.data, rr)
