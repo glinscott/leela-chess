@@ -269,7 +269,10 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     float feval = m_root->get_raw_eval(color);
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
     int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
-    int depth = m_maxdepth;
+    // same for nodes to depth, assume nodes = 1.8 ^ depth.
+    int depth = log(float(m_nodes)) / log(1.8);
+    // TODO: See PR#466, this is not working. Revert to old way for now.
+    // int depth = m_maxdepth;
     // To report nodes, use visits.
     //   - Only includes expanded nodes.
     //   - Includes nodes carried over from tree reuse.
