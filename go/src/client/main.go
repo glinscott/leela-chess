@@ -263,7 +263,6 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 				log.Println("Assuming resign: " + best_move + " for game:\n" + game.String())
 				if game.Position().Turn() == chess.White {
 					result = 1
-				}
 				} else {
 					result = -1
 				}	
