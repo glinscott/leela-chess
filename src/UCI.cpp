@@ -97,7 +97,7 @@ namespace {
       Limits = LimitsType();
       std::string token;
 
-      search.set_visit_limit(cfg_max_visits);
+      search.set_node_limit(cfg_max_nodes);
       search.set_playout_limit(cfg_max_playouts);
 
       while (is >> token) {
@@ -110,12 +110,12 @@ namespace {
           else if (token == "nodes")     {
               is >> Limits.nodes;
 
-              if (cfg_go_nodes_as_visits) {
-                  search.set_visit_limit(static_cast<int>(Limits.nodes));
-                  search.set_playout_limit(MAXINT_DIV2);
-              } else {
+              if (cfg_go_nodes_as_playouts) {
                   search.set_playout_limit(static_cast<int>(Limits.nodes));
-                  search.set_visit_limit(MAXINT_DIV2);
+                  search.set_node_limit(MAXINT_DIV2);
+              } else {
+                  search.set_node_limit(static_cast<int>(Limits.nodes));
+                  search.set_playout_limit(MAXINT_DIV2);
               }
           }
           else if (token == "movetime")  is >> Limits.movetime;
