@@ -61,6 +61,7 @@ with open(sys.argv[1], 'r') as f:
 
 cfg['model']['filters'] = filters
 cfg['model']['residual_blocks'] = blocks
+cfg['name'] = 'online-{}x{}'.format(filters, blocks)
 print(yaml.dump(cfg, default_flow_style=False))
 
 x = [

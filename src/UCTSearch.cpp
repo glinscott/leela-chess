@@ -435,6 +435,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         Position cur_pos = bh_.cur();
         if (Tablebases::root_probe(cur_pos, m_root->get_children()) || Tablebases::root_probe_wdl(cur_pos, m_root->get_children())) {
             for (const auto& node : m_root->get_children()) {
+                m_tbhits++;
                 if (!node->active()) {
                     m_tbpruned.insert((int)node->get_move());
                 }
