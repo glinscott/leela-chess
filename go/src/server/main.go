@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math"
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"server/db"
 	"strconv"
@@ -46,7 +48,7 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 	if err != nil {
 		return nil, 0, errors.New("Invalid version")
 	}
-	if version < 4 {
+	if version < 7 {
 		log.Println("Rejecting old game from %s, version %d", user.Username, version)
 		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 	}
@@ -57,7 +59,7 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 func nextGame(c *gin.Context) {
 	user, _, err := checkUser(c)
 	if err != nil {
-		log.Println(err)
+		log.Println(strings.TrimSpace(err.Error()))
 		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
@@ -223,6 +225,15 @@ func uploadNetwork(c *gin.Context) {
 		return
 	}
 
+	// TODO(gary): Make this more generic - upload to s3 for now
+	cmd := exec.Command("aws", "s3", "cp", network.Path, "s3://lczero/networks/")
+	err = cmd.Run()
+	if err != nil {
+		log.Println(err.Error())
+		c.String(500, "Uploading to s3")
+		return
+	}
+
 	// Create a match to see if this network is better
 	training_run, err := getTrainingRun(training_run_id)
 	if err != nil {
@@ -237,7 +248,10 @@ func uploadNetwork(c *gin.Context) {
 		CurrentBestID: training_run.BestNetworkID,
 		Done:          false,
 		GameCap:       400,
-		Parameters:    `["--noise"]`,
+		Parameters:    `["--tempdecay=10"]`,
+	}
+	if c.DefaultPostForm("testonly", "0") == "1" {
+		match.TestOnly = true
 	}
 	err = db.GetDB().Create(&match).Error
 	if err != nil {
@@ -252,8 +266,13 @@ func uploadNetwork(c *gin.Context) {
 func uploadGame(c *gin.Context) {
 	user, version, err := checkUser(c)
 	if err != nil {
-		log.Println(err)
+		log.Println(strings.TrimSpace(err.Error()))
 		c.String(http.StatusBadRequest, err.Error())
+		return
+	}
+	if version, err := strconv.ParseFloat(c.PostForm("engineVersion")[1:], 64); err != nil || version < 0.7 - 1e-6{
+		log.Printf("Rejecting game with old lczero version %s", c.PostForm("engineVersion"))
+		c.String(http.StatusBadRequest, "\n\n\n\n\nYou must upgrade to a newer lczero version!!\n\n\n\n\n")
 		return
 	}
 
@@ -306,11 +325,21 @@ func uploadGame(c *gin.Context) {
 		TrainingRunID: training_run.ID,
 		NetworkID:     network.ID,
 		Version:       uint(version),
-		Pgn:           c.PostForm("pgn"),
 		EngineVersion: c.PostForm("engineVersion"),
 	}
-	db.GetDB().Create(&game)
-	db.GetDB().Model(&game).Update("path", filepath.Join("games", fmt.Sprintf("run%d/training.%d.gz", training_run.ID, game.ID)))
+	err = db.GetDB().Create(&game).Error
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Internal error")
+		return
+	}
+
+	err = db.GetDB().Model(&game).Update("path", filepath.Join("games", fmt.Sprintf("run%d/training.%d.gz", training_run.ID, game.ID))).Error
+	if err != nil {
+		log.Println(err)
+		c.String(http.StatusBadRequest, "Internal error")
+		return
+	}
 
 	os.MkdirAll(filepath.Dir(game.Path), os.ModePerm)
 
@@ -321,12 +350,28 @@ func uploadGame(c *gin.Context) {
 		return
 	}
 
+	// Save pgn
+	pgn_path := fmt.Sprintf("pgns/run%d/%d.pgn", training_run.ID, game.ID)
+	os.MkdirAll(filepath.Dir(pgn_path), os.ModePerm)
+	err = ioutil.WriteFile(pgn_path, []byte(c.PostForm("pgn")), 0644)
+	if err != nil {
+		log.Println(err.Error())
+		c.String(500, "Saving pgn")
+		return
+	}
+
 	c.String(http.StatusOK, fmt.Sprintf("File %s uploaded successfully with fields user=%s.", file.Filename, user.Username))
 }
 
 func getNetwork(c *gin.Context) {
+	// lczero.org/cached/ is behind the cloudflare CDN.  Redirect to there to ensure
+	// we hit the CDN.
+	c.Redirect(http.StatusMovedPermanently, "http://lczero.org/cached/network/sha/" + c.Query("sha"))
+}
+
+func cachedGetNetwork(c *gin.Context) {
 	network := db.Network{
-		Sha: c.Query("sha"),
+		Sha: c.Param("sha"),
 	}
 
 	// Check for existing network
@@ -339,6 +384,7 @@ func getNetwork(c *gin.Context) {
 
 	// Serve the file
 	c.File(network.Path)
+	// c.Redirect(http.StatusMovedPermanently, "https://s3.amazonaws.com/lczero/" + network.Path)
 }
 
 func setBestNetwork(training_id uint, network_id uint) error {
@@ -396,7 +442,7 @@ func checkMatchFinished(match_id uint) error {
 func matchResult(c *gin.Context) {
 	user, version, err := checkUser(c)
 	if err != nil {
-		log.Println(err)
+		log.Println(strings.TrimSpace(err.Error()))
 		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
@@ -469,7 +515,7 @@ func matchResult(c *gin.Context) {
 }
 
 func getActiveUsers() (gin.H, error) {
-	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(training_games.created_at), count(*) FROM training_games
+	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(engine_version), MAX(training_games.created_at), count(*) FROM training_games
 LEFT JOIN users
 ON users.id = training_games.user_id
 WHERE training_games.created_at >= now() - INTERVAL '1 day'
@@ -487,9 +533,10 @@ ORDER BY count DESC`).Rows()
 		var user_id uint
 		var username string
 		var version int
+		var engine_version string
 		var created_at time.Time
 		var count uint64
-		rows.Scan(&user_id, &username, &version, &created_at, &count)
+		rows.Scan(&user_id, &username, &version, &engine_version, &created_at, &count)
 
 		active_users += 1
 		games_played += int(count)
@@ -503,6 +550,7 @@ ORDER BY count DESC`).Rows()
 			"games_today":  count,
 			"system":       "",
 			"version":      version,
+			"engine":       engine_version,
 			"last_updated": created_at,
 		})
 	}
@@ -542,7 +590,7 @@ func getProgress() ([]gin.H, error) {
 		"rating": 0.0,
 		"best":   false,
 		"sprt":   "FAIL",
-		"hash":   "",
+		"id":     "",
 	})
 
 	var count uint64 = 0
@@ -571,7 +619,7 @@ func getProgress() ([]gin.H, error) {
 				"rating": elo + matchElo,
 				"best":   best,
 				"sprt":   sprt,
-				"hash":   network.Sha[0:8],
+				"id":     network.ID,
 			})
 			if matches[matchIdx].Passed {
 				elo += matchElo
@@ -585,13 +633,39 @@ func getProgress() ([]gin.H, error) {
 				"rating": elo,
 				"best":   true,
 				"sprt":   sprt,
-				"hash":   network.Sha[0:8],
+				"id":     network.ID,
 			})
 		}
 		count += counts[network.ID]
 	}
 
 	return result, nil
+}
+
+func filterProgress(result []gin.H) []gin.H {
+	// Show just the last 100 networks
+	if len(result) > 100 {
+		result = result[len(result)-100:]
+	}
+
+	// Ensure the ordering is correct now (HACK)
+	tmp := []gin.H{}
+	tmp = append(tmp, gin.H{
+		"net":    result[0]["net"],
+		"rating": result[0]["rating"],
+		"best":   false,
+		"sprt":   "???",
+		"id":     "",
+	})
+	tmp = append(tmp, gin.H{
+		"net":    result[0]["net"],
+		"rating": result[0]["rating"],
+		"best":   false,
+		"sprt":   "FAIL",
+		"id":     "",
+	})
+
+	return append(tmp, result...)
 }
 
 func frontPage(c *gin.Context) {
@@ -608,7 +682,18 @@ func frontPage(c *gin.Context) {
 		c.String(500, "Internal error")
 		return
 	}
+	if c.DefaultQuery("full_elo", "0") == "0" {
+		progress = filterProgress(progress)
+	}
 
+	/*
+	c.HTML(http.StatusOK, "index", gin.H{
+		"active_users": 0,
+		"games_played": 0,
+		"Users":        []gin.H{},
+		"progress":     progress,
+	})
+	*/
 	c.HTML(http.StatusOK, "index", gin.H{
 		"active_users": users["active_users"],
 		"games_played": users["games_played"],
@@ -618,6 +703,13 @@ func frontPage(c *gin.Context) {
 }
 
 func user(c *gin.Context) {
+	// TODO(gary): Optimize this!
+	c.HTML(http.StatusOK, "user", gin.H{
+		"user":  c.Param("name"),
+		"games": []gin.H{},
+	})
+	return
+
 	name := c.Param("name")
 	user := db.User{
 		Username: name,
@@ -653,6 +745,11 @@ func user(c *gin.Context) {
 }
 
 func game(c *gin.Context) {
+	c.HTML(http.StatusOK, "game", gin.H{
+		"pgn": "Disabled for now -- server load too high from scaping",
+	})
+	return
+
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		log.Println(err)
@@ -671,7 +768,6 @@ func game(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "game", gin.H{
-		"pgn": game.Pgn,
 	})
 }
 
@@ -891,8 +987,11 @@ func viewTrainingData(c *gin.Context) {
 	}
 
 	files := []gin.H{}
-	game_id := uint(30000)
-	for game_id < id {
+	game_id := int(id + 1 - 500000)
+	if game_id < 0 {
+		game_id = 0
+	}
+	for game_id < int(id) {
 		files = append([]gin.H{
 			gin.H{"url": fmt.Sprintf("https://s3.amazonaws.com/lczero/training/games%d.tar.gz", game_id)},
 		}, files...)
@@ -928,6 +1027,7 @@ func setupRouter() *gin.Engine {
 
 	router.GET("/", frontPage)
 	router.GET("/get_network", getNetwork)
+	router.GET("/cached/network/sha/:sha", cachedGetNetwork)
 	router.GET("/user/:name", user)
 	router.GET("/game/:id", game)
 	router.GET("/networks", viewNetworks)

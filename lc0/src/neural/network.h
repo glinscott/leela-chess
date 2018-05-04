@@ -23,7 +23,7 @@
 
 namespace lczero {
 
-const int kInputPlanes = 120;
+const int kInputPlanes = 112;
 
 struct Weights {
   using Vec = std::vector<float>;
@@ -91,7 +91,7 @@ class NetworkComputation {
 
 class Network {
  public:
-  virtual std::unique_ptr<NetworkComputation> NewComputation() const = 0;
+  virtual std::unique_ptr<NetworkComputation> NewComputation() = 0;
   virtual ~Network(){};
 };
 

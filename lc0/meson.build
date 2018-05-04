@@ -1,7 +1,7 @@
-project('lc0', 'cpp', 
-        default_options : ['c_std=c17', 'cpp_std=c++17'])
+project('lc0', 'cpp')
+  #        default_options : ['cpp_std=c++17'])
 
-# add_global_arguments('-Wno-macro-redefined', language : 'cpp')
+add_global_arguments('-std=c++17', '-Wthread-safety', language : 'cpp')
 cc = meson.get_compiler('cpp')
 
 # Installed from https://github.com/FloopCZ/tensorflow_cc
@@ -26,19 +26,44 @@ tensorflow_cc = declare_dependency(
 deps = []
 deps += tensorflow_cc
 deps += cc.find_library('stdc++fs')
+deps += cc.find_library('libcublas', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
+deps += cc.find_library('libcudnn', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
+deps += cc.find_library('libcudart', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
 # deps += dependency('libprofiler')
+
+nvcc = find_program('nvcc')
+cuda_files = [
+  'src/neural/network_cudnn.cu',
+]
+
+cuda_gen = generator(nvcc,
+    output: '@BASENAME@.o',
+    arguments: ['--std=c++14', '-c', '@INPUT@', '-o', '@OUTPUT@', '-I', '../src'],
+)
 
 files = [
   'src/chess/bitboard.cc',
   'src/chess/board.cc',
-  'src/neural/loader.cc',
-  'src/neural/network_tf.cc',
-  'src/mcts/search.cc',
   'src/mcts/node.cc',
-  'src/engine.cc',
-  'src/uciloop.cc',
-  'src/ucioptions.cc',
+  'src/mcts/search.cc',
+  'src/neural/cache.cc',
+  'src/neural/factory.cc',
+  'src/neural/loader.cc',
+  'src/neural/writer.cc',
+  'src/neural/network_mux.cc',
+  'src/neural/network_random.cc',
+  'src/neural/network_tf.cc',
   'src/utils/transpose.cc',
+  'src/utils/commandline.cc',
+  'src/utils/optionsdict.cc',
+  'src/utils/random.cc',
+  'src/engine.cc',
+  'src/optionsparser.cc',
+  'src/selfplay/game.cc',
+  'src/selfplay/tournament.cc',
+  'src/selfplay/loop.cc',
+  'src/uciloop.cc',
+  cuda_gen.process(cuda_files)
 ]
 
 includes = []
@@ -58,7 +83,7 @@ test('ChessBoard',
   files, include_directories: includes, dependencies: test_deps
 ))
 
-test('Network',
-  executable('network_test', 'src/neural/network_test.cc',
+test('HashCat',
+  executable('hashcat_test', 'src/utils/hashcat_test.cc',
   files, include_directories: includes, dependencies: test_deps
 ))

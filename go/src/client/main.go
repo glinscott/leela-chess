@@ -21,7 +21,7 @@ import (
 
 	"client/http"
 
-	"github.com/notnil/chess"
+	"github.com/Tilps/chess"
 )
 
 var HOSTNAME = flag.String("hostname", "http://162.217.248.187", "Address of the server")
@@ -78,7 +78,7 @@ func getExtraParams() map[string]string {
 	return map[string]string{
 		"user":     *USER,
 		"password": *PASSWORD,
-		"version":  "5",
+		"version":  "8",
 	}
 }
 

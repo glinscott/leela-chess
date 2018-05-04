@@ -74,7 +74,6 @@ int Perft(const ChessBoard& board, int max_depth, bool dump = false,
     int count = Perft(new_board, max_depth, dump, depth + 1);
     if (dump && depth == 0) {
       Move m = move;
-      if (depth == 0) m.Mirror();
       std::cerr << m.as_string() << ' ' << count << '\n'
                 << new_board.DebugString();
     }
@@ -100,7 +99,7 @@ TEST(ChessBoard, MoveGenStartingPos) {
 TEST(ChessBoard, MoveGenKiwipete) {
   ChessBoard board;
   board.SetFromFen(
-      "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
+      "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 1 1");
 
   EXPECT_EQ(Perft(board, 1), 48);
   EXPECT_EQ(Perft(board, 2), 2039);
@@ -111,7 +110,7 @@ TEST(ChessBoard, MoveGenKiwipete) {
 
 TEST(ChessBoard, MoveGenPosition3) {
   ChessBoard board;
-  board.SetFromFen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
+  board.SetFromFen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 1 1");
 
   EXPECT_EQ(Perft(board, 1), 14);
   EXPECT_EQ(Perft(board, 2), 191);
@@ -154,6 +153,76 @@ TEST(ChessBoard, MoveGenPosition6) {
   EXPECT_EQ(Perft(board, 2), 2079);
   EXPECT_EQ(Perft(board, 3), 89890);
   EXPECT_EQ(Perft(board, 4), 3894594);
+}
+
+TEST(ChessBoard, HasMatingMaterialStartPosition) {
+  ChessBoard board;
+  board.SetFromFen(ChessBoard::kStartingFen);
+  EXPECT_TRUE(board.HasMatingMaterial());
+}
+
+TEST(ChessBoard, HasMatingMaterialBareKings) {
+  ChessBoard board;
+  board.SetFromFen("8/8/8/4k3/8/8/2K5/8 w - - 0 1");
+  EXPECT_FALSE(board.HasMatingMaterial());
+}
+
+TEST(ChessBoard, HasMatingMaterialSingleMinorPiece) {
+  ChessBoard board;
+  board.SetFromFen("8/8/8/4k3/1N6/8/2K5/8 w - - 0 1");
+  EXPECT_FALSE(board.HasMatingMaterial());
+  board.SetFromFen("8/8/8/4k3/7b/8/2K5/8 w - - 0 1");
+  EXPECT_FALSE(board.HasMatingMaterial());
+}
+
+TEST(ChessBoard, HasMatingMaterialSingleMajorPieceOrPawn) {
+  ChessBoard board;
+  board.SetFromFen("8/8/8/4k3/8/5R2/2K5/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
+  board.SetFromFen("8/8/8/4k3/8/5q2/2K5/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
+  board.SetFromFen("8/8/8/4k3/8/5P2/2K5/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
+}
+
+TEST(ChessBoard, HasMatingMaterialTwoKnights) {
+  ChessBoard board;
+  board.SetFromFen("8/8/8/3nk3/8/5N2/2K5/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
+  board.SetFromFen("8/8/8/3nk3/8/5n2/2K5/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
+}
+
+TEST(ChessBoard, HasMatingMaterialBishopAndKnight) {
+  ChessBoard board;
+  board.SetFromFen("8/8/8/3bk3/8/5N2/2K5/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
+  board.SetFromFen("8/8/8/3Bk3/8/5N2/2K5/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
+}
+
+TEST(ChessBoard, HasMatingMaterialMultipleBishopsSameColor) {
+  ChessBoard board;
+  board.SetFromFen("8/8/8/3Bk3/8/5B2/2K5/8 w - - 0 1");
+  EXPECT_FALSE(board.HasMatingMaterial());
+  board.SetFromFen("8/8/8/4kb2/8/2K2B2/8/8 w - - 0 1");
+  EXPECT_FALSE(board.HasMatingMaterial());
+  board.SetFromFen("B7/1B3b2/2B3b1/4k2b/8/8/2K5/8 w - - 0 1");
+  EXPECT_FALSE(board.HasMatingMaterial());
+  board.SetFromFen("B7/1B6/2B5/4k3/8/8/2K5/8 w - - 0 1");
+  EXPECT_FALSE(board.HasMatingMaterial());
+}
+
+TEST(ChessBoard, HasMatingMaterialMultipleBishopsNotSameColor) {
+  ChessBoard board;
+  board.SetFromFen("8/8/8/4k3/8/2K1bb2/8/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
+  board.SetFromFen("8/8/8/4k3/8/2K1Bb2/8/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
+  board.SetFromFen("8/8/8/4k3/8/2K2b2/5B2/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
+  board.SetFromFen("B7/1B3b2/2B3b1/4k2b/7B/8/2K5/8 w - - 0 1");
+  EXPECT_TRUE(board.HasMatingMaterial());
 }
 
 }  // namespace lczero

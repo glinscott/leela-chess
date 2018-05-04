@@ -21,51 +21,34 @@
 #include <cmath>
 
 #include "TimeMan.h"
+#include "Parameters.h"
 
 TimeManagement Time; // Our global time management object
 
-namespace {
+// move_importance() is a skew-logistic function based on naive statistical
+// analysis of "how many games are still undecided after n half-moves". Game
+// is considered "undecided" as long as neither side has >275cp advantage.
+// Data was extracted from the CCRL game database with some simple filtering criteria.
 
-    enum TimeType { OptimumTime, MaxTime };
+double move_importance(int ply) {
 
-    const int MoveHorizon   = 50;   // Plan time management at most this many moves ahead
-    const double MaxRatio   = 7.3; // When in trouble, we can step over reserved time with this ratio
-    const double StealRatio = 0.34; // However we must not steal time from remaining moves over this ratio
+    const double XScale = 6.85;
+    const double XShift = 64.5;
+    const double Skew   = 0.171;
 
+    return pow((1 + exp((ply - XShift) / XScale)), -Skew) + DBL_MIN; // Ensure non-zero
+}
 
-    // move_importance() is a skew-logistic function based on naive statistical
-    // analysis of "how many games are still undecided after n half-moves". Game
-    // is considered "undecided" as long as neither side has >275cp advantage.
-    // Data was extracted from the CCRL game database with some simple filtering criteria.
+int remaining(int myTime, int movesToGo, int ply) {
 
-    double move_importance(int ply) {
+    double moveImportance = move_importance(ply) * cfg_slowmover / 100; // Slow Mover Ratio
+    double otherMovesImportance = 0;
 
-        const double XScale = 6.85;
-        const double XShift = 64.5;
-        const double Skew   = 0.171;
+    for (int i = 1; i < movesToGo; ++i)
+         otherMovesImportance += move_importance(ply + 2 * i);
 
-        return pow((1 + exp((ply - XShift) / XScale)), -Skew) + DBL_MIN; // Ensure non-zero
-    }
-
-    template<TimeType T>
-    int remaining(int myTime, int movesToGo, int ply, int slowMover) {
-
-        const double TMaxRatio   = (T == OptimumTime ? 1 : MaxRatio);
-        const double TStealRatio = (T == OptimumTime ? 0 : StealRatio);
-
-        double moveImportance = (move_importance(ply) * slowMover) / 100;
-        double otherMovesImportance = 0;
-
-        for (int i = 1; i < movesToGo; ++i)
-            otherMovesImportance += move_importance(ply + 2 * i);
-
-        double ratio1 = (TMaxRatio * moveImportance) / (TMaxRatio * moveImportance + otherMovesImportance);
-        double ratio2 = (moveImportance + TStealRatio * otherMovesImportance) / (moveImportance + otherMovesImportance);
-
-        return int(myTime * std::min(ratio1, ratio2)); // Intel C++ asks for an explicit cast
-    }
-
-} // namespace
+    return int(myTime * moveImportance / (moveImportance + otherMovesImportance)); // Intel C++ asks for an explicit cast
+}
 
 
 /// init() is called at the beginning of the search and calculates the allowed
@@ -79,28 +62,16 @@ namespace {
 
 void TimeManagement::init(Color us, int ply) {
 
+    int minThinkingTime = std::min(20, Limits.time[us] / 5);
+    int moveOverhead    = 30;
+    int MoveHorizon     = Limits.movestogo ? std::min(Limits.movestogo - 1, 50) : 50;
 
-    startTime = Limits.startTime;
-    optimumTime = maximumTime = Limits.time[us];
+    startTime   = Limits.startTime;
+    optimumTime = maximumTime = std::max(Limits.time[us] - 3 * moveOverhead, minThinkingTime);
 
-    const int MaxMTG = Limits.movestogo ? std::min(Limits.movestogo, MoveHorizon) : MoveHorizon;
+    // Calculate thinking time for hypothetical "moves to go"-value
+    int hypMyTime = std::max (0, Limits.time[us] + (Limits.inc[us] - moveOverhead) * MoveHorizon);
 
-    // We calculate optimum time usage for different hypothetical "moves to go"-values
-    // and choose the minimum of calculated search time values. Usually the greatest
-    // hypMTG gives the minimum values.
-    for (int hypMTG = 1; hypMTG <= MaxMTG; ++hypMTG)
-    {
-        // Calculate thinking time for hypothetical "moves to go"-value
-        int hypMyTime =  Limits.time[us]
-                         + Limits.inc[us] * (hypMTG - 1)
-                         - 30 * (2 + std::min(hypMTG, 40));
-
-        hypMyTime = std::max(hypMyTime, 0);
-
-        int t1 = remaining<OptimumTime>(hypMyTime, hypMTG, ply, 89);
-        int t2 = remaining<MaxTime    >(hypMyTime, hypMTG, ply, 89);
-
-        optimumTime = std::min(t1, optimumTime);
-        maximumTime = std::min(t2, maximumTime);
-    }
+    optimumTime = std::min(minThinkingTime + remaining(hypMyTime, MoveHorizon, ply), optimumTime);
+    maximumTime = std::min(optimumTime * 7, maximumTime);
 }

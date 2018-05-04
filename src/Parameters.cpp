@@ -51,6 +51,7 @@ int cfg_resignpct;
 int cfg_noise;
 int cfg_randomize;
 int cfg_timemanage;
+int cfg_slowmover;
 int cfg_min_resign_moves;
 int cfg_root_temp_decay;
 uint64_t cfg_rng_seed;
@@ -64,10 +65,12 @@ float cfg_softmax_temp;
 float cfg_fpu_reduction;
 bool cfg_fpu_dynamic_eval;
 std::string cfg_weightsfile;
+std::string cfg_syzygypath; 
 std::string cfg_logfile;
 std::string cfg_supervise;
 FILE* cfg_logfile_handle;
 bool cfg_quiet;
+bool cfg_go_nodes_as_visits;
 
 void Parameters::setup_default_parameters() {
     cfg_allow_pondering = true;
@@ -84,19 +87,22 @@ void Parameters::setup_default_parameters() {
     cfg_sgemm_exhaustive = false;
     cfg_tune_only = false;
 #endif
-    cfg_puct = 0.85f;
+    cfg_puct = 0.6f;
     cfg_softmax_temp = 1.0f;
-    cfg_fpu_reduction = 0.0f;
+    cfg_fpu_reduction = 0.1f;
     cfg_fpu_dynamic_eval = true;
     cfg_root_temp_decay = 0;
     cfg_min_resign_moves = 20;
-    cfg_resignpct = 10;
+    cfg_resignpct = -1;
     cfg_noise = false;
     cfg_randomize = false;
     cfg_timemanage = true;
+    cfg_slowmover = 89;
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     cfg_rng_seed = 0;
     cfg_weightsfile = "weights.txt";
+    cfg_syzygypath = "syzygy";
+    cfg_go_nodes_as_visits = true;
 }
 

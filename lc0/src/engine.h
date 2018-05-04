@@ -18,31 +18,24 @@
 
 #pragma once
 
-#include <shared_mutex>
 #include "mcts/search.h"
+#include "neural/cache.h"
 #include "neural/network.h"
+#include "optionsparser.h"
 #include "uciloop.h"
-#include "ucioptions.h"
-#include "utils/readprefmutex.h"
+#include "utils/mutex.h"
+
+// CUDNN eval
+// comment/disable this to enable tensor flow path
+#define CUDNN_EVAL 1
 
 namespace lczero {
-
-struct GoParams {
-  std::int64_t wtime = -1;
-  std::int64_t btime = -1;
-  std::int64_t winc = -1;
-  std::int64_t binc = -1;
-  int movestogo = -1;
-  int depth = -1;
-  int nodes = -1;
-  std::int64_t movetime = -1;
-  bool infinite = false;
-};
 
 class EngineController {
  public:
   EngineController(BestMoveInfo::Callback best_move_callback,
-                   UciInfo::Callback info_callback);
+                   ThinkingInfo::Callback info_callback,
+                   const OptionsDict& options);
 
   ~EngineController() {
     // Make sure search is destructed first, and it still may be running in
@@ -50,10 +43,10 @@ class EngineController {
     search_.reset();
   }
 
-  void GetUciOptions(UciOptions* options);
+  void PopulateOptions(OptionsParser* options);
 
   // Blocks.
-  void EnsureReady() { std::unique_lock<rp_shared_mutex> lock(busy_mutex_); }
+  void EnsureReady() { std::unique_lock<RpSharedMutex> lock(busy_mutex_); }
 
   // Must not block.
   void NewGame();
@@ -66,26 +59,55 @@ class EngineController {
   void Go(const GoParams& params);
   // Must not block.
   void Stop();
-  void SetNetworkPath(const std::string& path);
+  void SetCacheSize(int size);
 
  private:
-  void MakeMove(Move move);
-  void CreateNodeRoot();
+  void UpdateNetwork();
 
-  UciOptions* uci_options_ = nullptr;
+  const OptionsDict& options_;
 
   BestMoveInfo::Callback best_move_callback_;
-  UciInfo::Callback info_callback_;
+  ThinkingInfo::Callback info_callback_;
 
+  NNCache cache_;
   std::unique_ptr<Network> network_;
+
   // Locked means that there is some work to wait before responding readyok.
-  rp_shared_mutex busy_mutex_;
-  using SharedLock = std::shared_lock<rp_shared_mutex>;
+  RpSharedMutex busy_mutex_;
+  using SharedLock = std::shared_lock<RpSharedMutex>;
 
   std::unique_ptr<NodePool> node_pool_;
-  Node* current_head_ = nullptr;
-  Node* gamebegin_node_ = nullptr;
   std::unique_ptr<Search> search_;
+  std::unique_ptr<NodeTree> tree_;
+
+  // Store current network settings to track when they change so that they
+  // are reloaded.
+  std::string network_path_;
+  std::string backend_;
+  std::string backend_options_;
+};
+
+class EngineLoop : public UciLoop {
+ public:
+  EngineLoop();
+
+  void RunLoop() override;
+  void CmdUci() override;
+  void CmdIsReady() override;
+  void CmdSetOption(const std::string& name, const std::string& value,
+                    const std::string& context) override;
+  void CmdUciNewGame() override;
+  void CmdPosition(const std::string& position,
+                   const std::vector<std::string>& moves) override;
+  void CmdGo(const GoParams& params) override;
+  void CmdStop() override;
+
+ private:
+  void EnsureOptionsSent();
+
+  OptionsParser options_;
+  bool options_sent_ = false;
+  EngineController engine_;
 };
 
 }  // namespace lczero

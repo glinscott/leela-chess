@@ -50,6 +50,10 @@ public:
     template<class F, class... Args>
     auto add_task(F&& f, Args&&... args)
         -> std::future<typename std::result_of<F(Args...)>::type>;
+
+    std::size_t size() const {
+        return m_threads.size();
+    }
 private:
     std::vector<std::thread> m_threads;
     std::queue<std::function<void()>> m_tasks;

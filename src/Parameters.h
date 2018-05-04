@@ -34,6 +34,7 @@ extern int cfg_resignpct;
 extern int cfg_noise;
 extern int cfg_randomize;
 extern int cfg_timemanage;
+extern int cfg_slowmover;
 extern int cfg_min_resign_moves;
 extern int cfg_root_temp_decay;
 extern uint64_t cfg_rng_seed;
@@ -48,9 +49,11 @@ extern float cfg_fpu_reduction;
 extern bool cfg_fpu_dynamic_eval;
 extern std::string cfg_logfile;
 extern std::string cfg_weightsfile;
+extern std::string cfg_syzygypath;
 extern std::string cfg_supervise;
 extern FILE* cfg_logfile_handle;
 extern bool cfg_quiet;
+extern bool cfg_go_nodes_as_visits;
 
 class Parameters {
 public:

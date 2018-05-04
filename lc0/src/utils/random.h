@@ -16,31 +16,29 @@
   along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <gtest/gtest.h>
-#include "neural/loader.h"
-#include "neural/network_tf.h"
+#pragma once
+
+#include <random>
+#include <string>
+#include "utils/mutex.h"
 
 namespace lczero {
 
-TEST(Network, FakeData) {
-  auto weights = LoadWeightsFromFile(
-      "../testdata/"
-      "218a136a377302cce2c645e6436b0cb8284764319046dbd5f57f7aaeb498580a");
-  auto network = MakeTensorflowNetwork(weights);
-  auto compute = network->NewComputation();
-  for (int j = 0; j < 4; ++j) {
-    InputPlanes planes(120);
-    for (int i = 0; i < 120; ++i) {
-      planes[i].mask = 0x230709012008ull;
-    }
-    compute->AddInput(std::move(planes));
-  }
-  compute->ComputeBlocking();
-}
+class Random {
+ public:
+  static Random& Get();
+  double GetDouble(double max_val);
+  double GetGamma(double alpha, double beta);
+  // Both sides are included.
+  int GetInt(int min, int max);
+  std::string GetString(int length);
+  bool GetBool();
+
+ private:
+  Random();
+
+  Mutex mutex_;
+  std::mt19937 gen_ GUARDED_BY(mutex_);
+};
 
 }  // namespace lczero
-
-int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}

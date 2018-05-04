@@ -16,37 +16,22 @@
   along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
-
-#include <atomic>
-#include <shared_mutex>
+#include "utils/hashcat.h"
+#include <gtest/gtest.h>
 
 namespace lczero {
 
-// Implementation of reader-preferenced shared mutex. Based on fair shared
-// mutex.
-class rp_shared_mutex {
- public:
-  void lock() {
-    while (true) {
-      mutex_.lock();
-      if (waiting_readers_ == 0) return;
-      mutex_.unlock();
-    }
-  }
-  void unlock() { mutex_.unlock(); }
-  void lock_shared() {
-    ++waiting_readers_;
-    mutex_.lock_shared();
-  }
-  void unlock_shared() {
-    --waiting_readers_;
-    mutex_.unlock_shared();
-  }
-
- private:
-  std::shared_mutex mutex_;
-  std::atomic<int> waiting_readers_ = 0;
-};
+TEST(HashCat, TestCollision) {
+  uint64_t hash1 = HashCat({0x8000000010500000, 0x4000080000002000,
+                            0x8000000000002000, 0x4000000000000000});
+  uint64_t hash2 = HashCat({0x4000000010500000, 0x1000080000002000,
+                            0x4000000000002000, 0x1000000000000000});
+  EXPECT_NE(hash1, hash2);
+}
 
 }  // namespace lczero
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
