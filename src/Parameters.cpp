@@ -81,7 +81,7 @@ void Parameters::setup_default_parameters() {
 
     cfg_max_playouts = MAXINT_DIV2;
     cfg_max_visits   = 800;
-    cfg_lagbuffer_ms = 50;
+    cfg_lagbuffer_ms = 100;
 #ifdef USE_OPENCL
     cfg_gpus = { };
     cfg_sgemm_exhaustive = false;
