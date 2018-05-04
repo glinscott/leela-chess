@@ -97,8 +97,13 @@ type TrainingGame struct {
 
 	Version   uint
 	Path      string
-	Pgn       string
 	Compacted bool
 
 	EngineVersion string
+}
+
+type ServerData struct {
+	gorm.Model
+
+	TrainingPgnUploaded int
 }

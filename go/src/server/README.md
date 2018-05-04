@@ -86,6 +86,20 @@ Restarting nginx:
 sudo service nginx restart
 ```
 
+Postgres online repack
+```
+sudo apt-get install postgresql-server-dev-9.5 mawk
+sudo easy_install pgxnclient
+sudo pgxn install pg_repack
+sudo -u postgres psql -c "CREATE EXTENSION pg_repack" -d gorm
+/usr/lib/postgresql/9.5/bin/pg_repack
+```
+
+Postgres performance tuning
+```
+https://github.com/jfcoz/postgresqltuner
+```
+
 ### Setting up backup
 
 ```

@@ -15,9 +15,10 @@
   You should have received a copy of the GNU General Public License
   along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "neural/network_tf.h"
 
+#include "neural/factory.h"
 #include "utils/bititer.h"
+#include "utils/optionsdict.h"
 #include "utils/transpose.h"
 
 #include <tensorflow/cc/client/client_session.h>
@@ -134,7 +135,7 @@ std::pair<Output, Output> MakeNetwork(const Scope& scope, Input input,
 class TFNetworkComputation;
 class TFNetwork : public Network {
  public:
-  TFNetwork(const Weights& weights);
+  TFNetwork(const Weights& weights, const OptionsDict& options);
 
   std::unique_ptr<NetworkComputation> NewComputation() override;
 
@@ -198,7 +199,7 @@ class TFNetworkComputation : public NetworkComputation {
   tensorflow::Status status_;
 };
 
-TFNetwork::TFNetwork(const Weights& weights)
+TFNetwork::TFNetwork(const Weights& weights, const OptionsDict& options)
     : scope_(Scope::NewRootScope()), session_(scope_) {
   input_ = std::make_unique<Placeholder>(
       scope_, DataType::DT_FLOAT, Placeholder::Shape({-1, kInputPlanes, 8, 8}));
@@ -208,6 +209,12 @@ TFNetwork::TFNetwork(const Weights& weights)
 
   policy_head_ = std::make_unique<Output>(output.first);
   value_head_ = std::make_unique<Output>(output.second);
+
+  // First request to tensorflow is slow (0.6s), so doing an empty request for
+  // preheating.
+  auto fake_request = NewComputation();
+  fake_request->AddInput(InputPlanes(kInputPlanes));
+  fake_request->ComputeBlocking();
 }
 
 tensorflow::Status TFNetwork::Compute(tensorflow::Tensor& input,
@@ -222,8 +229,6 @@ std::unique_ptr<NetworkComputation> TFNetwork::NewComputation() {
 
 }  // namespace
 
-std::unique_ptr<Network> MakeTensorflowNetwork(const Weights& weights) {
-  return std::make_unique<TFNetwork>(weights);
-}
+REGISTER_NETWORK("tensorflow", TFNetwork, 100);
 
 }  // namespace lczero

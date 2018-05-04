@@ -26,7 +26,6 @@
 
 #include "mcts/node.h"
 #include "neural/cache.h"
-#include "neural/network_tf.h"
 #include "utils/random.h"
 
 namespace lczero {
@@ -34,24 +33,29 @@ namespace lczero {
 namespace {
 const char* kMiniBatchSizeStr = "Minibatch size for NN inference";
 const char* kMiniPrefetchBatchStr = "Max prefetch nodes, per NN call";
-const char* kAggresiveCachingStr = "Try hard to find what to cache";
-const char* kCpuctStr = "Cpuct MCTS option (x100)";
-const char* kTemperatureStr = "Initial temperature (x100)";
-const char* kTempDecayStr = "Per move temperature decay (x100)";
+const char* kCpuctStr = "Cpuct MCTS option";
+const char* kTemperatureStr = "Initial temperature";
+const char* kTempDecayStr = "Per move temperature decay";
 const char* kNoiseStr = "Add Dirichlet noise at root node";
 const char* kVerboseStatsStr = "Display verbose move stats";
+const char* kSmartPruningStr = "Enable smart pruning";
+const char* kVirtualLossBugStr = "Virtual loss bug";
 
+const int kSmartPruningToleranceNodes = 100;
+const int kSmartPruningToleranceMs = 500;
 }  // namespace
 
 void Search::PopulateUciParams(OptionsParser* options) {
-  options->Add<SpinOption>(kMiniBatchSizeStr, 1, 1024, "minibatch-size") = 16;
-  options->Add<SpinOption>(kMiniPrefetchBatchStr, 0, 1024, "max-prefetch") = 64;
-  options->Add<CheckOption>(kAggresiveCachingStr, "aggressive-caching") = false;
-  options->Add<SpinOption>(kCpuctStr, 0, 9999, "cpuct") = 170;
-  options->Add<SpinOption>(kTemperatureStr, 0, 9999, "temperature", 'm') = 0;
-  options->Add<SpinOption>(kTempDecayStr, 0, 100, "tempdecay") = 0;
-  options->Add<CheckOption>(kNoiseStr, "noise", 'n') = false;
-  options->Add<CheckOption>(kVerboseStatsStr, "verbose-move-stats") = false;
+  options->Add<IntOption>(kMiniBatchSizeStr, 1, 1024, "minibatch-size") = 128;
+  options->Add<IntOption>(kMiniPrefetchBatchStr, 0, 1024, "max-prefetch") = 32;
+  options->Add<FloatOption>(kCpuctStr, 0, 100, "cpuct") = 1.7;
+  options->Add<FloatOption>(kTemperatureStr, 0, 100, "temperature", 'm') = 0.0;
+  options->Add<FloatOption>(kTempDecayStr, 0, 1.00, "tempdecay") = 0.0;
+  options->Add<BoolOption>(kNoiseStr, "noise", 'n') = false;
+  options->Add<BoolOption>(kVerboseStatsStr, "verbose-move-stats") = false;
+  options->Add<BoolOption>(kSmartPruningStr, "smart-pruning") = true;
+  options->Add<FloatOption>(kVirtualLossBugStr, -100, 100, "virtual-loss-bug") =
+      3.0f;
 }
 
 Search::Search(Node* root_node, NodePool* node_pool, Network* network,
@@ -69,12 +73,13 @@ Search::Search(Node* root_node, NodePool* node_pool, Network* network,
       info_callback_(info_callback),
       kMiniBatchSize(options.Get<int>(kMiniBatchSizeStr)),
       kMiniPrefetchBatch(options.Get<int>(kMiniPrefetchBatchStr)),
-      kAggresiveCaching(options.Get<bool>(kAggresiveCachingStr)),
-      kCpuct(options.Get<int>(kCpuctStr) / 100.0f),
-      kTemperature(options.Get<int>(kTemperatureStr) / 100.0f),
-      kTempDecay(options.Get<int>(kTempDecayStr) / 100.0f),
+      kCpuct(options.Get<float>(kCpuctStr)),
+      kTemperature(options.Get<float>(kTemperatureStr)),
+      kTempDecay(options.Get<float>(kTempDecayStr)),
       kNoise(options.Get<bool>(kNoiseStr)),
-      kVerboseStats(options.Get<bool>(kVerboseStatsStr)) {}
+      kVerboseStats(options.Get<bool>(kVerboseStatsStr)),
+      kSmartPruning(options.Get<bool>(kSmartPruningStr)),
+      kVirtualLossBug(options.Get<float>(kVirtualLossBugStr)) {}
 
 // Returns whether node was already in cache.
 bool Search::AddNodeToCompute(Node* node, CachingComputation* computation,
@@ -135,7 +140,6 @@ void Search::Worker() {
   // Exit check is at the end of the loop as at least one iteration is
   // necessary.
   while (true) {
-    int new_nodes = 0;
     nodes_to_process.clear();
     auto computation = CachingComputation(network_->NewComputation(), cache_);
 
@@ -147,7 +151,6 @@ void Search::Worker() {
       // If we hit the node that is already processed (by our batch or in
       // another thread) stop gathering and process smaller batch.
       if (!node) break;
-      ++new_nodes;
 
       nodes_to_process.push_back(node);
       // If node is already known as terminal (win/lose/draw according to rules
@@ -207,7 +210,6 @@ void Search::Worker() {
     {
       // Update nodes.
       SharedMutex::Lock lock(nodes_mutex_);
-      total_playouts_ += new_nodes;
       for (Node* node : nodes_to_process) {
         float v = node->v;
         // Maximum depth the node is explored.
@@ -255,7 +257,9 @@ void Search::Worker() {
           }
         }
       }
+      total_playouts_ += nodes_to_process.size();
     }
+    UpdateRemainingMoves();  // Update remaining moves using smart pruning.
     MaybeOutputInfo();
     MaybeTriggerStop();
 
@@ -276,7 +280,11 @@ int Search::PrefetchIntoCache(Node* node, int budget,
   // We are in a leaf, which is not yet being processed.
   if (node->n + node->n_in_flight == 0) {
     if (AddNodeToCompute(node, computation, false)) {
-      return kAggresiveCaching ? 0 : 1;
+      // Make it return 0 to make it not use the slot, so that the function
+      // tries hard to find something to cache even among unpopular moves.
+      // In practice that slows things down a lot though, as it's not always
+      // easy to find what to cache.
+      return 1;
     }
     return 1;
   }
@@ -289,7 +297,9 @@ int Search::PrefetchIntoCache(Node* node, int budget,
   std::vector<ScoredNode> scores;
   float factor = kCpuct * std::sqrt(std::max(node->n, 1u));
   for (Node* iter = node->child; iter; iter = iter->sibling) {
-    scores.emplace_back(factor * iter->ComputeU() + iter->ComputeQ(), iter);
+    if (iter->p == 0.0f) continue;
+    // Flipping sign of a score to be able to easily sort.
+    scores.emplace_back(-factor * iter->ComputeU() - iter->ComputeQ(), iter);
   }
 
   int first_unsorted_index = 0;
@@ -313,7 +323,8 @@ int Search::PrefetchIntoCache(Node* node, int budget,
     Node* n = scores[i].second;
     // Last node gets the same budget as prev-to-last node.
     if (i != scores.size() - 1) {
-      const float next_score = scores[i + 1].first;
+      // Sign of the score was flipped for sorting, flipping back.
+      const float next_score = -scores[i + 1].first;
       const float q = n->ComputeQ();
       if (next_score > q) {
         budget_to_spend = std::min(
@@ -334,11 +345,11 @@ namespace {
 // Returns a child with most visits.
 Node* GetBestChild(Node* parent) {
   Node* best_node = nullptr;
-  int best = -1;
+  std::pair<int, float> best(-1, 0.0);
   for (Node* node = parent->child; node; node = node->sibling) {
-    int n = node->n + node->n_in_flight;
-    if (n > best) {
-      best = n;
+    std::pair<int, float> val(node->n + node->n_in_flight, node->p);
+    if (val > best) {
+      best = val;
       best_node = node;
     }
   }
@@ -378,7 +389,7 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) {
       cache_->GetSize() * 1000LL / std::max(cache_->GetCapacity(), 1);
   uci_info_.nps =
       uci_info_.time ? (total_playouts_ * 1000 / uci_info_.time) : 0;
-  uci_info_.score = -191 * log(2 / (best_move_node_->q * 0.99 + 1) - 1);
+  uci_info_.score = 290.680623072 * tan(1.548090806 * best_move_node_->q);
   uci_info_.pv.clear();
 
   for (Node* iter = best_move_node_; iter; iter = GetBestChild(iter)) {
@@ -418,6 +429,7 @@ void Search::SendMovesStats() const {
     std::ostringstream oss;
     oss << std::fixed;
     oss << std::left << std::setw(5) << node->GetMoveAsWhite().as_string();
+    oss << " (" << std::setw(4) << node->move.as_nn_index() << ")";
     oss << " -> ";
     oss << std::right << std::setw(7) << node->n << " (+" << std::setw(2)
         << node->n_in_flight << ") ";
@@ -443,16 +455,26 @@ void Search::SendMovesStats() const {
 void Search::MaybeTriggerStop() {
   Mutex::Lock lock(counters_mutex_);
   SharedMutex::Lock nodes_lock(nodes_mutex_);
+  // Don't stop when the root node is not yet expanded.
+  if (total_playouts_ == 0) return;
+  // If smart pruning tells to stop (best move found), stop.
+  if (found_best_move_) {
+    stop_ = true;
+  }
+  // Stop if reached playouts limit.
   if (limits_.playouts >= 0 && total_playouts_ >= limits_.playouts) {
     stop_ = true;
   }
+  // Stop if reached visits limit.
   if (limits_.visits >= 0 &&
       total_playouts_ + initial_visits_ >= limits_.visits) {
     stop_ = true;
   }
+  // Stop if reached time limit.
   if (limits_.time_ms >= 0 && GetTimeSinceStart() >= limits_.time_ms) {
     stop_ = true;
   }
+  // If we are the first to see that stop is needed.
   if (stop_ && !responded_bestmove_) {
     SendUciInfo();
     if (kVerboseStats) SendMovesStats();
@@ -461,6 +483,44 @@ void Search::MaybeTriggerStop() {
     responded_bestmove_ = true;
     best_move_node_ = nullptr;
   }
+}
+
+void Search::UpdateRemainingMoves() {
+  if (!kSmartPruning) return;
+  SharedMutex::Lock lock(nodes_mutex_);
+  remaining_playouts_ = std::numeric_limits<int>::max();
+  // Check for how many playouts there is time remaining.
+  if (limits_.time_ms >= 0) {
+    auto time_since_start = GetTimeSinceStart();
+    if (time_since_start > kSmartPruningToleranceMs) {
+      auto nps = (1000LL * total_playouts_ + kSmartPruningToleranceNodes) /
+                     (time_since_start - kSmartPruningToleranceMs) +
+                 1;
+      int64_t remaining_time = limits_.time_ms - time_since_start;
+      int64_t remaining_playouts = remaining_time * nps / 1000;
+      // Don't assign directly to remaining_playouts_ as overflow is possible.
+      if (remaining_playouts < remaining_playouts_)
+        remaining_playouts_ = remaining_playouts;
+    }
+  }
+  // Check how many visits are left.
+  if (limits_.visits >= 0) {
+    // Adding kMiniBatchSize, as it's possible to exceed visits limit by that
+    // number.
+    auto remaining_visits =
+        limits_.visits - total_playouts_ - initial_visits_ + kMiniBatchSize;
+    if (remaining_visits < remaining_playouts_)
+      remaining_playouts_ = remaining_visits;
+  }
+  if (limits_.playouts >= 0) {
+    // Adding kMiniBatchSize, as it's possible to exceed visits limit by that
+    // number.
+    auto remaining_playouts = limits_.visits - total_playouts_ + kMiniBatchSize;
+    if (remaining_playouts < remaining_playouts_)
+      remaining_playouts_ = remaining_playouts;
+  }
+  // Even if we exceeded limits, don't go crazy by not allowing any playouts.
+  if (remaining_playouts_ <= 1) remaining_playouts_ = 1;
 }
 
 void Search::ExtendNode(Node* node) {
@@ -525,6 +585,16 @@ void Search::ExtendNode(Node* node) {
 }
 
 Node* Search::PickNodeToExtend(Node* node) {
+  // Fetch the current best root node visits for possible smart pruning.
+  int best_node_n = 0;
+  {
+    SharedMutex::Lock lock(nodes_mutex_);
+    if (best_move_node_)
+      best_node_n = best_move_node_->n + best_move_node_->n_in_flight;
+  }
+
+  // True on first iteration, false as we dive deeper.
+  bool is_root_node = true;
   while (true) {
     {
       SharedMutex::Lock lock(nodes_mutex_);
@@ -549,13 +619,39 @@ Node* Search::PickNodeToExtend(Node* node) {
     SharedMutex::SharedLock lock(nodes_mutex_);
     float factor = kCpuct * std::sqrt(std::max(node->n, 1u));
     float best = -100.0f;
+    int possible_moves = 0;
     for (Node* iter = node->child; iter; iter = iter->sibling) {
-      const float score = factor * iter->ComputeU() + iter->ComputeQ();
+      if (is_root_node) {
+        // If there's no chance to catch up the currently best node with
+        // remaining playouts, not consider it.
+        // best_move_node_ can change since best_node_n computation.
+        // To ensure we have at least one node to expand, always include
+        // current best node.
+        if (iter != best_move_node_ &&
+            remaining_playouts_ < best_node_n - static_cast<int>(iter->n) -
+                                      static_cast<int>(iter->n_in_flight)) {
+          continue;
+        }
+        ++possible_moves;
+      }
+      float Q = iter->ComputeQ();
+      if (kVirtualLossBug && iter->n == 0) {
+        Q = (Q * iter->parent->n - kVirtualLossBug) /
+            (iter->parent->n + std::fabs(kVirtualLossBug));
+      }
+      const float score = factor * iter->ComputeU() + Q;
       if (score > best) {
         best = score;
         node = iter;
       }
     }
+    if (is_root_node && possible_moves <= 1) {
+      // If there is only one move theoretically possible within remaining time,
+      // output it.
+      Mutex::Lock counters_lock(counters_mutex_);
+      found_best_move_ = true;
+    }
+    is_root_node = false;
   }
 }
 

@@ -18,9 +18,8 @@
 
 #include "selfplay/tournament.h"
 #include "mcts/search.h"
+#include "neural/factory.h"
 #include "neural/loader.h"
-#include "neural/network_mux.h"
-#include "neural/network_tf.h"
 #include "optionsparser.h"
 #include "selfplay/game.h"
 #include "utils/random.h"
@@ -31,8 +30,6 @@ namespace {
 const char* kShareTreesStr = "Share game trees for two players";
 const char* kTotalGamesStr = "Number of games to play";
 const char* kParallelGamesStr = "Number of games to play in parallel";
-const char* kGpuThreadsStr = "Number of GPU threads";
-const char* kMaxGpuBatchStr = "Maximum GPU batch size";
 const char* kThreadsStr = "Number of CPU threads for every game";
 const char* kNnCacheSizeStr = "NNCache size";
 const char* kNetFileStr = "Network weights file path";
@@ -40,6 +37,9 @@ const char* kPlayoutsStr = "Number of playouts per move to search";
 const char* kVisitsStr = "Number of visits per move to search";
 const char* kTimeMsStr = "Time per move, in milliseconds";
 const char* kTrainingStr = "Write training data";
+const char* kNnBackendStr = "NN backend to use";
+const char* kNnBackendOptionsStr = "NN backend parameters";
+
 // Value for network autodiscover.
 const char* kAutoDiscover = "<autodiscover>";
 
@@ -49,19 +49,20 @@ void SelfPlayTournament::PopulateOptions(OptionsParser* options) {
   options->AddContext("player1");
   options->AddContext("player2");
 
-  options->Add<CheckOption>(kShareTreesStr, "share-trees") = false;
-  options->Add<SpinOption>(kTotalGamesStr, -1, 999999, "games") = -1;
-  options->Add<SpinOption>(kParallelGamesStr, 1, 256, "parallelism") = 1;
-  options->Add<SpinOption>(kGpuThreadsStr, 1, 16, "gpu-threads") = 1;
-  options->Add<SpinOption>(kMaxGpuBatchStr, 1, 1024, "gpu-batch") = 128;
-  options->Add<SpinOption>(kThreadsStr, 1, 8, "threads", 't') = 1;
-  options->Add<SpinOption>(kNnCacheSizeStr, 0, 999999999, "nncache") = 200000;
+  options->Add<BoolOption>(kShareTreesStr, "share-trees") = false;
+  options->Add<IntOption>(kTotalGamesStr, -1, 999999, "games") = -1;
+  options->Add<IntOption>(kParallelGamesStr, 1, 256, "parallelism") = 1;
+  options->Add<IntOption>(kThreadsStr, 1, 8, "threads", 't') = 1;
+  options->Add<IntOption>(kNnCacheSizeStr, 0, 999999999, "nncache") = 200000;
   options->Add<StringOption>(kNetFileStr, "weights", 'w') = kAutoDiscover;
-  options->Add<SpinOption>(kNnCacheSizeStr, 0, 999999999, "nncache") = 200000;
-  options->Add<SpinOption>(kPlayoutsStr, -1, 999999999, "playouts", 'p') = -1;
-  options->Add<SpinOption>(kVisitsStr, -1, 999999999, "visits", 'v') = -1;
-  options->Add<SpinOption>(kTimeMsStr, -1, 999999999, "movetime") = -1;
-  options->Add<CheckOption>(kTrainingStr, "training") = false;
+  options->Add<IntOption>(kNnCacheSizeStr, 0, 999999999, "nncache") = 200000;
+  options->Add<IntOption>(kPlayoutsStr, -1, 999999999, "playouts", 'p') = -1;
+  options->Add<IntOption>(kVisitsStr, -1, 999999999, "visits", 'v') = -1;
+  options->Add<IntOption>(kTimeMsStr, -1, 999999999, "movetime") = -1;
+  options->Add<BoolOption>(kTrainingStr, "training") = false;
+  const auto backends = NetworkFactory::Get()->GetBackendsList();
+  options->Add<ChoiceOption>(kNnBackendStr, backends, "backend") = backends[0];
+  options->Add<StringOption>(kNnBackendOptionsStr, "backend-opts");
 
   Search::PopulateUciParams(options);
 }
@@ -84,8 +85,6 @@ SelfPlayTournament::SelfPlayTournament(const OptionsDict& options,
       kTotalGames(options.Get<int>(kTotalGamesStr)),
       kShareTree(options.Get<bool>(kShareTreesStr)),
       kParallelism(options.Get<int>(kParallelGamesStr)),
-      kGpuThreads(options.Get<int>(kGpuThreadsStr)),
-      kMaxGpuBatch(options.Get<int>(kMaxGpuBatchStr)),
       kTraining(options.Get<bool>(kTrainingStr)) {
   // If playing just one game, the player1 is white, otherwise randomize.
   if (kTotalGames != 1) {
@@ -96,26 +95,38 @@ SelfPlayTournament::SelfPlayTournament(const OptionsDict& options,
   static const char* kPlayerNames[2] = {"player1", "player2"};
   for (int idx : {0, 1}) {
     // If two players have the same network, no need to load two.
-    if (idx == 1 &&
-        options.GetSubdict("player1").Get<std::string>(kNetFileStr) ==
-            options.GetSubdict("player2").Get<std::string>(kNetFileStr)) {
-      networks_[1] = networks_[0];
-      break;
+    if (idx == 1) {
+      bool network_identical = true;
+      for (const auto& option_str :
+           {kNetFileStr, kNnBackendStr, kNnBackendOptionsStr}) {
+        if (options.GetSubdict("player1").Get<std::string>(option_str) !=
+            options.GetSubdict("player2").Get<std::string>(option_str)) {
+          network_identical = false;
+          break;
+        }
+      }
+      if (network_identical) {
+        networks_[1] = networks_[0];
+        break;
+      }
     }
+
     std::string path =
         options.GetSubdict(kPlayerNames[idx]).Get<std::string>(kNetFileStr);
     if (path == kAutoDiscover) {
       path = DiscoveryWeightsFile();
     }
     Weights weights = LoadWeightsFromFile(path);
-    auto network = MakeTensorflowNetwork(weights);
-    if (kParallelism == 1) {
-      // If one game will be run in parallel, no need to mux computations.
-      networks_[idx] = std::move(network);
-    } else {
-      networks_[idx] =
-          MakeMuxingNetwork(std::move(network), kGpuThreads, kMaxGpuBatch);
-    }
+    std::string backend =
+        options.GetSubdict(kPlayerNames[idx]).Get<std::string>(kNnBackendStr);
+    std::string backend_options = options.GetSubdict(kPlayerNames[idx])
+                                      .Get<std::string>(kNnBackendOptionsStr);
+
+    OptionsDict network_options = OptionsDict::FromString(
+        backend_options, &options.GetSubdict(kPlayerNames[idx]));
+
+    networks_[idx] =
+        NetworkFactory::Get()->Create(backend, weights, network_options);
   }
 
   // Initializing cache.
