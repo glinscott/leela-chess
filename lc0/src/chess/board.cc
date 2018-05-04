@@ -311,6 +311,8 @@ MoveList ChessBoard::GeneratePseudovalidMoves() const {
             }
           } else if (dst_row == 5 && pawns_.get(7, dst_col)) {
             // En passant.
+            // "Pawn" on opponent's file 8 means that en passant is possible.
+            // Those fake pawns are reset in ApplyMove.
             result.emplace_back(source, destination);
           }
         }
@@ -622,24 +624,22 @@ bool ChessBoard::HasMatingMaterial() const {
   int our = __builtin_popcountll(our_pieces_.as_int());
   int their = __builtin_popcountll(their_pieces_.as_int());
 #endif
-  if (our > 2 || their > 2) {
+  if (our + their < 4) {
+    // K v K, K+B v K, K+N v K.
+    return false;
+  }
+  if (!our_knights().empty() || !their_knights().empty()) {
     return true;
   }
 
-  if (our == 1 || their == 1) return false;
+  // Only kings and bishops remain.
 
-  bool odd_bishop = false;
-  bool even_bishop = false;
-  int bishop_count = 0;
-  for (auto x : bishops_) {
-    ++bishop_count;
-    if (x.as_int() % 2)
-      odd_bishop = true;
-    else
-      even_bishop = true;
-  }
-  if (bishop_count > 1 && (even_bishop != odd_bishop)) return false;
-  return true;
+  constexpr BitBoard kLightSquares(0x55AA55AA55AA55AAULL);
+  constexpr BitBoard kDarkSquares(0xAA55AA55AA55AA55ULL);
+
+  bool light_bishop = bishops_.intersects(kLightSquares);
+  bool dark_bishop = bishops_.intersects(kDarkSquares);
+  return light_bishop && dark_bishop;
 }
 
 string ChessBoard::DebugString() const {

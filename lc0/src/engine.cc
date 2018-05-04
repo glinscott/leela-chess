@@ -21,28 +21,29 @@
 
 #include "engine.h"
 #include "mcts/search.h"
+#include "neural/factory.h"
 #include "neural/loader.h"
-#include "neural/network_random.h"
-#include "neural/network_tf.h"
 
 namespace lczero {
 namespace {
 const int kDefaultThreads = 2;
 const char* kThreadsOption = "Number of worker threads";
+const char* kDebugLogStr = "Do debug logging into file";
+
+const char* kWeightsStr = "Network weights file path";
+const char* kNnBackendStr = "NN backend to use";
+const char* kNnBackendOptionsStr = "NN backend parameters";
 
 const char* kAutoDiscover = "<autodiscover>";
 
 SearchLimits PopulateSearchLimits(int ply, bool is_black,
                                   const GoParams& params) {
   SearchLimits limits;
-  limits.nodes = params.nodes;
+  limits.visits = params.nodes;
   limits.time_ms = params.movetime;
   int64_t time = (is_black ? params.btime : params.wtime);
   if (params.infinite || time < 0) return limits;
   int increment = std::max(int64_t(0), is_black ? params.binc : params.winc);
-
-  // During first few moves policy network is mostly fine, so don't search deep.
-  if (ply < 4 && (limits.nodes < 0 || limits.nodes > 400)) limits.nodes = 400;
 
   int movestogo = params.movestogo < 0 ? 50 : params.movestogo;
   limits.time_ms = (time + (increment * (movestogo - 1))) * 0.95 / movestogo;
@@ -53,39 +54,53 @@ SearchLimits PopulateSearchLimits(int ply, bool is_black,
 }  // namespace
 
 EngineController::EngineController(BestMoveInfo::Callback best_move_callback,
-                                   UciInfo::Callback info_callback)
-    : best_move_callback_(best_move_callback), info_callback_(info_callback) {}
+                                   ThinkingInfo::Callback info_callback,
+                                   const OptionsDict& options)
+    : options_(options),
+      best_move_callback_(best_move_callback),
+      info_callback_(info_callback) {}
 
-void EngineController::GetUciOptions(UciOptions* options) {
-  uci_options_ = options;
+void EngineController::PopulateOptions(OptionsParser* options) {
   using namespace std::placeholders;
-  options->Add(std::make_unique<StringOption>(
-      "Network weights file path", kAutoDiscover,
-      std::bind(&EngineController::SetNetworkPath, this, _1), "weights", 'w'));
 
-  options->Add(std::make_unique<SpinOption>(kThreadsOption, kDefaultThreads, 1,
-                                            128, std::function<void(int)>{},
-                                            "threads", 't'));
-  options->Add(std::make_unique<SpinOption>(
-      "NNCache size", 200000, 0, 999999999,
-      std::bind(&EngineController::SetCacheSize, this, _1)));
+  options->Add<StringOption>(kWeightsStr, "weights", 'w') = kAutoDiscover;
+  options->Add<IntOption>(kThreadsOption, 1, 128, "threads", 't') =
+      kDefaultThreads;
+  options->Add<IntOption>(
+      "NNCache size", 0, 999999999, "nncache", '\0',
+      std::bind(&EngineController::SetCacheSize, this, _1)) = 200000;
+
+  const auto backends = NetworkFactory::Get()->GetBackendsList();
+  options->Add<ChoiceOption>(kNnBackendStr, backends, "backend") = backends[0];
+  options->Add<StringOption>(kNnBackendOptionsStr, "backend-opts");
 
   Search::PopulateUciParams(options);
 }
 
-void EngineController::SetNetworkPath(const std::string& path) {
+void EngineController::UpdateNetwork() {
   SharedLock lock(busy_mutex_);
-  std::string net_path;
-  if (path == kAutoDiscover) {
-    net_path = DiscoveryWeightsFile(
-        uci_options_ ? uci_options_->GetProgramName() : ".");
-  } else {
-    net_path = path;
+  std::string network_path = options_.Get<std::string>(kWeightsStr);
+  std::string backend = options_.Get<std::string>(kNnBackendStr);
+  std::string backend_options = options_.Get<std::string>(kNnBackendOptionsStr);
+
+  if (network_path == network_path_ && backend == backend_ &&
+      backend_options == backend_options_)
+    return;
+
+  network_path_ = network_path;
+  backend_ = backend;
+  backend_options_ = backend_options;
+
+  std::string net_path = network_path;
+  if (net_path == kAutoDiscover) {
+    net_path = DiscoveryWeightsFile();
   }
   Weights weights = LoadWeightsFromFile(net_path);
-  // TODO Make backend selection.
-  network_ = MakeTensorflowNetwork(weights);
-  // network_ = MakeRandomNetwork();
+
+  OptionsDict network_options =
+      OptionsDict::FromString(backend_options, &options_);
+
+  network_ = NetworkFactory::Get()->Create(backend, weights, network_options);
 }
 
 void EngineController::SetCacheSize(int size) { cache_.SetCapacity(size); }
@@ -93,88 +108,105 @@ void EngineController::SetCacheSize(int size) { cache_.SetCapacity(size); }
 void EngineController::NewGame() {
   SharedLock lock(busy_mutex_);
   search_.reset();
-  node_pool_.reset();
-  current_head_ = nullptr;
-  gamebegin_node_ = nullptr;
-}
-
-void EngineController::MakeMove(Move move) {
-  if (current_head_->board.flipped()) move.Mirror();
-
-  Node* new_head = nullptr;
-  for (Node* n = current_head_->child; n; n = n->sibling) {
-    if (n->move == move) {
-      new_head = n;
-      break;
-    }
-  }
-  node_pool_->ReleaseAllChildrenExceptOne(current_head_, new_head);
-  if (!new_head) {
-    new_head = node_pool_->GetNode();
-    current_head_->child = new_head;
-    new_head->parent = current_head_;
-    new_head->board = current_head_->board;
-    const bool capture = new_head->board.ApplyMove(move);
-    new_head->board.Mirror();
-    new_head->ply_count = current_head_->ply_count + 1;
-    new_head->no_capture_ply = capture ? 0 : current_head_->no_capture_ply + 1;
-    new_head->repetitions = ComputeRepetitions(new_head);
-    new_head->move = move;
-  }
-  current_head_ = new_head;
+  tree_.reset();
+  UpdateNetwork();
 }
 
 void EngineController::SetPosition(const std::string& fen,
-                                   const std::vector<std::string>& moves) {
+                                   const std::vector<std::string>& moves_str) {
   SharedLock lock(busy_mutex_);
   search_.reset();
-  ChessBoard starting_board;
-  int no_capture_ply;
-  int full_moves;
-  starting_board.SetFromFen(fen, &no_capture_ply, &full_moves);
-
-  if (gamebegin_node_ && gamebegin_node_->board != starting_board) {
-    // Completely different position.
-    node_pool_.reset();
-    current_head_ = nullptr;
-    gamebegin_node_ = nullptr;
-  }
 
   if (!node_pool_) node_pool_ = std::make_unique<NodePool>();
+  if (!tree_) tree_ = std::make_unique<NodeTree>(node_pool_.get());
 
-  if (!gamebegin_node_) {
-    gamebegin_node_ = node_pool_->GetNode();
-    gamebegin_node_->board = starting_board;
-    gamebegin_node_->no_capture_ply = no_capture_ply;
-    gamebegin_node_->ply_count =
-        full_moves * 2 - (starting_board.flipped() ? 1 : 2);
-  }
-
-  current_head_ = gamebegin_node_;
-  for (const auto& move : moves) {
-    MakeMove(move);
-  }
-  node_pool_->ReleaseChildren(current_head_);
+  std::vector<Move> moves;
+  for (const auto& move : moves_str) moves.emplace_back(move);
+  tree_->ResetToPosition(fen, moves);
+  UpdateNetwork();
 }
 
 void EngineController::Go(const GoParams& params) {
-  if (!current_head_) {
+  if (!tree_) {
     SetPosition(ChessBoard::kStartingFen, {});
   }
 
-  auto limits = PopulateSearchLimits(current_head_->ply_count,
-                                     current_head_->board.flipped(), params);
+  auto limits = PopulateSearchLimits(tree_->GetPlyCount(),
+                                     tree_->IsBlackToMove(), params);
 
   search_ = std::make_unique<Search>(
-      current_head_, node_pool_.get(), network_.get(), best_move_callback_,
-      info_callback_, limits, uci_options_, &cache_);
+      tree_->GetCurrentHead(), tree_->GetNodePool(), network_.get(),
+      best_move_callback_, info_callback_, limits, options_, &cache_);
 
-  search_->StartThreads(uci_options_ ? uci_options_->GetIntValue(kThreadsOption)
-                                     : kDefaultThreads);
+  search_->StartThreads(options_.Get<int>(kThreadsOption));
 }
 
 void EngineController::Stop() {
   if (search_) search_->Stop();
 }
+
+EngineLoop::EngineLoop()
+    : engine_(std::bind(&UciLoop::SendBestMove, this, std::placeholders::_1),
+              std::bind(&UciLoop::SendInfo, this, std::placeholders::_1),
+              options_.GetOptionsDict()) {
+  engine_.PopulateOptions(&options_);
+  options_.Add<StringOption>(
+      kDebugLogStr, "debuglog", 'l',
+      [this](const std::string& filename) { SetLogFilename(filename); }) = "";
+}
+
+void EngineLoop::RunLoop() {
+  if (!options_.ProcessAllFlags()) return;
+  UciLoop::RunLoop();
+}
+
+void EngineLoop::CmdUci() {
+  SendResponse("id name The Lc0 chess engine.");
+  SendResponse("id author The LCZero Authors.");
+  for (const auto& option : options_.ListOptionsUci()) {
+    SendResponse(option);
+  }
+  SendResponse("uciok");
+}
+
+void EngineLoop::CmdIsReady() {
+  engine_.EnsureReady();
+  SendResponse("readyok");
+}
+
+void EngineLoop::CmdSetOption(const std::string& name, const std::string& value,
+                              const std::string& context) {
+  options_.SetOption(name, value);
+  if (options_sent_) {
+    options_.SendOption(name);
+  }
+}
+
+void EngineLoop::EnsureOptionsSent() {
+  if (!options_sent_) {
+    options_.SendAllOptions();
+    options_sent_ = true;
+  }
+}
+
+void EngineLoop::CmdUciNewGame() {
+  EnsureOptionsSent();
+  engine_.NewGame();
+}
+
+void EngineLoop::CmdPosition(const std::string& position,
+                             const std::vector<std::string>& moves) {
+  EnsureOptionsSent();
+  std::string fen = position;
+  if (fen.empty()) fen = ChessBoard::kStartingFen;
+  engine_.SetPosition(fen, moves);
+}
+
+void EngineLoop::CmdGo(const GoParams& params) {
+  EnsureOptionsSent();
+  engine_.Go(params);
+}
+
+void EngineLoop::CmdStop() { engine_.Stop(); }
 
 }  // namespace lczero

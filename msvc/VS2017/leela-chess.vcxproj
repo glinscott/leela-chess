@@ -19,7 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\CL\cl2.hpp" />
     <ClInclude Include="..\..\src\config.h" />
     <ClInclude Include="..\..\src\Misc.h" />
     <ClInclude Include="..\..\src\pgn.h" />
@@ -34,7 +33,9 @@
     <ClInclude Include="..\..\src\Position.h" />
     <ClInclude Include="..\..\src\Random.h" />
     <ClInclude Include="..\..\src\SMP.h" />
+    <ClInclude Include="..\..\src\syzygy\tbprobe.h" />
     <ClInclude Include="..\..\src\ThreadPool.h" />
+    <ClInclude Include="..\..\src\thread_win32.h" />
     <ClInclude Include="..\..\src\TimeMan.h" />
     <ClInclude Include="..\..\src\Timing.h" />
     <ClInclude Include="..\..\src\Training.h" />
@@ -46,7 +47,6 @@
     <ClInclude Include="..\..\src\Utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
     <ClCompile Include="..\..\src\Bitboard.cpp" />
     <ClCompile Include="..\..\src\main.cpp" />
     <ClCompile Include="..\..\src\Movegen.cpp" />
@@ -58,6 +58,7 @@
     <ClCompile Include="..\..\src\Position.cpp" />
     <ClCompile Include="..\..\src\Random.cpp" />
     <ClCompile Include="..\..\src\SMP.cpp" />
+    <ClCompile Include="..\..\src\syzygy\tbprobe.cpp" />
     <ClCompile Include="..\..\src\TimeMan.cpp" />
     <ClCompile Include="..\..\src\Timing.cpp" />
     <ClCompile Include="..\..\src\Training.cpp" />

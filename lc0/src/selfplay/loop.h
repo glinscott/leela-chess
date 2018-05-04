@@ -18,11 +18,33 @@
 
 #pragma once
 
-#include "neural/network.h"
+#include <thread>
+#include "optionsparser.h"
+#include "selfplay/tournament.h"
+#include "uciloop.h"
 
 namespace lczero {
 
-// Creates tensorflow based computing backend.
-std::unique_ptr<Network> MakeTensorflowNetwork(const Weights& weights);
+class SelfPlayLoop : public UciLoop {
+ public:
+  SelfPlayLoop();
+  ~SelfPlayLoop();
+
+  void RunLoop() override;
+  void CmdStart() override;
+  void CmdUci() override;
+  void CmdSetOption(const std::string& name, const std::string& value,
+                    const std::string& context) override;
+
+ private:
+  void SendGameInfo(const GameInfo& move);
+  void SendTournament(const TournamentInfo& info);
+
+  void EnsureOptionsSent();
+  OptionsParser options_;
+
+  std::unique_ptr<SelfPlayTournament> tournament_;
+  std::unique_ptr<std::thread> thread_;
+};
 
 }  // namespace lczero

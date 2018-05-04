@@ -241,11 +241,11 @@ void Training::dump_training(int game_score, OutputChunker& outchunk) {
             const auto& plane = step.planes.bit[p];
             // Write it out as a string of hex characters
             for (auto bit = size_t{0}; bit + 3 < plane.size(); bit += 4) {
-                auto hexbyte =  plane[bit]     << 3
-                              | plane[bit + 1] << 2
-                              | plane[bit + 2] << 1
-                              | plane[bit + 3] << 0;
-                out << std::hex << hexbyte;
+                auto hexdigit =  plane[bit]     << 3
+                               | plane[bit + 1] << 2
+                               | plane[bit + 2] << 1
+                               | plane[bit + 3] << 0;
+                out << std::hex << hexdigit;
             }
             assert(plane.size() % 4 == 0);
             out << std::dec << std::endl;

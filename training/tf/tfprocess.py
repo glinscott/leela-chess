@@ -233,6 +233,7 @@ class TFProcess:
                 speed))
             train_summaries = tf.Summary(value=[
                 tf.Summary.Value(tag="Policy Loss", simple_value=avg_policy_loss),
+                tf.Summary.Value(tag="Reg term", simple_value=avg_reg_term),
                 tf.Summary.Value(tag="MSE Loss", simple_value=avg_mse_loss)])
             self.train_writer.add_summary(train_summaries, steps)
             self.time_start = time_end
@@ -263,6 +264,8 @@ class TFProcess:
             self.test_writer.add_summary(test_summaries, steps)
             print("step {}, policy={:g} training accuracy={:g}%, mse={:g}".\
                 format(steps, sum_policy, sum_accuracy, sum_mse))
+
+        if steps % self.cfg['training']['total_steps'] == 0:
             path = os.path.join(self.root_dir, self.cfg['name'])
             save_path = self.saver.save(self.session, path, global_step=steps)
             print("Model saved in file: {}".format(save_path))

@@ -36,6 +36,7 @@
 #include "Training.h"
 #include "Movegen.h"
 #include "pgn.h"
+#include "syzygy/tbprobe.h"
 
 using namespace Utils;
 
@@ -56,40 +57,53 @@ static void license_blurb() {
 static std::string parse_commandline(int argc, char *argv[]) {
     namespace po = boost::program_options;
     // Declare the supported options.
-    po::options_description v_desc("Allowed options");
+    po::options_description v_desc("If you have further questions about what an option does, see "
+                                   "the project wiki:\n"
+                                   "https://github.com/glinscott/leela-chess/wiki\n\n"
+                                   "For non-deterministic play that retains strength, use "
+                                   "'--noise' or '--tempdecay 10'.\n\n"
+                                   "Allowed options");
     v_desc.add_options()
         ("help,h", "Show commandline options.")
         ("threads,t", po::value<int>()->default_value
                       (std::min(cfg_num_threads, cfg_max_threads)),
                       "Number of threads to use.")
         ("playouts,p", po::value<int>(),
-                       "Weaken engine by limiting the number of playouts. "
-                       "Requires --noponder.")
+                       "Weaken engine by limiting the number of playouts. ")
         ("visits,v", po::value<int>(),
                        "Weaken engine by limiting the number of visits.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
                        "Resign when winrate is less than x%.")
-        ("noise,n", "Apply dirichlet noise to root.")
-        ("randomize,m", "Randomize move selection at root.")
+        ("noise,n", "Before search begins, add Dirichlet noise to the root node policy's move "
+                    "probabilities.")
+        ("randomize,m", "After search is complete, select from the moves in proportion to "
+                        "their relative values (rather than 'best only').")
         ("tempdecay,d", po::value<int>(),
-                       "Use decay schedule for move selection temperature.")
+                       "After search is complete, sometimes pick weaker moves for variety. "
+                       "Larger tempdecay values will do this less often, and the effect "
+                       "is reduced for moves later in the game. `0` is equivalent to "
+                       "--randomize and results in more random moves. This is used by "
+                       "self-play games to explore new moves. `10` is a reasonable value, "
+                       "and is used by test matches on the server for variety.")
         ("seed,s", po::value<std::uint64_t>(),
                    "Random number generation seed.")
         ("weights,w", po::value<std::string>(), "File with network weights.")
+        ("syzygypath,e", po::value<std::string>(), "Folder with syzygy endgame tablebases.")
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
-        ("noponder", "Disable thinking on opponent's time.")
-        ("uci", "Don't initialize the engine until \"isready\" command is sent. Use this if your GUI is freezing on startup.")
+        ("uci", "Don't initialize the engine until \"isready\" command is sent. Use this if your "
+                "GUI is freezing on startup.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
         ("supervise", po::value<std::string>(), "Dump supervised learning data from the pgn.")
+#ifdef USE_OPENCL
         ("gpu",  po::value<std::vector<int> >(),
                 "ID of the OpenCL device(s) to use (disables autodetection).")
-#ifdef USE_OPENCL
         ("full-tuner", "Try harder to find an optimal OpenCL tuning.")
         ("tune-only", "Tune OpenCL only and then exit.")
 #endif
 #ifdef USE_TUNER
         ("puct", po::value<float>())
+        ("fpu_reduction", po::value<float>())
         ("softmax_temp", po::value<float>())
 #endif
         ;
@@ -139,6 +153,9 @@ static std::string parse_commandline(int argc, char *argv[]) {
     if (vm.count("puct")) {
         cfg_puct = vm["puct"].as<float>();
     }
+    if (vm.count("fpu_reduction")) {
+        cfg_fpu_reduction = vm["fpu_reduction"].as<float>();
+    }
     if (vm.count("softmax_temp")) {
         cfg_softmax_temp = vm["softmax_temp"].as<float>();
     }
@@ -160,6 +177,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
         cfg_weightsfile = "weights.txt";
     }
 
+    if (vm.count("syzygypath")) {
+        cfg_syzygypath = vm["syzygypath"].as<std::string>();        
+    }
+
     if (vm.count("threads")) {
         int num_threads = vm["threads"].as<int>();
         if (num_threads > cfg_max_threads) {
@@ -169,7 +190,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
             myprintf("Using %d thread(s).\n", num_threads);
             cfg_num_threads = num_threads;
         }
-        
+
     }
 
     if (vm.count("seed")) {
@@ -375,6 +396,7 @@ int main(int argc, char* argv[]) {
       return 0;
   }
 
+  Tablebases::init(cfg_syzygypath);
   UCI::init(Options);
   UCI::loop(uci_start);
 
