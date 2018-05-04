@@ -130,13 +130,13 @@ model:
 The configuration is pretty self explanatory, if you're new to training I suggest looking at the [machine learning glossary](https://developers.google.com/machine-learning/glossary/) by google. Now you can invoke training with the following command:
 
 ```bash
-./train --cfg configs/example.yaml --output /tmp/mymodel.txt
+./train.py --cfg configs/example.yaml --output /tmp/mymodel.txt
 ```
 
 This will initialize the pipeline and start training a new neural network. You can view progress by invoking tensorboard:
 
 ```bash
-tensorboard --logdir=leelalogs
+tensorboard --logdir leelalogs
 ```
 
 If you now point your browser at localhost:6006 you'll see the trainingprogress as the trainingsteps pass by. Have fun!
