@@ -72,6 +72,8 @@ static std::string parse_commandline(int argc, char *argv[]) {
                        "Weaken engine by limiting the number of playouts. ")
         ("visits,v", po::value<int>(),
                        "Weaken engine by limiting the number of visits.")
+        ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
+                       "Resign when winrate is less than x%.")
         ("noise,n", "Before search begins, add Dirichlet noise to the root node policy's move "
                     "probabilities.")
         ("randomize,m", "After search is complete, select from the moves in proportion to "
