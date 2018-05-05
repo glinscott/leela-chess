@@ -25,6 +25,7 @@
 #include <string>
 #include <mutex>
 #include <thread>
+#include <future>
 
 #include "Movegen.h"
 #include "Parameters.h"
@@ -41,6 +42,18 @@ using namespace std;
 using namespace Utils;
 
 namespace {
+
+  // for async network initialization in UCI::loop()
+
+  int net_init() {
+
+    if (!cfg_noinitialize)
+    {
+       Network::initialize();
+    }
+
+    return 0;
+  }
 
   // position() is called when engine receives the "position" UCI command.
   // The function sets up the position described in the given FEN string ("fen")
@@ -294,6 +307,9 @@ uint64_t UCI::perft(BoardHistory& bh, Depth depth) {
 /// In addition to the UCI ones, also some additional debug commands are supported.
 
 void UCI::loop(const std::string& start) {
+
+  auto netinit = std::async(std::launch::async, net_init); // async network initialization
+  int wait_init = 1; // wait for net_init only once, since we may receive "isready" at any time
   string token, cmd = start;
   BoardHistory bh;
   bh.set(Position::StartFEN);
@@ -382,7 +398,10 @@ void UCI::loop(const std::string& start) {
           Training::clear_training();
       }
       else if (token == "isready") {
-          Network::initialize();
+          if (wait_init)
+          {
+          wait_init = netinit.get(); // wait for network initialization
+          }
           myprintf_so("readyok\n"); //"readyok" can be sent also when the engine is calculating
       }
       // Additional custom non-UCI commands, mainly for debugging
