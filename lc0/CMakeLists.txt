@@ -70,6 +70,7 @@ set (SOURCES
   src/mcts/node.cc
   src/mcts/search.cc
   src/neural/cache.cc
+  src/neural/network_cudnn.cu
   src/neural/factory.cc
   src/neural/loader.cc
   src/neural/writer.cc
