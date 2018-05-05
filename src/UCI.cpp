@@ -360,7 +360,8 @@ void UCI::loop(const std::string& start) {
               Move move = search.think(std::move(bhc));
               std::lock_guard<std::mutex> l(bh_mutex); //synchronizing with uci loop board history
 
-              bh.do_move(move);
+              if (move != MOVE_NULL && move != MOVE_NONE)  //Can happen if we were given a finished game position
+                bh.do_move(move);
               myprintf_so("bestmove %s\n", UCI::move(move).c_str());
           });
       }
