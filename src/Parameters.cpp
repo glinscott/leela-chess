@@ -73,7 +73,7 @@ bool cfg_quiet;
 bool cfg_go_nodes_as_playouts;
 
 void Parameters::setup_default_parameters() {
-    cfg_allow_pondering = true;
+    cfg_allow_pondering = false;
     cfg_noinitialize = false;
     int num_cpus = std::thread::hardware_concurrency();
     cfg_max_threads = std::max(1, std::min(num_cpus, MAX_CPUS));
