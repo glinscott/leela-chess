@@ -145,8 +145,8 @@ namespace {
   // Return the score from the self-play game.
   // Precondition: bh.cur() is not a terminal position.
   int play_one_game(BoardHistory& bh) {
-    auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
     for (int game_ply = 0; game_ply < 450; ++game_ply) {
+      auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
       Limits.startTime = now();
       Move move = search->think(bh.shallow_clone());
 
