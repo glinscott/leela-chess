@@ -216,10 +216,6 @@ static std::string parse_commandline(int argc, char *argv[]) {
         myprintf("RNG seed from cli: %llu\n", cfg_rng_seed);
     }
 
-    if (vm.count("noponder")) {
-        cfg_allow_pondering = false;
-    }
-
     if (vm.count("uci")) {
         cfg_noinitialize = true;
     }
@@ -248,12 +244,6 @@ static std::string parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("playouts")) {
         cfg_max_playouts = vm["playouts"].as<int>();
-        if (!vm.count("noponder")) {
-            myprintf("Nonsensical options: Playouts are restricted but "
-                     "thinking on the opponent's time is still allowed. "
-                     "Add --noponder if you want a weakened engine.\n");
-            exit(EXIT_FAILURE);
-        }
         if (!vm.count("visits") && !vm.count("nodes")) {
             // If the user specifies playouts they probably
             // do not want the default 800 nodes.
