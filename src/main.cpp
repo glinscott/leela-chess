@@ -70,8 +70,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
                       "Number of threads to use.")
         ("playouts,p", po::value<int>(),
                        "Weaken engine by limiting the number of playouts. ")
-        ("visits,v", po::value<int>(),
-                       "Weaken engine by limiting the number of visits.")
+        ("nodes,v", po::value<int>(),
+                       "Weaken engine by limiting the number of nodes in the tree.")
+        ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
+                       "Resign when winrate is less than x%.")
         ("noise,n", "Before search begins, add Dirichlet noise to the root node policy's move "
                     "probabilities.")
         ("randomize,m", "After search is complete, select from the moves in proportion to "
@@ -109,7 +111,10 @@ static std::string parse_commandline(int argc, char *argv[]) {
     // command line.
     po::options_description h_desc("Hidden options");
     h_desc.add_options()
-        ("arguments", po::value<std::vector<std::string>>());
+        ("arguments", po::value<std::vector<std::string>>())
+        ("visits", po::value<int>(),
+                     "Weaken engine by limiting the number of visits. This spelling is deprecated.")
+        ;
     // Parse both the above, we will check if any of the latter are present.
     po::options_description all("All options");
     all.add(v_desc).add(h_desc);
@@ -176,7 +181,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
     }
 
     if (vm.count("syzygypath")) {
-        cfg_syzygypath = vm["syzygypath"].as<std::string>();        
+        cfg_syzygypath = vm["syzygypath"].as<std::string>();
     }
 
     if (vm.count("threads")) {
@@ -249,15 +254,19 @@ static std::string parse_commandline(int argc, char *argv[]) {
                      "Add --noponder if you want a weakened engine.\n");
             exit(EXIT_FAILURE);
         }
-        if (!vm.count("visits")) {
+        if (!vm.count("visits") && !vm.count("nodes")) {
             // If the user specifies playouts they probably
-            // do not want the default 800 visits.
-            cfg_max_visits = MAXINT_DIV2;
+            // do not want the default 800 nodes.
+            cfg_max_nodes = MAXINT_DIV2;
         }
     }
 
     if (vm.count("visits")) {
-        cfg_max_visits = vm["visits"].as<int>();
+        cfg_max_nodes = vm["visits"].as<int>();
+    }
+    // let deprecated spelling be overwritten by new/correct spelling
+    if (vm.count("nodes")) {
+        cfg_max_nodes = vm["nodes"].as<int>();
     }
 
     if (vm.count("resignpct")) {

@@ -51,7 +51,7 @@ LimitsType Limits;
 UCTSearch::UCTSearch(BoardHistory&& bh)
     : bh_(std::move(bh)) {
     set_playout_limit(cfg_max_playouts);
-    set_visit_limit(cfg_max_visits);
+    set_node_limit(cfg_max_nodes);
     m_root = std::make_unique<UCTNode>(MOVE_NONE, 0.0f, 0.5f);
 }
 
@@ -296,7 +296,7 @@ int UCTSearch::est_playouts_left() const {
         // No time control, use playouts or visits.
         const auto playouts_left =
                 std::max(0, std::min(m_maxplayouts - playouts,
-                                     m_maxvisits - m_root->get_visits()));
+                                     m_maxnodes - m_root->get_visits()));
         return playouts_left;
     } else if (elapsed_millis < 1000 || playouts < 100) {
         // Until we reach 1 second or 100 playouts playout_rate
@@ -363,7 +363,7 @@ bool UCTSearch::have_alternate_moves() {
 
 bool UCTSearch::pv_limit_reached() const {
     return m_playouts >= m_maxplayouts
-        || m_root->get_visits() >= m_maxvisits;
+        || m_root->get_visits() >= m_maxnodes;
 }
 
 void UCTWorker::operator()() {
@@ -435,6 +435,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         Position cur_pos = bh_.cur();
         if (Tablebases::root_probe(cur_pos, m_root->get_children()) || Tablebases::root_probe_wdl(cur_pos, m_root->get_children())) {
             for (const auto& node : m_root->get_children()) {
+                m_tbhits++;
                 if (!node->active()) {
                     m_tbpruned.insert((int)node->get_move());
                 }
@@ -554,13 +555,13 @@ void UCTSearch::set_playout_limit(int playouts) {
     }
 }
 
-void UCTSearch::set_visit_limit(int visits) {
-    static_assert(std::is_convertible<decltype(visits), decltype(m_maxvisits)>::value, "Inconsistent types for visits amount.");
-    if (visits == 0) {
+void UCTSearch::set_node_limit(int nodes) {
+    static_assert(std::is_convertible<decltype(nodes), decltype(m_maxnodes)>::value, "Inconsistent types for nodes amount.");
+    if (nodes == 0) {
         // Divide max by 2 to prevent overflow when multithreading.
-        m_maxvisits = MAXINT_DIV2;
+        m_maxnodes = MAXINT_DIV2;
     } else {
-        m_maxvisits = visits;
+        m_maxnodes = nodes;
     }
 }
 
