@@ -56,7 +56,6 @@ void SelfPlayTournament::PopulateOptions(OptionsParser* options) {
   options->Add<IntOption>(kThreadsStr, 1, 8, "threads", 't') = 1;
   options->Add<IntOption>(kNnCacheSizeStr, 0, 999999999, "nncache") = 200000;
   options->Add<StringOption>(kNetFileStr, "weights", 'w') = kAutoDiscover;
-  options->Add<IntOption>(kNnCacheSizeStr, 0, 999999999, "nncache") = 200000;
   options->Add<IntOption>(kPlayoutsStr, -1, 999999999, "playouts", 'p') = -1;
   options->Add<IntOption>(kVisitsStr, -1, 999999999, "visits", 'v') = -1;
   options->Add<IntOption>(kTimeMsStr, -1, 999999999, "movetime") = -1;
@@ -163,7 +162,8 @@ void SelfPlayTournament::PlayOneGame(int game_number) {
 
   PlayerOptions options[2];
 
-  ThinkingInfo last_thinking_info = {-1};
+  ThinkingInfo last_thinking_info;
+  last_thinking_info.depth = -1;
   for (int pl_idx : {0, 1}) {
     const bool verbose_thinking =
         player_options_[pl_idx].Get<bool>(kVerboseThinkingStr);
