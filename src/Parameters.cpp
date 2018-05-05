@@ -104,7 +104,7 @@ void Parameters::setup_default_parameters() {
     cfg_rng_seed = 0;
     cfg_weightsfile = "weights.txt";
     cfg_syzygypath = "syzygy";
-    cfg_syzygydraw = false;
+    cfg_syzygydraw = true;
     cfg_go_nodes_as_visits = true;
 }
 
