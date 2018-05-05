@@ -97,7 +97,7 @@ namespace {
       Limits = LimitsType();
       std::string token;
 
-      search.set_visit_limit(cfg_max_visits);
+      search.set_node_limit(cfg_max_nodes);
       search.set_playout_limit(cfg_max_playouts);
 
       while (is >> token) {
@@ -110,12 +110,12 @@ namespace {
           else if (token == "nodes")     {
               is >> Limits.nodes;
 
-              if (cfg_go_nodes_as_visits) {
-                  search.set_visit_limit(static_cast<int>(Limits.nodes));
-                  search.set_playout_limit(MAXINT_DIV2);
-              } else {
+              if (cfg_go_nodes_as_playouts) {
                   search.set_playout_limit(static_cast<int>(Limits.nodes));
-                  search.set_visit_limit(MAXINT_DIV2);
+                  search.set_node_limit(MAXINT_DIV2);
+              } else {
+                  search.set_node_limit(static_cast<int>(Limits.nodes));
+                  search.set_playout_limit(MAXINT_DIV2);
               }
           }
           else if (token == "movetime")  is >> Limits.movetime;
@@ -142,10 +142,22 @@ namespace {
     myprintf_so("%s", options.str().c_str());
   }
 
-  // Return the score from the self-play game
+  // Return the score from the self-play game.
+  // Precondition: bh.cur() is not a terminal position.
   int play_one_game(BoardHistory& bh) {
     auto search = std::make_unique<UCTSearch>(bh.shallow_clone());
     for (int game_ply = 0; game_ply < 450; ++game_ply) {
+      Limits.startTime = now();
+      Move move = search->think(bh.shallow_clone());
+
+      if (move != MOVE_NONE) {
+        myprintf_so("move played %s\n", UCI::move(move).c_str());
+        bh.do_move(move);
+      } else {
+        // Resign - so whoever is current, has lost.
+        return bh.cur().side_to_move() == WHITE ? -1 : 1;
+      }
+      // Check if new position is terminal.
       if (bh.cur().is_draw()) {
         return 0;
       }
@@ -159,11 +171,6 @@ namespace {
           return 0;
         }
       }
-      Limits.startTime = now();
-      Move move = search->think(bh.shallow_clone());
-
-      myprintf_so("move played %s\n", UCI::move(move).c_str());
-      bh.do_move(move);
     }
 
     // Game termination as draw
@@ -352,7 +359,8 @@ void UCI::loop(const std::string& start) {
               Move move = search.think(std::move(bhc));
               std::lock_guard<std::mutex> l(bh_mutex); //synchronizing with uci loop board history
 
-              bh.do_move(move);
+              if (move != MOVE_NULL && move != MOVE_NONE)  //Can happen if we were given a finished game position
+                bh.do_move(move);
               myprintf_so("bestmove %s\n", UCI::move(move).c_str());
           });
       }

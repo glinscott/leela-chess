@@ -600,10 +600,6 @@ func getProgress() ([]gin.H, error) {
 		var sprt string = "???"
 		var best bool = false
 		for matchIdx < len(matches) && matches[matchIdx].CandidateID == network.ID {
-			if matches[matchIdx].TestOnly {
-				matchIdx += 1
-				continue
-			}
 			matchElo := calcElo(matches[matchIdx].Wins, matches[matchIdx].Losses, matches[matchIdx].Draws)
 			if matches[matchIdx].Done {
 				if matches[matchIdx].Passed {
@@ -621,7 +617,7 @@ func getProgress() ([]gin.H, error) {
 				"sprt":   sprt,
 				"id":     network.ID,
 			})
-			if matches[matchIdx].Passed {
+			if !matches[matchIdx].TestOnly && matches[matchIdx].Passed {
 				elo += matchElo
 			}
 			matchIdx += 1

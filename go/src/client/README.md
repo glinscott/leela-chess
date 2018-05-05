@@ -10,7 +10,10 @@ Here, I've set my system install of go as the first entry, and then the leela-ch
 
 Pre-reqs:
 ```
-go get -u github.com/notnil/chess
+# (Bug workaround, using Tilps instead)
+# go get -u github.com/notnil/chess
+go get -u github.com/Tilps/chess
+
 ```
 
 Then you just need to `go build`, and it should produce a `client` executable.
