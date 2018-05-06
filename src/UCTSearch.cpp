@@ -309,7 +309,7 @@ size_t UCTSearch::prune_noncontenders() {
         Nfirst = std::max(Nfirst, node->get_visits());
     }
     const auto min_required_visits =
-        1.2*(Nfirst - est_playouts_left());
+        1.1*(Nfirst - est_playouts_left());
     auto pruned_nodes = size_t{0};
     for (const auto& node : m_root->get_children()) {
         const auto has_enough_visits =
