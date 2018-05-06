@@ -54,6 +54,10 @@ int cfg_timemanage;
 int cfg_slowmover;
 int cfg_min_resign_moves;
 int cfg_root_temp_decay;
+// Don't pick any moves with less than this proportion of visits
+float cfg_rand_visit_floor;
+// Don't pick any moves with eval this much worst than the top move
+float cfg_rand_eval_maxdiff;
 uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
 std::vector<int> cfg_gpus;
@@ -92,6 +96,10 @@ void Parameters::setup_default_parameters() {
     cfg_fpu_reduction = 0.1f;
     cfg_fpu_dynamic_eval = true;
     cfg_root_temp_decay = 0;
+    //cfg_rand_visit_floor = 0.01f;
+    cfg_rand_visit_floor = 0.0f;  // Disable for now
+    //cfg_rand_eval_maxdiff = 0.05f;
+    cfg_rand_eval_maxdiff = 1.0f; // Disable for now by allowing large diffs
     cfg_min_resign_moves = 20;
     cfg_resignpct = -1;
     cfg_noise = false;
