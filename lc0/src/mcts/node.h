@@ -21,8 +21,8 @@
 #include <memory>
 #include <mutex>
 #include "chess/board.h"
+#include "chess/position.h"
 #include "mcts/callbacks.h"
-#include "neural/network.h"
 #include "neural/writer.h"
 #include "utils/mutex.h"
 
@@ -31,16 +31,15 @@ namespace lczero {
 // TODO(mooskagh) That's too large to be a POD struct. Make it a class with
 // proper encapsulation.
 struct Node {
+  // Allocates a new node and adds it to front of the children list.
+  Node* CreateChild(Move m);
   float ComputeQ() const { return n ? q : -parent->q; }
   // Returns U / (Puct * N[parent])
   float ComputeU() const { return p / (1 + n + n_in_flight); }
-  // Encodes the node for neural network request.
-  InputPlanes EncodeForNN() const;
-  V3TrainingData GetV3TrainingData(GameInfo::GameResult result) const;
-  int ComputeRepetitions();
-  uint64_t BoardHash() const;
-  // Returns move from white's point of view (not flipped for black).
-  Move GetMoveAsWhite() const;
+  V3TrainingData GetV3TrainingData(GameResult result,
+                                   const PositionHistory& history) const;
+  // Returns move, with optional flip.
+  Move GetMove(bool flip) const;
   std::string DebugString() const;
   void ResetStats();
 
@@ -48,21 +47,7 @@ struct Node {
   // i.e. black's e7e5 is stored as e2e4.
   // Root node contains move a1a1.
   Move move;
-  // The board from the point of view of the player to move.
-  ChessBoard board;
-  // How many half-moves without capture or pawn move was there.
-  std::uint8_t no_capture_ply;
-  // How many repetitions this position had before. For new positions it's 0.
-  std::uint8_t repetitions;
-  // number of half-moves since beginning of the game.
-  std::uint16_t ply_count;
 
-  // (aka virtual loss). How many threads currently process this node (started
-  // but not finished). This value is added to n during selection which node
-  // to pick in MCTS, and also when selecting the best move.
-  uint32_t n_in_flight;
-  // How many completed visits this node had.
-  uint32_t n;
   // Q value fetched from neural network.
   float v;
   // Average value (from value head of neural network) of all visited nodes in
@@ -75,6 +60,12 @@ struct Node {
   // Probabality that this move will be made. From policy head of the neural
   // network.
   float p;
+  // How many completed visits this node had.
+  uint32_t n;
+  // (aka virtual loss). How many threads currently process this node (started
+  // but not finished). This value is added to n during selection which node
+  // to pick in MCTS, and also when selecting the best move.
+  uint16_t n_in_flight;
 
   // Maximum depth any subnodes of this node were looked at.
   uint16_t max_depth;
@@ -91,65 +82,25 @@ struct Node {
   Node* sibling;
 };
 
-class NodePool;
 class NodeTree {
  public:
-  NodeTree(NodePool* node_pool) : node_pool_(node_pool) {}
   ~NodeTree() { DeallocateTree(); }
   // Adds a move to current_head_;
   void MakeMove(Move move);
   // Sets the position in a tree, trying to reuse the tree.
   void ResetToPosition(const std::string& starting_fen,
                        const std::vector<Move>& moves);
-  int GetPlyCount() const { return current_head_->ply_count; }
-  bool IsBlackToMove() const { return current_head_->board.flipped(); }
+  const Position& HeadPosition() const { return history_.Last(); }
+  int GetPlyCount() const { return HeadPosition().GetGamePly(); }
+  bool IsBlackToMove() const { return HeadPosition().IsBlackToMove(); }
   Node* GetCurrentHead() const { return current_head_; }
   Node* GetGameBeginNode() const { return gamebegin_node_; }
-  NodePool* GetNodePool() const { return node_pool_; }
+  const PositionHistory& GetPositionHistory() const { return history_; }
 
  private:
   void DeallocateTree();
   Node* current_head_ = nullptr;
   Node* gamebegin_node_ = nullptr;
-  NodePool* node_pool_ = nullptr;
+  PositionHistory history_;
 };
-
-class NodePool {
- public:
-  // Allocates a new node and initializes it with all zeros.
-  Node* AllocateNode();
-  // Return node to the pool.
-  void ReleaseNode(Node*);
-
-  // TODO(mooskagh) All releasesubtree funcitons really belong to NodeTree,
-  //                move them there.
-  // Releases all children of the node, except specified. Also updates pointers
-  // accordingly.
-  void ReleaseAllChildrenExceptOne(Node* root, Node* subtree);
-  // Releases all children, but doesn't release the node isself.
-  void ReleaseChildren(Node*);
-  // Releases all children and the node itself;
-  void ReleaseSubtree(Node*);
-
- private:
-  void AllocateNewBatch();
-
-  union FreeNode {
-    FreeNode* next;
-    Node node;
-
-    FreeNode() {}
-  };
-
-  mutable Mutex mutex_;
-  // Linked list of free nodes.
-  FreeNode* free_list_ GUARDED_BY(mutex_) = nullptr;
-
-  // Mutex for slow but rare operations.
-  mutable Mutex allocations_mutex_ ACQUIRED_AFTER(mutex_);
-  FreeNode* reserve_list_ GUARDED_BY(allocations_mutex_) = nullptr;
-  std::vector<std::unique_ptr<FreeNode[]>> allocations_
-      GUARDED_BY(allocations_mutex_);
-};
-
 }  // namespace lczero

@@ -28,7 +28,7 @@ deps += cc.find_library('stdc++fs')
 deps += cc.find_library('libcublas', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
 deps += cc.find_library('libcudnn', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
 deps += cc.find_library('libcudart', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
-# deps += dependency('libprofiler')
+# deps += cc.find_library('libprofiler', dirs: ['/usr/local/lib'])
 
 nvcc = find_program('nvcc')
 cuda_files = [
@@ -43,9 +43,11 @@ cuda_gen = generator(nvcc,
 files = [
   'src/chess/bitboard.cc',
   'src/chess/board.cc',
+  'src/chess/position.cc',
   'src/mcts/node.cc',
   'src/mcts/search.cc',
   'src/neural/cache.cc',
+  'src/neural/encoder.cc',
   'src/neural/factory.cc',
   'src/neural/loader.cc',
   'src/neural/writer.cc',

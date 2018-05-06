@@ -23,236 +23,57 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include "neural/encoder.h"
+#include "neural/network.h"
 #include "utils/hashcat.h"
 
 namespace lczero {
 
-uint64_t Node::BoardHash() const {
-  // return board.Hash();
-  return HashCat({board.Hash(), no_capture_ply, repetitions});
-}
-
-void Node::ResetStats() {
-  n_in_flight = 0;
-  n = 0;
-  v = 0.0;
-  q = 0.0;
-  w = 0.0;
-  p = 0.0;
-  max_depth = 0;
-  full_depth = 0;
-  is_terminal = 0;
-}
-
-std::string Node::DebugString() const {
-  std::ostringstream oss;
-  oss << "Move: " << move.as_string() << "\n"
-      << board.DebugString() << "Term:" << is_terminal << " This:" << this
-      << " Parent:" << parent << " child:" << child << " sibling:" << sibling
-      << " P:" << p << " Q:" << q << " W:" << w << " N:" << n
-      << " N_:" << n_in_flight << " Rep:" << (int)repetitions;
-  return oss.str();
-}
-
-int Node::ComputeRepetitions() {
-  // TODO(crem) implement some sort of caching.
-  if (no_capture_ply < 2) return 0;
-
-  const Node* node = this;
-  while (true) {
-    node = node->parent;
-    if (!node) break;
-    node = node->parent;
-    if (!node) break;
-
-    if (node->board == board) {
-      return 1 + node->repetitions;
-    }
-    if (node->no_capture_ply < 2) return 0;
-  }
-  return 0;
-}
-
-Move Node::GetMoveAsWhite() const {
-  Move m = move;
-  if (!board.flipped()) m.Mirror();
-  return m;
-}
-
-namespace {
-const int kMoveHistory = 8;
-const int kPlanesPerBoard = 13;
-const int kAuxPlaneBase = kPlanesPerBoard * kMoveHistory;
-}  // namespace
-
-InputPlanes Node::EncodeForNN() const {
-  InputPlanes result(kAuxPlaneBase + 8);
-
-  const bool we_are_black = board.flipped();
-  if (board.castlings().we_can_000()) result[kAuxPlaneBase + 0].SetAll();
-  if (board.castlings().we_can_00()) result[kAuxPlaneBase + 1].SetAll();
-  if (board.castlings().they_can_000()) result[kAuxPlaneBase + 2].SetAll();
-  if (board.castlings().they_can_00()) result[kAuxPlaneBase + 3].SetAll();
-  if (we_are_black) result[kAuxPlaneBase + 4].SetAll();
-  result[kAuxPlaneBase + 5].Fill(no_capture_ply);
-
-  const Node* node = this;
-  bool flip = false;
-  for (int i = 0; i < kMoveHistory; ++i, flip = !flip) {
-    if (!node) break;
-    ChessBoard board = node->board;
-    if (flip) board.Mirror();
-
-    const int base = i * kPlanesPerBoard;
-    result[base + 0].mask = (board.ours() * board.pawns()).as_int();
-    result[base + 1].mask = (board.our_knights()).as_int();
-    result[base + 2].mask = (board.ours() * board.bishops()).as_int();
-    result[base + 3].mask = (board.ours() * board.rooks()).as_int();
-    result[base + 4].mask = (board.ours() * board.queens()).as_int();
-    result[base + 5].mask = (board.our_king()).as_int();
-
-    result[base + 6].mask = (board.theirs() * board.pawns()).as_int();
-    result[base + 7].mask = (board.their_knights()).as_int();
-    result[base + 8].mask = (board.theirs() * board.bishops()).as_int();
-    result[base + 9].mask = (board.theirs() * board.rooks()).as_int();
-    result[base + 10].mask = (board.theirs() * board.queens()).as_int();
-    result[base + 11].mask = (board.their_king()).as_int();
-
-    const int repetitions = node->repetitions;
-    if (repetitions >= 1) result[base + 12].SetAll();
-
-    node = node->parent;
-  }
-
-  return result;
-}
-
-namespace {
-// Reverse bits in every byte of a number
-uint64_t ReverseBitsInBytes(uint64_t v) {
-  v = ((v >> 1) & 0x5555555555555555ull) | ((v & 0x5555555555555555ull) << 1);
-  v = ((v >> 2) & 0x3333333333333333ull) | ((v & 0x3333333333333333ull) << 2);
-  v = ((v >> 4) & 0x0F0F0F0F0F0F0F0Full) | ((v & 0x0F0F0F0F0F0F0F0Full) << 4);
-  return v;
-}
-}  // namespace
-
-V3TrainingData Node::GetV3TrainingData(GameInfo::GameResult game_result) const {
-  V3TrainingData result;
-
-  // Set version.
-  result.version = 3;
-
-  // Populate probabilities.
-  float total_n = n - 1;  // First visit was expansion of it inself.
-  std::memset(result.probabilities, 0, sizeof(result.probabilities));
-  for (Node* iter = child; iter; iter = iter->sibling) {
-    result.probabilities[iter->move.as_nn_index()] = iter->n / total_n;
-  }
-
-  // Populate planes.
-  InputPlanes planes = EncodeForNN();
-  int plane_idx = 0;
-  for (auto& plane : result.planes) {
-    plane = ReverseBitsInBytes(planes[plane_idx++].mask);
-  }
-
-  // Populate castlings.
-  result.castling_us_ooo = board.castlings().we_can_000() ? 1 : 0;
-  result.castling_us_oo = board.castlings().we_can_00() ? 1 : 0;
-  result.castling_them_ooo = board.castlings().they_can_000() ? 1 : 0;
-  result.castling_them_oo = board.castlings().they_can_00() ? 1 : 0;
-
-  // Other params.
-  result.side_to_move = board.flipped() ? 1 : 0;
-  result.move_count = 0;
-  result.rule50_count = no_capture_ply;
-
-  // Game result.
-  if (game_result == GameInfo::WHITE_WON) {
-    result.result = board.flipped() ? -1 : 1;
-  } else if (game_result == GameInfo::BLACK_WON) {
-    result.result = board.flipped() ? 1 : -1;
-  } else {
-    result.result = 0;
-  }
-
-  return result;
-}
-
-void NodeTree::MakeMove(Move move) {
-  if (current_head_->board.flipped()) move.Mirror();
-
-  Node* new_head = nullptr;
-  for (Node* n = current_head_->child; n; n = n->sibling) {
-    if (n->move == move) {
-      new_head = n;
-      break;
-    }
-  }
-  node_pool_->ReleaseAllChildrenExceptOne(current_head_, new_head);
-  if (!new_head) {
-    new_head = node_pool_->AllocateNode();
-    current_head_->child = new_head;
-    new_head->parent = current_head_;
-    new_head->board = current_head_->board;
-    const bool capture = new_head->board.ApplyMove(move);
-    new_head->board.Mirror();
-    new_head->ply_count = current_head_->ply_count + 1;
-    new_head->no_capture_ply = capture ? 0 : current_head_->no_capture_ply + 1;
-    new_head->repetitions = new_head->ComputeRepetitions();
-    new_head->move = move;
-  }
-  current_head_ = new_head;
-}
-
-void NodeTree::ResetToPosition(const std::string& starting_fen,
-                               const std::vector<Move>& moves) {
-  ChessBoard starting_board;
-  int no_capture_ply;
-  int full_moves;
-  starting_board.SetFromFen(starting_fen, &no_capture_ply, &full_moves);
-  if (gamebegin_node_ && gamebegin_node_->board != starting_board) {
-    // Completely different position.
-    DeallocateTree();
-    current_head_ = nullptr;
-    gamebegin_node_ = nullptr;
-  }
-
-  if (!gamebegin_node_) {
-    gamebegin_node_ = node_pool_->AllocateNode();
-    gamebegin_node_->board = starting_board;
-    gamebegin_node_->no_capture_ply = no_capture_ply;
-    gamebegin_node_->ply_count =
-        full_moves * 2 - (starting_board.flipped() ? 1 : 2);
-  }
-
-  Node* old_head = current_head_;
-  current_head_ = gamebegin_node_;
-  bool seen_old_head = (gamebegin_node_ == old_head);
-  for (const auto& move : moves) {
-    MakeMove(move);
-    if (old_head == current_head_) seen_old_head = true;
-  }
-
-  // If we didn't see old head, it means that new position is shorter.
-  // As we killed the search tree already, trim it to redo the search.
-  if (!seen_old_head) {
-    assert(!current_head_->sibling);
-    node_pool_->ReleaseChildren(current_head_);
-    current_head_->ResetStats();
-  }
-}
-
-void NodeTree::DeallocateTree() {
-  node_pool_->ReleaseSubtree(gamebegin_node_);
-  gamebegin_node_ = nullptr;
-  current_head_ = nullptr;
-}
+/////////////////////////////////////////////////////////////////////////
+// NodePool
+/////////////////////////////////////////////////////////////////////////
 
 namespace {
 const int kAllocationSize = 1024 * 64;
-}
+
+class NodePool {
+ public:
+  // Allocates a new node and initializes it with all zeros.
+  Node* AllocateNode();
+  // Return node to the pool.
+  void ReleaseNode(Node*);
+
+  // Releases all children of the node, except specified. Also updates pointers
+  // accordingly.
+  void ReleaseAllChildrenExceptOne(Node* root, Node* subtree);
+  // Releases all children, but doesn't release the node isself.
+  void ReleaseChildren(Node*);
+  // Releases all children and the node itself;
+  void ReleaseSubtree(Node*);
+
+ private:
+  void AllocateNewBatch();
+  void ReleaseNodeInternal(Node*);
+  void ReleaseChildrenInternal(Node*);
+  void ReleaseSubtreeInternal(Node*);
+
+  union FreeNode {
+    FreeNode* next;
+    Node node;
+
+    FreeNode() {}
+  };
+
+  mutable Mutex mutex_;
+  // Linked list of free nodes.
+  FreeNode* free_list_ GUARDED_BY(mutex_) = nullptr;
+
+  // Mutex for slow but rare operations.
+  mutable Mutex allocations_mutex_ ACQUIRED_AFTER(mutex_);
+  FreeNode* reserve_list_ GUARDED_BY(allocations_mutex_) = nullptr;
+  std::vector<std::unique_ptr<FreeNode[]>> allocations_
+      GUARDED_BY(allocations_mutex_);
+};
 
 Node* NodePool::AllocateNode() {
   while (true) {
@@ -291,6 +112,10 @@ Node* NodePool::AllocateNode() {
 
 void NodePool::ReleaseNode(Node* node) {
   Mutex::Lock lock(mutex_);
+  ReleaseNodeInternal(node);
+}
+
+void NodePool::ReleaseNodeInternal(Node* node) REQUIRES(mutex_) {
   auto* free_node = reinterpret_cast<FreeNode*>(node);
   free_node->next = free_list_;
   free_list_ = free_node;
@@ -308,13 +133,18 @@ void NodePool::AllocateNewBatch() REQUIRES(allocations_mutex_) {
 }
 
 void NodePool::ReleaseChildren(Node* node) {
+  Mutex::Lock lock(mutex_);
+  ReleaseChildrenInternal(node);
+}
+
+void NodePool::ReleaseChildrenInternal(Node* node) REQUIRES(mutex_) {
   Node* next = node->child;
   while (next) {
     Node* iter = next;
     // Getting next after releasing node, as otherwise it can be reallocated
     // and overwritten.
     next = next->sibling;
-    ReleaseSubtree(iter);
+    ReleaseSubtreeInternal(iter);
   }
   node->child = nullptr;
 }
@@ -340,8 +170,168 @@ void NodePool::ReleaseAllChildrenExceptOne(Node* root, Node* subtree) {
 }
 
 void NodePool::ReleaseSubtree(Node* node) {
-  ReleaseChildren(node);
-  ReleaseNode(node);
+  Mutex::Lock lock(mutex_);
+  ReleaseSubtreeInternal(node);
+}
+
+void NodePool::ReleaseSubtreeInternal(Node* node) REQUIRES(mutex_) {
+  ReleaseChildrenInternal(node);
+  ReleaseNodeInternal(node);
+}
+
+NodePool gNodePool;
+}  // namespace
+
+/////////////////////////////////////////////////////////////////////////
+
+Node* Node::CreateChild(Move m) {
+  Node* new_node = gNodePool.AllocateNode();
+  new_node->parent = this;
+  new_node->sibling = child;
+  new_node->move = m;
+  child = new_node;
+  return new_node;
+}
+
+void Node::ResetStats() {
+  n_in_flight = 0;
+  n = 0;
+  v = 0.0;
+  q = 0.0;
+  w = 0.0;
+  p = 0.0;
+  max_depth = 0;
+  full_depth = 0;
+  is_terminal = false;
+}
+
+std::string Node::DebugString() const {
+  std::ostringstream oss;
+  oss << "Move: " << move.as_string() << " Term:" << is_terminal
+      << " This:" << this << " Parent:" << parent << " child:" << child
+      << " sibling:" << sibling << " P:" << p << " Q:" << q << " W:" << w
+      << " N:" << n << " N_:" << n_in_flight;
+  return oss.str();
+}
+
+Move Node::GetMove(bool flip) const {
+  if (!flip) return move;
+  Move m = move;
+  m.Mirror();
+  return m;
+}
+
+namespace {
+// Reverse bits in every byte of a number
+uint64_t ReverseBitsInBytes(uint64_t v) {
+  v = ((v >> 1) & 0x5555555555555555ull) | ((v & 0x5555555555555555ull) << 1);
+  v = ((v >> 2) & 0x3333333333333333ull) | ((v & 0x3333333333333333ull) << 2);
+  v = ((v >> 4) & 0x0F0F0F0F0F0F0F0Full) | ((v & 0x0F0F0F0F0F0F0F0Full) << 4);
+  return v;
+}
+}  // namespace
+
+V3TrainingData Node::GetV3TrainingData(GameResult game_result,
+                                       const PositionHistory& history) const {
+  V3TrainingData result;
+
+  // Set version.
+  result.version = 3;
+
+  // Populate probabilities.
+  float total_n = n - 1;  // First visit was expansion of it inself.
+  std::memset(result.probabilities, 0, sizeof(result.probabilities));
+  for (Node* iter = child; iter; iter = iter->sibling) {
+    result.probabilities[iter->move.as_nn_index()] = iter->n / total_n;
+  }
+
+  // Populate planes.
+  InputPlanes planes = EncodePositionForNN(history);
+  int plane_idx = 0;
+  for (auto& plane : result.planes) {
+    plane = ReverseBitsInBytes(planes[plane_idx++].mask);
+  }
+
+  const auto& position = history.Last();
+  // Populate castlings.
+  result.castling_us_ooo = position.CanCastle(Position::WE_CAN_OOO) ? 1 : 0;
+  result.castling_us_oo = position.CanCastle(Position::WE_CAN_OO) ? 1 : 0;
+  result.castling_them_ooo = position.CanCastle(Position::THEY_CAN_OOO) ? 1 : 0;
+  result.castling_them_oo = position.CanCastle(Position::THEY_CAN_OO) ? 1 : 0;
+
+  // Other params.
+  result.side_to_move = position.IsBlackToMove() ? 1 : 0;
+  result.move_count = 0;
+  result.rule50_count = position.GetNoCapturePly();
+
+  // Game result.
+  if (game_result == GameResult::WHITE_WON) {
+    result.result = position.IsBlackToMove() ? -1 : 1;
+  } else if (game_result == GameResult::BLACK_WON) {
+    result.result = position.IsBlackToMove() ? 1 : -1;
+  } else {
+    result.result = 0;
+  }
+
+  return result;
+}
+
+void NodeTree::MakeMove(Move move) {
+  if (HeadPosition().IsBlackToMove()) move.Mirror();
+
+  Node* new_head = nullptr;
+  for (Node* n = current_head_->child; n; n = n->sibling) {
+    if (n->move == move) {
+      new_head = n;
+      break;
+    }
+  }
+  gNodePool.ReleaseAllChildrenExceptOne(current_head_, new_head);
+  current_head_ = new_head ? new_head : current_head_->CreateChild(move);
+  history_.Append(move);
+}
+
+void NodeTree::ResetToPosition(const std::string& starting_fen,
+                               const std::vector<Move>& moves) {
+  ChessBoard starting_board;
+  int no_capture_ply;
+  int full_moves;
+  starting_board.SetFromFen(starting_fen, &no_capture_ply, &full_moves);
+  if (gamebegin_node_ && history_.Starting().GetBoard() != starting_board) {
+    // Completely different position.
+    DeallocateTree();
+    current_head_ = nullptr;
+    gamebegin_node_ = nullptr;
+  }
+
+  if (!gamebegin_node_) {
+    gamebegin_node_ = gNodePool.AllocateNode();
+  }
+
+  history_.Reset(starting_board, no_capture_ply,
+                 full_moves * 2 - (starting_board.flipped() ? 1 : 2));
+
+  Node* old_head = current_head_;
+  current_head_ = gamebegin_node_;
+  bool seen_old_head = (gamebegin_node_ == old_head);
+  for (const auto& move : moves) {
+    MakeMove(move);
+    if (old_head == current_head_) seen_old_head = true;
+  }
+
+  // If we didn't see old head, it means that new position is shorter.
+  // As we killed the search tree already, trim it to redo the search.
+  if (!seen_old_head) {
+    assert(!current_head_->sibling);
+    gNodePool.ReleaseChildren(current_head_);
+    current_head_->ResetStats();
+  }
+}
+
+void NodeTree::DeallocateTree() {
+  gNodePool.ReleaseSubtree(gamebegin_node_);
+  gamebegin_node_ = nullptr;
+  current_head_ = nullptr;
 }
 
 }  // namespace lczero

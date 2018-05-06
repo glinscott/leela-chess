@@ -19,13 +19,16 @@
 #include "mcts/search.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <thread>
 
 #include "mcts/node.h"
 #include "neural/cache.h"
+#include "neural/encoder.h"
 #include "utils/random.h"
 
 namespace lczero {
@@ -42,14 +45,14 @@ const char* kSmartPruningStr = "Enable smart pruning";
 const char* kVirtualLossBugStr = "Virtual loss bug";
 
 const int kSmartPruningToleranceNodes = 100;
-const int kSmartPruningToleranceMs = 500;
+const int kSmartPruningToleranceMs = 200;
 }  // namespace
 
 void Search::PopulateUciParams(OptionsParser* options) {
   options->Add<IntOption>(kMiniBatchSizeStr, 1, 1024, "minibatch-size") = 128;
   options->Add<IntOption>(kMiniPrefetchBatchStr, 0, 1024, "max-prefetch") = 32;
   options->Add<FloatOption>(kCpuctStr, 0, 100, "cpuct") = 1.7;
-  options->Add<FloatOption>(kTemperatureStr, 0, 100, "temperature", 'm') = 0.0;
+  options->Add<FloatOption>(kTemperatureStr, 0, 100, "temperature") = 0.0;
   options->Add<FloatOption>(kTempDecayStr, 0, 1.00, "tempdecay") = 0.0;
   options->Add<BoolOption>(kNoiseStr, "noise", 'n') = false;
   options->Add<BoolOption>(kVerboseStatsStr, "verbose-move-stats") = false;
@@ -58,17 +61,17 @@ void Search::PopulateUciParams(OptionsParser* options) {
       3.0f;
 }
 
-Search::Search(Node* root_node, NodePool* node_pool, Network* network,
+Search::Search(const NodeTree& tree, Network* network,
                BestMoveInfo::Callback best_move_callback,
                ThinkingInfo::Callback info_callback, const SearchLimits& limits,
                const OptionsDict& options, NNCache* cache)
-    : root_node_(root_node),
-      node_pool_(node_pool),
+    : root_node_(tree.GetCurrentHead()),
       cache_(cache),
+      played_history_(tree.GetPositionHistory()),
       network_(network),
       limits_(limits),
       start_time_(std::chrono::steady_clock::now()),
-      initial_visits_(root_node->n),
+      initial_visits_(root_node_->n),
       best_move_callback_(best_move_callback),
       info_callback_(info_callback),
       kMiniBatchSize(options.Get<int>(kMiniBatchSizeStr)),
@@ -83,29 +86,34 @@ Search::Search(Node* root_node, NodePool* node_pool, Network* network,
 
 // Returns whether node was already in cache.
 bool Search::AddNodeToCompute(Node* node, CachingComputation* computation,
+                              const PositionHistory& history,
                               bool add_if_cached) {
-  auto hash = node->BoardHash();
+  auto hash = history.Last().Hash();
   // If already in cache, no need to do anything.
   if (add_if_cached) {
     if (computation->AddInputByHash(hash)) return true;
   } else {
     if (cache_->ContainsKey(hash)) return true;
   }
-  auto planes = node->EncodeForNN();
+  auto planes = EncodePositionForNN(history);
 
   std::vector<uint16_t> moves;
 
   if (node->child) {
-    // Valid moves are known, using them.
+    // Legal moves are known, using them.
     for (Node* iter = node->child; iter; iter = iter->sibling) {
       moves.emplace_back(iter->move.as_nn_index());
     }
   } else {
-    // Cache pseudovalid moves. A bit of a waste, but faster.
-    const auto& pseudovalid_moves = node->board.GeneratePseudovalidMoves();
-    moves.reserve(pseudovalid_moves.size());
-    for (const Move& m : pseudovalid_moves) {
-      moves.emplace_back(m.as_nn_index());
+    // Cache pseudolegal moves. A bit of a waste, but faster.
+    const auto& pseudolegal_moves =
+        history.Last().GetBoard().GeneratePseudolegalMoves();
+    moves.reserve(pseudolegal_moves.size());
+    // As an optimization, store moves in reverse order in cache, because
+    // that's the order nodes are listed in nodelist.
+    for (auto iter = pseudolegal_moves.rbegin(), end = pseudolegal_moves.rend();
+         iter != end; ++iter) {
+      moves.emplace_back(iter->as_nn_index());
     }
   }
 
@@ -136,6 +144,7 @@ void ApplyDirichletNoise(Node* node, float eps, double alpha) {
 
 void Search::Worker() {
   std::vector<Node*> nodes_to_process;
+  PositionHistory history(played_history_);
 
   // Exit check is at the end of the loop as at least one iteration is
   // necessary.
@@ -145,9 +154,11 @@ void Search::Worker() {
 
     // Gather nodes to process in the current batch.
     for (int i = 0; i < kMiniBatchSize; ++i) {
+      // Initialize position sequence with pre-move position.
+      history.Trim(played_history_.GetLength());
       // If there's something to do without touching slow neural net, do it.
       if (i > 0 && computation.GetCacheMisses() == 0) break;
-      Node* node = PickNodeToExtend(root_node_);
+      Node* node = PickNodeToExtend(root_node_, &history);
       // If we hit the node that is already processed (by our batch or in
       // another thread) stop gathering and process smaller batch.
       if (!node) break;
@@ -157,12 +168,12 @@ void Search::Worker() {
       // of the game), it means that we already visited this node before.
       if (node->is_terminal) continue;
 
-      ExtendNode(node);
+      ExtendNode(node, history);
 
       // If node turned out to be a terminal one, no need to send to NN for
       // evaluation.
       if (!node->is_terminal) {
-        AddNodeToCompute(node, &computation);
+        AddNodeToCompute(node, &computation, history);
       }
     }
 
@@ -170,10 +181,11 @@ void Search::Worker() {
     // nodes which are likely useful in future.
     if (computation.GetCacheMisses() > 0 &&
         computation.GetCacheMisses() < kMiniPrefetchBatch) {
+      history.Trim(played_history_.GetLength());
       SharedMutex::SharedLock lock(nodes_mutex_);
       PrefetchIntoCache(root_node_,
                         kMiniPrefetchBatch - computation.GetCacheMisses(),
-                        &computation);
+                        &computation, &history);
     }
 
     // Evaluate nodes through NN.
@@ -268,18 +280,23 @@ void Search::Worker() {
       Mutex::Lock lock(counters_mutex_);
       if (stop_) break;
     }
+    if (nodes_to_process.empty()) {
+      // If this thread had no work, sleep for some milliseconds.
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
   }
 }
 
 // Prefetches up to @budget nodes into cache. Returns number of nodes
 // prefetched.
 int Search::PrefetchIntoCache(Node* node, int budget,
-                              CachingComputation* computation) {
+                              CachingComputation* computation,
+                              PositionHistory* history) {
   if (budget <= 0) return 0;
 
   // We are in a leaf, which is not yet being processed.
   if (node->n + node->n_in_flight == 0) {
-    if (AddNodeToCompute(node, computation, false)) {
+    if (AddNodeToCompute(node, computation, *history, false)) {
       // Make it return 0 to make it not use the slot, so that the function
       // tries hard to find something to cache even among unpopular moves.
       // In practice that slows things down a lot though, as it's not always
@@ -334,7 +351,10 @@ int Search::PrefetchIntoCache(Node* node, int budget,
         budget_to_spend = budget;
       }
     }
-    const int budget_spent = PrefetchIntoCache(n, budget_to_spend, computation);
+    history->Append(n->move);
+    const int budget_spent =
+        PrefetchIntoCache(n, budget_to_spend, computation, history);
+    history->Pop();
     budget -= budget_spent;
     total_budget_spent += budget_spent;
   }
@@ -392,8 +412,10 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) {
   uci_info_.score = 290.680623072 * tan(1.548090806 * best_move_node_->q);
   uci_info_.pv.clear();
 
-  for (Node* iter = best_move_node_; iter; iter = GetBestChild(iter)) {
-    uci_info_.pv.push_back(iter->GetMoveAsWhite());
+  bool flip = played_history_.IsBlackToMove();
+  for (Node* iter = best_move_node_; iter;
+       iter = GetBestChild(iter), flip = !flip) {
+    uci_info_.pv.push_back(iter->GetMove(flip));
   }
   uci_info_.comment.clear();
   info_callback_(uci_info_);
@@ -403,9 +425,11 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) {
 // shown to a user.
 void Search::MaybeOutputInfo() {
   SharedMutex::Lock lock(nodes_mutex_);
-  if (best_move_node_ && (best_move_node_ != last_outputted_best_move_node_ ||
-                          uci_info_.depth != root_node_->full_depth ||
-                          uci_info_.seldepth != root_node_->max_depth)) {
+  Mutex::Lock counters_lock(counters_mutex_);
+  if (!responded_bestmove_ && best_move_node_ &&
+      (best_move_node_ != last_outputted_best_move_node_ ||
+       uci_info_.depth != root_node_->full_depth ||
+       uci_info_.seldepth != root_node_->max_depth)) {
     SendUciInfo();
   }
 }
@@ -424,11 +448,13 @@ void Search::SendMovesStats() const {
   std::sort(nodes.begin(), nodes.end(),
             [](const Node* a, const Node* b) { return a->n < b->n; });
 
+  const bool is_black_to_move = played_history_.IsBlackToMove();
   ThinkingInfo info;
   for (const Node* node : nodes) {
     std::ostringstream oss;
     oss << std::fixed;
-    oss << std::left << std::setw(5) << node->GetMoveAsWhite().as_string();
+    oss << std::left << std::setw(5)
+        << node->GetMove(is_black_to_move).as_string();
     oss << " (" << std::setw(4) << node->move.as_nn_index() << ")";
     oss << " -> ";
     oss << std::right << std::setw(7) << node->n << " (+" << std::setw(2)
@@ -523,14 +549,14 @@ void Search::UpdateRemainingMoves() {
   if (remaining_playouts_ <= 1) remaining_playouts_ = 1;
 }
 
-void Search::ExtendNode(Node* node) {
+void Search::ExtendNode(Node* node, const PositionHistory& history) {
   // Not taking mutex because other threads will see that N=0 and N-in-flight=1
   // and will not touch this node.
-  auto& board = node->board;
-  auto valid_moves = board.GenerateValidMoves();
+  const auto& board = history.Last().GetBoard();
+  auto legal_moves = board.GenerateLegalMoves();
 
   // Check whether it's a draw/lose by rules.
-  if (valid_moves.empty()) {
+  if (legal_moves.empty()) {
     // Checkmate or stalemate.
     node->is_terminal = true;
     if (board.IsUnderCheck()) {
@@ -549,42 +575,23 @@ void Search::ExtendNode(Node* node) {
     return;
   }
 
-  if (node->no_capture_ply >= 100) {
+  if (history.Last().GetNoCapturePly() >= 100) {
     node->is_terminal = true;
     node->v = 0.0f;
     return;
   }
 
-  node->repetitions = node->ComputeRepetitions();
-  if (node->repetitions >= 2) {
+  if (history.Last().GetRepetitions() >= 2) {
     node->is_terminal = true;
     node->v = 0.0f;
     return;
   }
 
-  // Add valid moves as children to this node.
-  Node* prev_node = node;
-  for (const auto& move : valid_moves) {
-    Node* new_node = node_pool_->AllocateNode();
-
-    new_node->parent = node;
-    if (prev_node == node) {
-      node->child = new_node;
-    } else {
-      prev_node->sibling = new_node;
-    }
-
-    new_node->move = move.move;
-    new_node->board = move.board;
-    new_node->board.Mirror();
-    new_node->no_capture_ply =
-        move.reset_50_moves ? 0 : (node->no_capture_ply + 1);
-    new_node->ply_count = node->ply_count + 1;
-    prev_node = new_node;
-  }
+  // Add legal moves as children to this node.
+  for (const auto& move : legal_moves) node->CreateChild(move.move);
 }
 
-Node* Search::PickNodeToExtend(Node* node) {
+Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
   // Fetch the current best root node visits for possible smart pruning.
   int best_node_n = 0;
   {
@@ -645,6 +652,7 @@ Node* Search::PickNodeToExtend(Node* node) {
         node = iter;
       }
     }
+    history->Append(node->move);
     if (is_root_node && possible_moves <= 1) {
       // If there is only one move theoretically possible within remaining time,
       // output it.
@@ -668,7 +676,8 @@ std::pair<Move, Move> Search::GetBestMoveInternal() const
 
   float temperature = kTemperature;
   if (temperature && kTempDecay)
-    temperature *= std::pow(1 - kTempDecay, root_node_->ply_count / 2);
+    temperature *=
+        std::pow(1 - kTempDecay, played_history_.Last().GetGamePly() / 2);
   if (temperature < 0.01) temperature = 0.0;
 
   Node* best_node = temperature
@@ -677,9 +686,10 @@ std::pair<Move, Move> Search::GetBestMoveInternal() const
 
   Move ponder_move;
   if (best_node->child) {
-    ponder_move = GetBestChild(best_node)->GetMoveAsWhite();
+    ponder_move =
+        GetBestChild(best_node)->GetMove(!played_history_.IsBlackToMove());
   }
-  return {best_node->GetMoveAsWhite(), ponder_move};
+  return {best_node->GetMove(played_history_.IsBlackToMove()), ponder_move};
 }
 
 void Search::StartThreads(int how_many) {
