@@ -75,6 +75,7 @@ std::string cfg_supervise;
 FILE* cfg_logfile_handle;
 bool cfg_quiet;
 bool cfg_go_nodes_as_playouts;
+bool cfg_cache_key_history;
 
 void Parameters::setup_default_parameters() {
     cfg_allow_pondering = false;
@@ -112,5 +113,6 @@ void Parameters::setup_default_parameters() {
     cfg_weightsfile = "weights.txt";
     cfg_syzygypath = "syzygy";
     cfg_go_nodes_as_playouts = false;
+    cfg_cache_key_history = false;
 }
 
