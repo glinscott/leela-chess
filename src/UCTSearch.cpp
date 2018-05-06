@@ -85,8 +85,10 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node, i
                         result = SearchResult::from_score(color == Color::WHITE ? -1.0 : 1.0);
                     } else if (wdl == Tablebases::WDLWin) {
                         result = SearchResult::from_score(color == Color::WHITE ? 1.0 : -1.0);
-                    } else {
+                    } else if (cfg_syzygydraw) {
                         result = SearchResult::from_score(0.0);
+                    } else {
+                        err = Tablebases::ProbeState::FAIL;
                     }
                     ++m_tbhits;
                 }
