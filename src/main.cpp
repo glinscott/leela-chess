@@ -91,8 +91,6 @@ static std::string parse_commandline(int argc, char *argv[]) {
         ("syzygypath,e", po::value<std::string>(), "Folder with syzygy endgame tablebases.")
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
-        ("uci", "Don't initialize the engine until \"isready\" command is sent. Use this if your "
-                "GUI is freezing on startup.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
         ("supervise", po::value<std::string>(), "Dump supervised learning data from the pgn.")
 #ifdef USE_OPENCL
@@ -214,10 +212,6 @@ static std::string parse_commandline(int argc, char *argv[]) {
             myprintf("Using rng seed from cli, activating single thread mode!\n");
         }
         myprintf("RNG seed from cli: %llu\n", cfg_rng_seed);
-    }
-
-    if (vm.count("uci")) {
-        cfg_noinitialize = true;
     }
 
     if (vm.count("noise")) {
@@ -386,9 +380,7 @@ int main(int argc, char* argv[]) {
   // Random::GetRng().seedrandom(cfg_rng_seed);
 
   if (!cfg_supervise.empty()) {
-      if (!cfg_noinitialize) {
-         Network::initialize();
-      }
+      Network::initialize();
       generate_supervised_data(cfg_supervise);
       return 0;
   }
