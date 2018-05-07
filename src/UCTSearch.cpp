@@ -292,8 +292,8 @@ int UCTSearch::est_playouts_left() const {
                 std::max(0, std::min(m_maxplayouts - playouts,
                                      m_maxnodes - m_root->get_visits()));
         return playouts_left;
-    } else if (elapsed_millis < 1000 || playouts < 100) {
-        // Until we reach 1 second or 100 playouts playout_rate
+    } else if (elapsed_millis < 1000) {
+        // Until we reach 1 second playout_rate
         // is not reliable, so just return max.
         return MAXINT_DIV2;
     } else {
