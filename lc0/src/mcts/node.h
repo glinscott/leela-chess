@@ -28,59 +28,154 @@
 
 namespace lczero {
 
-// TODO(mooskagh) That's too large to be a POD struct. Make it a class with
-// proper encapsulation.
-struct Node {
-  // Allocates a new node and adds it to front of the children list.
-  Node* CreateChild(Move m);
-  float ComputeQ() const { return n ? q : -parent->q; }
-  // Returns U / (Puct * N[parent])
-  float ComputeU() const { return p / (1 + n + n_in_flight); }
-  V3TrainingData GetV3TrainingData(GameResult result,
-                                   const PositionHistory& history) const;
-  // Returns move, with optional flip.
-  Move GetMove(bool flip) const;
-  std::string DebugString() const;
+class Node;
+class Node_Iterator {
+ public:
+  Node_Iterator(Node* node) : node_(node) {}
+  Node* operator*() { return node_; }
+  Node* operator->() { return node_; }
+  bool operator==(Node_Iterator& other) { return node_ == other.node_; }
+  bool operator!=(Node_Iterator& other) { return node_ != other.node_; }
+  void operator++();
+
+ private:
+  Node* node_;
+};
+
+class Node {
+ public:
+  // Resets all values (but not links to parents/children/siblings) to zero.
   void ResetStats();
 
+  // Allocates a new node and adds it to front of the children list.
+  // Not thread-friendly.
+  Node* CreateChild(Move m);
+
+  // Gets parent node.
+  Node* GetParent() const { return parent_; }
+
+  // Returns whether a node has children.
+  bool HasChildren() const { return child_ != nullptr; }
+
+  // Returns move from the point of new of player BEFORE the position.
+  Move GetMove() const { return move_; }
+
+  // Returns move, with optional flip (false == player BEFORE the position).
+  Move GetMove(bool flip) const;
+
+  uint32_t GetN() const { return n_; }
+  uint32_t GetNInFlight() const { return n_in_flight_; }
+  // Returns n = n_if_flight.
+  int GetNStarted() const { return n_ + n_in_flight_; }
+  float GetQ() const { return n_ ? q_ : -parent_->q_; }
+  // Returns U / (Puct * N[parent])
+  float GetU() const { return p_ / (1 + n_ + n_in_flight_); }
+  // Returns value of Value Head returned from the neural net.
+  float GetV() const { return v_; }
+  // Returns value of Move probabilityreturned from the neural net.
+  // (but can be changed by adding Dirichlet noise).
+  float GetP() const { return p_; }
+  // Returns whether the node is known to be draw/lose/win.
+  bool IsTerminal() const { return is_terminal_; }
+  uint16_t GetFullDepth() const { return full_depth_; }
+  uint16_t GetMaxDepth() const { return max_depth_; }
+
+  // Sets node own value (from neural net or win/draw/lose adjudication).
+  void SetV(float val) { v_ = val; }
+  // Sets move probability.
+  void SetP(float val) { p_ = val; }
+  // Makes the node terminal and sets it's score.
+  void MakeTerminal(GameResult result);
+
+  // If this node is not in the process of being expanded by another thread
+  // (which can happen only if n==0 and n-in-flight==1), mark the node as
+  // "being updated" by incrementing n-in-flight, and return true.
+  // Otherwise return false.
+  bool TryStartScoreUpdate();
+  // Decrements n-in-flight back.
+  void CancelScoreUpdate();
+  // Updates the node with newly computed value v.
+  // Updates:
+  // * N (+=1)
+  // * N-in-flight (-=1)
+  // * W (+= v)
+  // * Q (=w/n)
+  void FinalizeScoreUpdate(float v);
+
+  // Updates max depth, if new depth is larger.
+  void UpdateMaxDepth(int depth);
+
+  // Calculates the full depth if new depth is larger, updates it, returns
+  // in depth parameter, and returns true if it was indeed updated.
+  bool UpdateFullDepth(uint16_t* depth);
+
+  V3TrainingData GetV3TrainingData(GameResult result,
+                                   const PositionHistory& history) const;
+
+  class NodeRange {
+   public:
+    Node_Iterator begin() { return Node_Iterator(node_); }
+    Node_Iterator end() { return Node_Iterator(nullptr); }
+
+   private:
+    NodeRange(Node* node) : node_(node) {}
+    Node* node_;
+    friend class Node;
+  };
+
+  // Returns range for iterating over children.
+  NodeRange Children() const { return child_; }
+
+  // Debug information about the node.
+  std::string DebugString() const;
+
+  class Pool;
+
+ private:
   // Move corresponding to this node. From the point of view of a player,
   // i.e. black's e7e5 is stored as e2e4.
   // Root node contains move a1a1.
-  Move move;
+  Move move_;
 
   // Q value fetched from neural network.
-  float v;
+  float v_;
   // Average value (from value head of neural network) of all visited nodes in
   // subtree. Terminal nodes (which lead to checkmate or draw) may be visited
   // several times, those are counted several times. q = w / n
-  float q;
+  float q_;
   // Sum of values of all visited nodes in a subtree. Used to compute an
   // average.
-  float w;
+  float w_;
   // Probabality that this move will be made. From policy head of the neural
   // network.
-  float p;
+  float p_;
   // How many completed visits this node had.
-  uint32_t n;
+  uint32_t n_;
   // (aka virtual loss). How many threads currently process this node (started
   // but not finished). This value is added to n during selection which node
   // to pick in MCTS, and also when selecting the best move.
-  uint16_t n_in_flight;
+  uint16_t n_in_flight_;
 
   // Maximum depth any subnodes of this node were looked at.
-  uint16_t max_depth;
+  uint16_t max_depth_;
   // Complete depth all subnodes of this node were fully searched.
-  uint16_t full_depth;
+  uint16_t full_depth_;
   // Does this node end game (with a winning of either sides or draw).
-  bool is_terminal;
+  bool is_terminal_;
 
   // Pointer to a parent node. nullptr for the root.
-  Node* parent;
+  Node* parent_;
   // Pointer to a first child. nullptr for leave node.
-  Node* child;
+  Node* child_;
   // Pointer to a next sibling. nullptr if there are no further siblings.
-  Node* sibling;
+  Node* sibling_;
+
+  // TODO(mooskagh) Unfriend both NodeTree and Node::Pool.
+  friend class NodeTree;
+  friend class Node_Iterator;
 };
+
+inline void Node_Iterator::operator++() { node_ = node_->sibling_; }
 
 class NodeTree {
  public:
