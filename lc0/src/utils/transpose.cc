@@ -26,7 +26,7 @@ void TransposeTensor(const std::vector<int>& dims, std::vector<int> order,
   }
   std::vector<int> cur_idx(dims.size());
   for (int _ = 0; _ < from.size(); ++_) {
-    std::size_t from_idx = 0;
+    int from_idx = 0;
     for (int i : order) {
       from_idx *= dims[i];
       from_idx += cur_idx[i];

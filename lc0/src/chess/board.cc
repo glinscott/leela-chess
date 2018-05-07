@@ -169,7 +169,7 @@ static const Move::Promotion kPromotions[] = {
     Move::Promotion::Knight,
 };
 
-static const BitBoard kPawnMask = 0x00FFFFFFFFFFFF00ULL;
+const BitBoard kPawnMask = 0x00FFFFFFFFFFFF00ULL;
 
 }  // namespace
 
