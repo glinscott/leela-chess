@@ -19,8 +19,8 @@
 #include <gtest/gtest.h>
 
 #include <iostream>
-#include "src/chess/bitboard.h"
-#include "src/chess/board.h"
+#include "chess/bitboard.h"
+#include "chess/board.h"
 
 namespace lczero {
 
