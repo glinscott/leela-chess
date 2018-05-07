@@ -46,10 +46,7 @@ namespace {
   // for async network initialization in UCI::loop()
 
   int net_init() {
-
-    if (!cfg_noinitialize) {
-       Network::initialize();
-    }
+    Network::initialize();
     return 0;
   }
 
