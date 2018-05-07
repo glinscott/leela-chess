@@ -261,11 +261,17 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 			err := game.MoveStr(best_move)
 			if err != nil {
 				log.Println("Assuming resign: " + best_move + " for game:\n" + game.String())
+				//on white's turn it must be white resigning so black wins
 				if game.Position().Turn() == chess.White {
-					result = 1
-				} else {
 					result = -1
-				}	
+				} else {
+					result = 1
+				}
+				//if flip is set we have to flip result to report relative to candidate engine
+				if flip {
+					result = -result
+				}
+				break
 			}
 			if len(move_history) == 0 {
 				move_history = " moves"
