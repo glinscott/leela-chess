@@ -922,7 +922,7 @@ class CudnnNetwork : public Network {
     }
 
     // get rid of the BN layer by adjusting weights and biases of the
-    // convolution idea proposed by Henrik Forst�n and first implemented in
+    // convolution idea proposed by Henrik Forstén and first implemented in
     // leela go zero
     if (foldBNLayer) {
       const int outputs = block.biases.size();
