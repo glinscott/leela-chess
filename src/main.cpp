@@ -386,8 +386,7 @@ int main(int argc, char* argv[]) {
   // Random::GetRng().seedrandom(cfg_rng_seed);
 
   if (!cfg_supervise.empty()) {
-      if (!cfg_noinitialize)
-      {
+      if (!cfg_noinitialize) {
          Network::initialize();
       }
       generate_supervised_data(cfg_supervise);

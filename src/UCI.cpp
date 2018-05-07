@@ -47,11 +47,9 @@ namespace {
 
   int net_init() {
 
-    if (!cfg_noinitialize)
-    {
+    if (!cfg_noinitialize) {
        Network::initialize();
     }
-
     return 0;
   }
 
@@ -398,15 +396,17 @@ void UCI::loop(const std::string& start) {
           Training::clear_training();
       }
       else if (token == "isready") {
-          if (wait_init)
-          {
-          wait_init = netinit.get(); // wait for network initialization
+          if (wait_init) {
+              wait_init = netinit.get(); // wait for network initialization
           }
           myprintf_so("readyok\n"); //"readyok" can be sent also when the engine is calculating
       }
       // Additional custom non-UCI commands, mainly for debugging
       else if (token == "train") {
           stop_and_wait_search();
+          if (wait_init) {
+              wait_init = netinit.get();
+          }
 
           generate_training_games(is);
       }
