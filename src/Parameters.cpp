@@ -106,7 +106,7 @@ void Parameters::setup_default_parameters() {
     cfg_noise = false;
     cfg_randomize = false;
     cfg_timemanage = true;
-    cfg_slowmover = 89;
+    cfg_slowmover = 84;
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     cfg_rng_seed = 0;
