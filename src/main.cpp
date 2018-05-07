@@ -95,7 +95,6 @@ static std::string parse_commandline(int argc, char *argv[]) {
                 "GUI is freezing on startup.")
         ("start", po::value<std::string>(), "Start command {train, bench}.")
         ("supervise", po::value<std::string>(), "Dump supervised learning data from the pgn.")
-        ("cachekeyhistory", "Include history in NN cache key.")
 #ifdef USE_OPENCL
         ("gpu",  po::value<std::vector<int> >(),
                 "ID of the OpenCL device(s) to use (disables autodetection).")
@@ -151,10 +150,6 @@ static std::string parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("quiet")) {
         cfg_quiet = true;
-    }
-    if (vm.count("cachekeyhistory"))
-    {
-        cfg_cache_key_history = true;
     }
 
 #ifdef USE_TUNER

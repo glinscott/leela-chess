@@ -56,7 +56,6 @@ extern std::string cfg_supervise;
 extern FILE* cfg_logfile_handle;
 extern bool cfg_quiet;
 extern bool cfg_go_nodes_as_playouts;
-extern bool cfg_cache_key_history;
 
 class Parameters {
 public:
