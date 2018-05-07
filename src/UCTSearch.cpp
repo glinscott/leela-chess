@@ -407,7 +407,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     // set up timing info
 
     Time.init(bh_.cur().side_to_move(), bh_.cur().game_ply());
-    m_target_time = (Limits.movetime ? Limits.movetime : Time.optimum()) - cfg_lagbuffer_ms;
+    m_target_time = (Limits.movetime ? Limits.movetime : (int)(1.5*Time.optimum())) - cfg_lagbuffer_ms;
     m_max_time    = Time.maximum() - cfg_lagbuffer_ms;
     m_start_time  = Limits.timeStarted();
 
