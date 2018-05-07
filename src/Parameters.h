@@ -37,6 +37,8 @@ extern int cfg_timemanage;
 extern int cfg_slowmover;
 extern int cfg_min_resign_moves;
 extern int cfg_root_temp_decay;
+extern float cfg_rand_visit_floor;
+extern float cfg_rand_eval_maxdiff;
 extern uint64_t cfg_rng_seed;
 #ifdef USE_OPENCL
 extern std::vector<int> cfg_gpus;
@@ -50,6 +52,7 @@ extern bool cfg_fpu_dynamic_eval;
 extern std::string cfg_logfile;
 extern std::string cfg_weightsfile;
 extern std::string cfg_syzygypath;
+extern bool cfg_syzygydraw;
 extern std::string cfg_supervise;
 extern FILE* cfg_logfile_handle;
 extern bool cfg_quiet;

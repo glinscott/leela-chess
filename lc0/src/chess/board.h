@@ -47,7 +47,7 @@ class ChessBoard {
 
   // Generates list of possible moves for "ours" (white), but may leave king
   // under check.
-  MoveList GeneratePseudovalidMoves() const;
+  MoveList GeneratePseudolegalMoves() const;
   // Applies the move. (Only for "ours" (white)). Returns true if 50 moves
   // counter should be removed.
   bool ApplyMove(Move move);
@@ -56,9 +56,14 @@ class ChessBoard {
   // Checks if "our" (white) king is under check.
   bool IsUnderCheck() const { return IsUnderAttack(our_king_); }
   // Checks whether at least one of the sides has mating material.
+
   bool HasMatingMaterial() const;
-  // Returns a list of valid moves and board positions after the move is made.
-  std::vector<MoveExecution> GenerateValidMoves() const;
+  // Generates legal moves.
+  MoveList GenerateLegalMoves() const;
+  // Check whether pseudolegal move is legal.
+  bool IsLegalMove(Move move, bool was_under_check) const;
+  // Returns a list of legal moves and board positions after the move is made.
+  std::vector<MoveExecution> GenerateLegalMovesAndPositions() const;
 
   uint64_t Hash() const {
     return HashCat({our_pieces_.as_int(), their_pieces_.as_int(),
@@ -110,7 +115,7 @@ class ChessBoard {
 
   BitBoard ours() const { return our_pieces_; }
   BitBoard theirs() const { return their_pieces_; }
-  BitBoard pawns() const { return pawns_ * kPawnMask; }
+  BitBoard pawns() const;
   BitBoard bishops() const { return bishops_ - rooks_; }
   BitBoard rooks() const { return rooks_ - bishops_; }
   BitBoard queens() const { return rooks_ * bishops_; }
@@ -137,8 +142,6 @@ class ChessBoard {
   bool operator!=(const ChessBoard& other) const { return !operator==(other); }
 
  private:
-  static constexpr BitBoard kPawnMask = 0x00FFFFFFFFFFFF00ULL;
-
   // All white pieces.
   BitBoard our_pieces_;
   // All black pieces.

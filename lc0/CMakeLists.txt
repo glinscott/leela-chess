@@ -69,9 +69,11 @@ include_directories(
 set (SOURCES
   src/chess/bitboard.cc
   src/chess/board.cc
+  src/chess/position.cc
   src/mcts/node.cc
   src/mcts/search.cc
   src/neural/cache.cc
+  src/neural/encoder.cc
   src/neural/network_cudnn.cu
   src/neural/factory.cc
   src/neural/loader.cc
@@ -83,6 +85,7 @@ set (SOURCES
   src/utils/commandline.cc
   src/utils/optionsdict.cc
   src/utils/random.cc
+  src/utils/smallarray.h
   src/engine.cc
   src/optionsparser.cc
   src/selfplay/game.cc
