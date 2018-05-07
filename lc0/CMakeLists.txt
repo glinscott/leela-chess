@@ -40,12 +40,13 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
   set (GccSpecificFlags 0)
 endif()
 
+list (APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+
 if (GccSpecificFlags)
   set (CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic -pipe")
   set (CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
-  set (CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -flto -ffast-math -march=native -mtune=native")
+  set (CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -ffast-math -march=native -mtune=native")
   set (CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g")
-  set (CMAKE_EXE_LINKER_FLAGS "-flto")
 endif(GccSpecificFlags)
 
 
@@ -55,6 +56,7 @@ endif(GccSpecificFlags)
 find_package (GTest REQUIRED)
 find_package (Threads REQUIRED)
 find_package (CUDA REQUIRED)
+find_package (CUDNN REQUIRED)
 find_package (Boost REQUIRED filesystem)
 
 include_directories(
@@ -94,6 +96,9 @@ cuda_add_executable (lc0 ${SOURCES})
 target_link_libraries (lc0
   ${CMAKE_THREAD_LIBS_INIT}
   ${Boost_LIBRARIES}
+  ${CUDA_LIBRARIES}
+  ${CUDA_CUBLAS_LIBRARIES}
+  ${CUDNN_LIBRARY}
 )
 
 
