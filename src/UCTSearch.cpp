@@ -280,7 +280,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
 }
 
 bool UCTSearch::is_running() const {
-    return m_run && m_nodes < MAX_TREE_SIZE;
+    return m_run && m_nodes < MAX_TREE_SIZE && m_root->get_visits() < MAXINT_DIV2;
 }
 
 int UCTSearch::est_playouts_left() const {
