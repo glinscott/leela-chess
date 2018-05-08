@@ -247,6 +247,8 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 			log.Println("readyok timeout")
 			return 0, "", "", errors.New("timeout")
 		}
+
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	// Play a game using UCI
