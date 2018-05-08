@@ -55,13 +55,13 @@ int Tablebases::MaxCardinality;
 
 namespace {
 
-constexpr int TBPIECES = 6; // Max number of supported pieces
+constexpr int TBPIECES = 7; // Max number of supported pieces
 
 enum { BigEndian, LittleEndian };
 enum TBType { KEY, WDL, DTZ }; // Used as template parameter
 
 // Each table has a set of flags: all of them refer to DTZ tables, the last one to WDL tables
-enum TBFlag { STM = 1, Mapped = 2, WinPlies = 4, LossPlies = 8, SingleValue = 128 };
+enum TBFlag { STM = 1, Mapped = 2, WinPlies = 4, LossPlies = 8, LongDTZ = 16, SingleValue = 128 };
 
 inline WDLScore operator-(WDLScore d) { return WDLScore(-int(d)); }
 inline Square operator^=(Square& s, int i) { return s = Square(int(s) ^ i); }
@@ -74,9 +74,9 @@ int MapB1H1H7[SQUARE_NB];
 int MapA1D1D4[SQUARE_NB];
 int MapKK[10][SQUARE_NB]; // [MapA1D1D4][SQUARE_NB]
 
-int Binomial[6][SQUARE_NB];    // [k][n] k elements from a set of n elements
-int LeadPawnIdx[5][SQUARE_NB]; // [leadPawnsCnt][SQUARE_NB]
-int LeadPawnsSize[5][4];       // [leadPawnsCnt][FILE_A..FILE_D]
+int Binomial[7][SQUARE_NB];    // [k][n] k elements from a set of n elements
+int LeadPawnIdx[6][SQUARE_NB]; // [leadPawnsCnt][SQUARE_NB]
+int LeadPawnsSize[6][4];       // [leadPawnsCnt][FILE_A..FILE_D]
 
 // Comparison function to sort leading pawns in ascending MapPawns[] order
 bool pawns_comp(Square i, Square j) { return MapPawns[i] < MapPawns[j]; }
@@ -155,7 +155,7 @@ struct LR {
     Sym get() {
         return S == Left  ? ((lr[1] & 0xF) << 8) | lr[0] :
                S == Right ?  (lr[2] << 4) | (lr[1] >> 4) :
-               S == Value ?   lr[0] : (assert(false), Sym(-1));
+               S == Value ? ((lr[1] & 0xF) << 8) | lr[0] : (assert(false), Sym(-1));
     }
 };
 
@@ -501,7 +501,7 @@ int decompress_pairs(PairsData* d, uint64_t idx) {
     uint32_t k = idx / d->span;
 
     // Then we read the corresponding SparseIndex[] entry
-    uint32_t block = number<uint32_t, LittleEndian>(&d->sparseIndex[k].block);
+    size_t block = number<uint32_t, LittleEndian>(&d->sparseIndex[k].block);
     int offset     = number<uint16_t, LittleEndian>(&d->sparseIndex[k].offset);
 
     // Now compute the difference idx - I(k). From definition of k we know that
@@ -612,8 +612,13 @@ int map_score(TBTable<DTZ>* entry, File f, int value, WDLScore wdl) {
 
     uint8_t* map = entry->map;
     uint16_t* idx = entry->get(0, f)->map_idx;
-    if (flags & TBFlag::Mapped)
-        value = map[idx[WDLMap[wdl + 2]] + value];
+    if (flags & TBFlag::Mapped) {
+	    if (flags & TBFlag::LongDTZ) { 
+		    value = ((uint16_t *)map)[idx[WDLMap[wdl + 2]] + value]; 
+	    } else {
+             value = map[idx[WDLMap[wdl + 2]] + value];
+		}
+	}
 
     // DTZ tables store distance to zero in number of moves or plies. We
     // want to return plies, so we have convert to plies when needed.
@@ -1005,11 +1010,21 @@ uint8_t* set_dtz_map(TBTable<DTZ>& e, uint8_t* data, File maxFile) {
     e.map = data;
 
     for (File f = FILE_A; f <= maxFile; ++f) {
-        if (e.get(0, f)->flags & TBFlag::Mapped)
-            for (int i = 0; i < 4; ++i) { // Sequence like 3,x,x,x,1,x,0,2,x,x
-                e.get(0, f)->map_idx[i] = (uint16_t)(data - e.map + 1);
-                data += *data + 1;
+		int flags = e.get(0, f)->flags;
+        if (flags & TBFlag::Mapped) {
+            if (flags & TBFlag::LongDTZ) {
+                data += (uintptr_t)data & 1; // Word alignment
+                for (int i = 0; i < 4; i++) {
+                    e.get(0, f)->map_idx[i] = (uint16_t)((uint16_t *)data - (uint16_t *)e.map + 1);
+                    data += 2 + 2 * number<uint16_t, LittleEndian>(data);
+                }
+            } else {
+                for (int i = 0; i < 4; ++i) { // Sequence like 3,x,x,x,1,x,0,2,x,x
+                    e.get(0, f)->map_idx[i] = (uint16_t)(data - e.map + 1);
+                    data += *data + 1;
+                }
             }
+        }
     }
 
     return data += (uintptr_t)data & 1; // Word alignment
@@ -1275,7 +1290,7 @@ void Tablebases::init(const std::string& paths) {
     Binomial[0][0] = 1;
 
     for (int n = 1; n < 64; n++) // Squares
-        for (int k = 0; k < 6 && k <= n; ++k) // Pieces
+        for (int k = 0; k < 7 && k <= n; ++k) // Pieces
             Binomial[k][n] =  (k > 0 ? Binomial[k - 1][n - 1] : 0)
                             + (k < n ? Binomial[k    ][n - 1] : 0);
 
@@ -1285,9 +1300,9 @@ void Tablebases::init(const std::string& paths) {
     // among pawns with same file, the one with lowest rank.
     int availableSquares = 47; // Available squares when lead pawn is in a2
 
-    // Init the tables for the encoding of leading pawns group: with 6-men TB we
+    // Init the tables for the encoding of leading pawns group: with 7-men TB we
     // can have up to 4 leading pawns (KPPPPK).
-    for (int leadPawnsCnt = 1; leadPawnsCnt <= 4; ++leadPawnsCnt)
+    for (int leadPawnsCnt = 1; leadPawnsCnt <= 5; ++leadPawnsCnt)
         for (File f = FILE_A; f <= FILE_D; ++f)
         {
             // Restart the index at every file because TB table is splitted
@@ -1331,11 +1346,22 @@ void Tablebases::init(const std::string& paths) {
             for (PieceType p3 = PAWN; p3 <= p2; ++p3) {
                 TBTables.add({KING, p1, p2, p3, KING});
 
-                for (PieceType p4 = PAWN; p4 <= p3; ++p4)
+                for (PieceType p4 = PAWN; p4 <= p3; ++p4) {
                     TBTables.add({KING, p1, p2, p3, p4, KING});
 
-                for (PieceType p4 = PAWN; p4 < KING; ++p4)
+                    for (PieceType p5 = PAWN; p5 <= p4; ++p5)
+                        TBTables.add({KING, p1, p2, p3, p4, p5, KING});
+
+                    for (PieceType p5 = PAWN; p5 < KING; ++p5)
+                        TBTables.add({KING, p1, p2, p3, p4, KING, p5});
+                }
+
+                for (PieceType p4 = PAWN; p4 < KING; ++p4) {
                     TBTables.add({KING, p1, p2, p3, KING, p4});
+
+                    for (PieceType p5 = PAWN; p5 <= p4; ++p5)
+                        TBTables.add({KING, p1, p2, p3, KING, p4, p5});
+                }
             }
 
             for (PieceType p3 = PAWN; p3 <= p1; ++p3)
