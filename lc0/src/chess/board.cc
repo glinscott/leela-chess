@@ -169,6 +169,8 @@ static const Move::Promotion kPromotions[] = {
     Move::Promotion::Knight,
 };
 
+const BitBoard kPawnMask = 0x00FFFFFFFFFFFF00ULL;
+
 }  // namespace
 
 MoveList ChessBoard::GeneratePseudolegalMoves() const {
@@ -768,5 +770,9 @@ string ChessBoard::DebugString() const {
   }
   return result;
 }
+
+    BitBoard ChessBoard::pawns() const {
+        return pawns_ * kPawnMask;
+    }
 
 }  // namespace lczero

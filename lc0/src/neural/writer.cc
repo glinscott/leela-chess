@@ -18,7 +18,7 @@
 
 #include "neural/writer.h"
 
-#include <experimental/filesystem>
+#include <boost/filesystem.hpp>
 #include <iomanip>
 #include <sstream>
 #include "utils/commandline.h"
@@ -27,7 +27,7 @@
 namespace lczero {
 
 TrainingDataWriter::TrainingDataWriter(int game_id) {
-  using namespace std::experimental::filesystem;
+  using namespace boost::filesystem;
   static std::string directory =
       CommandLine::BinaryDirectory() + "/data-" + Random::Get().GetString(12);
   // It's fine if it already exists.

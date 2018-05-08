@@ -18,6 +18,7 @@
 #include <cassert>
 #include <functional>
 #include <mutex>
+#include <thread>
 #include "neural/factory.h"
 #include "utils/bititer.h"
 #include "utils/exception.h"
@@ -921,7 +922,7 @@ class CudnnNetwork : public Network {
     }
 
     // get rid of the BN layer by adjusting weights and biases of the
-    // convolution idea proposed by Henrik Forstén and first implemented in
+    // convolution idea proposed by Henrik ForstÃ©n and first implemented in
     // leela go zero
     if (foldBNLayer) {
       const int outputs = block.biases.size();
