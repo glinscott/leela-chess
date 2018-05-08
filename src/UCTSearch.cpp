@@ -405,10 +405,15 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 #endif
 
     // set up timing info
-
     Time.init(bh_.cur().side_to_move(), bh_.cur().game_ply());
-    m_target_time = (Limits.movetime ? Limits.movetime : (int)(1.5*Time.optimum())) - cfg_lagbuffer_ms;
     m_max_time    = Time.maximum() - cfg_lagbuffer_ms;
+    
+    if (Limits.movetime) {
+        m_target_time = Limits.movetime;
+    } else {
+       m_target_time = std::min( (int)(1.5*Time.optimum()), m_max_time );        
+    }
+    
     m_start_time  = Limits.timeStarted();
 
     // create a sorted list of legal moves (make sure we
