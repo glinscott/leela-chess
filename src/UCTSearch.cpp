@@ -411,7 +411,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
     if (Limits.movetime) {
         m_target_time = Limits.movetime;
     } else {
-       m_target_time = std::min( (int)(1.5*Time.optimum()), m_max_time );        
+       m_target_time = std::min( (int64_t)(1.5*Time.optimum()), m_max_time );        
     }
     
     m_start_time  = Limits.timeStarted();
