@@ -1028,6 +1028,13 @@ void Network::softmax(const std::vector<float>& input,
 Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawData* debug_data, bool skip_cache) {
     Netresult result;
     auto full_key = pos.cur().full_key();
+    // Mix in the history to try and ensure no false positive lookups where
+    // the cached values would differ from the NN evals.
+    int history_count = pos.positions.size();
+    for (int i = history_count - 2; i >= std::max(0, history_count - T_HISTORY); i--) {
+        full_key *= 31;
+        full_key ^= pos.positions[i].full_key();
+    }
 
     // See if we already have this in the cache.
     if (!skip_cache) {
