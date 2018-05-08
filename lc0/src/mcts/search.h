@@ -40,7 +40,7 @@ struct SearchLimits {
 
 class Search {
  public:
-  Search(Node* root_node, NodePool* node_pool, Network* network,
+  Search(const NodeTree& tree, Network* network,
          BestMoveInfo::Callback best_move_callback,
          ThinkingInfo::Callback info_callback, const SearchLimits& limits,
          const OptionsDict& options, NNCache* cache);
@@ -81,14 +81,15 @@ class Search {
   void MaybeOutputInfo();
   void SendMovesStats() const;
   bool AddNodeToCompute(Node* node, CachingComputation* computation,
+                        const PositionHistory& history,
                         bool add_if_cached = true);
-  int PrefetchIntoCache(Node* node, int budget,
-                        CachingComputation* computation);
+  int PrefetchIntoCache(Node* node, int budget, CachingComputation* computation,
+                        PositionHistory* history);
 
   void SendUciInfo();  // Requires nodes_mutex_ to be held.
 
-  Node* PickNodeToExtend(Node* node);
-  void ExtendNode(Node* node);
+  Node* PickNodeToExtend(Node* node, PositionHistory* history);
+  void ExtendNode(Node* node, const PositionHistory& history);
 
   mutable Mutex counters_mutex_ ACQUIRED_AFTER(nodes_mutex_);
   // Tells all threads to stop.
@@ -106,8 +107,9 @@ class Search {
   std::vector<std::thread> threads_ GUARDED_BY(threads_mutex_);
 
   Node* root_node_;
-  NodePool* node_pool_;
   NNCache* cache_;
+  // Fixed positions which happened before the search.
+  const PositionHistory& played_history_;
 
   Network* const network_;
   const SearchLimits limits_;
