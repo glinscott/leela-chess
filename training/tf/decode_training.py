@@ -60,6 +60,8 @@ V3_BYTES = 8276
 # Them -- lowercase
 PIECES = "PNBRQKpnbrqk"
 
+FLIP_BOARD = True
+
 MOVES = [
     "a1b1",
     "a1c1",
@@ -2001,10 +2003,14 @@ class TrainingStep:
                 # Note: Using 8-1-f because both the text and binary have the
                 # column bits reversed from what this code expects
                 
-                if self.us_black:
-                    correctedF = f
-                else:
+                if FLIP_BOARD:
                     correctedF = 8-1-f
+                else:
+                    if self.us_black:
+                        correctedF = f
+                    else:
+                        correctedF = 8-1-f
+                        
                 if bit_board & (1<<(r*8 + correctedF)):
                     assert(self.history[hist].board[r][f] == ".")
                     self.history[hist].board[r][f] = piece
@@ -2024,20 +2030,28 @@ class TrainingStep:
         else:
             raise Exception("Invalid winner: {}".format(self.winner))
         if self.us_black:
-            s += "(Note the black pieces are CAPS, black moves up)\n"
+            if FLIP_BOARD:
+                s += "(Note the black pieces are CAPS, black moves up, but A1 is in lower left)\n"
+            else:
+                s += "(Note the black pieces are CAPS, black moves up)\n"
         s += "rule50_count {} b_ooo b_oo, w_ooo, w_oo {} {} {} {}\n".format(
             self.rule50_count, self.us_ooo, self.us_oo, self.them_ooo, self.them_oo)
 
         rank_strings = [[]]
 
-        if self.us_black:
-            s += "  hgfedcba\n"
-            for rank in range(8):
-                rank_strings[0].append("{}".format(rank+1))
-        else:
+        if FLIP_BOARD:
             s += "  abcdefgh\n"
             for rank in reversed(range(8)):
                 rank_strings[0].append("{}".format(rank+1))
+        else:
+            if self.us_black:
+                s += "  hgfedcba\n"
+                for rank in range(8):
+                    rank_strings[0].append("{}".format(rank+1))
+            else:
+                s += "  abcdefgh\n"
+                for rank in reversed(range(8)):
+                    rank_strings[0].append("{}".format(rank+1))
             
         rank_strings[0].append("  ")
         for hist in range(self.NUM_HIST):
@@ -2053,10 +2067,15 @@ class TrainingStep:
             if prob > 0.01:
                 top_moves[idx] = prob
             sum += prob
-        if self.us_black:
-            lookupMap = self.new_rev_black_move_map
-        else:
+        
+        if FLIP_BOARD:
             lookupMap = self.new_rev_white_move_map
+        else:
+            if self.us_black:
+                lookupMap = self.new_rev_black_move_map
+            else:
+                lookupMap = self.new_rev_white_move_map
+        
         for idx, prob in sorted(top_moves.items(), key=lambda x:-x[1]):
             myuci = lookupMap[idx]
             s += "{} {:4.1f}%\n".format(myuci, prob*100)
@@ -2141,6 +2160,10 @@ Parse training files and display them."""
             description=usage_str)
     parser.add_argument("files", type=str, nargs="+",
             help="training*.gz")
+    parser.add_argument("-r", "--rotate", default=False, action="store_true", help="rotate the board instead of flipping it")
     args = parser.parse_args()
-
+    
+    if args.rotate:
+        FLIP_BOARD = False
+    
     main(args)
