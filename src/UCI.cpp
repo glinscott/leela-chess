@@ -362,6 +362,9 @@ void UCI::loop(const std::string& start) {
           setoption(is);
       }
       else if (token == "go") {
+          if (wait_init) {
+              wait_init = netinit.get();
+          }
           wait_search();
 
           parse_limits(is, search);
@@ -408,6 +411,9 @@ void UCI::loop(const std::string& start) {
           generate_training_games(is);
       }
       else if (token == "bench") {
+          if (wait_init) {
+              wait_init = netinit.get();
+          }
           stop_and_wait_search();
 
           bench();
