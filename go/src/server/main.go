@@ -265,7 +265,7 @@ func uploadNetwork(c *gin.Context) {
 }
 
 func checkEngineVersion(engineVersion string) (bool) {
-    v, err := version.NewVersion(engineVersion)
+	v, err := version.NewVersion(engineVersion)
 	if err != nil {
 		return false
 	}
