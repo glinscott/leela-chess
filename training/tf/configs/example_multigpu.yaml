@@ -1,0 +1,30 @@
+%YAML 1.2
+---
+name: 'kb1-64x6'                       # ideally no spaces
+gpu: 0,1                               # list of gpus ids to process on
+
+dataset: 
+  num_chunks: 100000                   # newest nof chunks to parse
+  train_ratio: 0.90                    # trainingset ratio
+  input: '/path/to/chunks/*/draw/'     # supports glob
+
+training:
+    batch_size: 2048                   # training batch
+    total_steps: 140000                # terminate after these steps
+    shuffle_size: 524288               # size of the shuffle buffer
+    lr_values:                         # list of learning rates
+        - 0.02
+        - 0.002
+        - 0.0005
+    lr_boundaries:                     # list of boundaries
+        - 100000
+        - 130000
+    policy_loss_weight: 1.0            # weight of policy loss
+    value_loss_weight: 1.0             # weight of value loss
+    path: '/path/to/store/networks'    # network storage dir
+    multi_gpu_train_device: '/cpu:0'   # device to do the aggregated training on (default: /cpu:0), not used when single gpu
+
+model:
+  filters: 64
+  residual_blocks: 6
+...
