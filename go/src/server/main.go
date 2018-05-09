@@ -269,7 +269,7 @@ func checkEngineVersion(engineVersion string) (bool) {
 	if err != nil {
 		return false
 	}
-	target, err := version.NewVersion("0.8")
+	target, err := version.NewVersion("0.9")
 	if err != nil {
 		log.Println("Invalid comparison version, rejecting all clients!!!")
 		return false
