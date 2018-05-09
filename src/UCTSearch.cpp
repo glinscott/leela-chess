@@ -51,7 +51,7 @@ LimitsType Limits;
 UCTSearch::UCTSearch(BoardHistory&& bh)
     : bh_(std::move(bh)) {
     set_playout_limit(cfg_max_playouts);
-    set_visit_limit(cfg_max_visits);
+    set_node_limit(cfg_max_nodes);
     m_root = std::make_unique<UCTNode>(MOVE_NONE, 0.0f, 0.5f);
 }
 
@@ -85,8 +85,10 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node, i
                         result = SearchResult::from_score(color == Color::WHITE ? -1.0 : 1.0);
                     } else if (wdl == Tablebases::WDLWin) {
                         result = SearchResult::from_score(color == Color::WHITE ? 1.0 : -1.0);
-                    } else {
+                    } else if (cfg_syzygydraw) {
                         result = SearchResult::from_score(0.0);
+                    } else {
+                        err = Tablebases::ProbeState::FAIL;
                     }
                     ++m_tbhits;
                 }
@@ -131,27 +133,21 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
         return;
     }
 
-    auto root_temperature = 1.0f;
-    auto normfactor = float(m_root->get_first_child()->get_visits());
-    auto accum = 0.0f;
-    if (cfg_randomize) {
-        if (cfg_root_temp_decay > 0) {
-            root_temperature = get_root_temperature();
-        }
-        for (const auto& node : boost::adaptors::reverse(parent.get_children())) {
-            accum += std::pow(node->get_visits()/normfactor,1/root_temperature);
-        }
-    }
+    auto root_temperature = get_root_temperature();
+    auto accum_vector = m_root->calc_proportional(root_temperature, color);
 
-    // Reverse sort because GUIs typically will reverse it again.
     for (const auto& node : boost::adaptors::reverse(parent.get_children())) {
         std::string tmp = state.cur().move_to_san(node->get_move());
         std::string pvstring(tmp);
         std::string moveprob(10, '\0');
 
-        auto move_probability = 0.0f;
         if (cfg_randomize) {
-            move_probability = std::pow(node->get_visits()/normfactor,1/root_temperature)/accum*100.0f;
+            auto move_probability = accum_vector.back();
+            accum_vector.pop_back();
+            if (accum_vector.size() > 0) {
+                move_probability -= accum_vector.back();
+            }
+            move_probability *= 100.0f; // The following code expects percentage.
             if (move_probability > 0.01f) {
                 std::snprintf(&moveprob[0], moveprob.size(), "(%6.2f%%)", move_probability);
             } else if (move_probability > 0.00001f) {
@@ -186,6 +182,9 @@ void UCTSearch::dump_stats(BoardHistory& state, UCTNode& parent) {
 }
 
 float UCTSearch::get_root_temperature() {
+    if (cfg_root_temp_decay == 0) {
+        return 1.0f;
+    }
     auto adjusted_ply = 1.0f + (bh_.cur().game_ply()+1.0f) * cfg_root_temp_decay / 50.0f;
     auto root_temp = 1.0f / (1.0f + std::log(adjusted_ply));
     if (root_temp < 0.05f) {
@@ -204,14 +203,11 @@ Move UCTSearch::get_best_move() {
     // to the (exponentiated) visit counts.
 
     if (cfg_randomize) {
-        auto root_temperature = 1.0f;
-        // If a temperature decay schedule is set, calculate root temperature from
-        // ply count and decay constant. Set default value for too small root temperature.
+        auto root_temperature = get_root_temperature();
         if (cfg_root_temp_decay > 0) {
-            root_temperature = get_root_temperature();
             myprintf("Game ply: %d, root temperature: %5.2f \n",bh_.cur().game_ply()+1, root_temperature);
         }
-        m_root->randomize_first_proportionally(root_temperature);
+        m_root->randomize_first_proportionally(root_temperature, color);
     }
     if (m_tbpruned.size() > 0) {
         m_root->ensure_first_not_pruned(m_tbpruned);
@@ -270,9 +266,7 @@ void UCTSearch::dump_analysis(int64_t elapsed, bool force_output) {
     // UCI-like output wants a depth and a cp, so convert winrate to a cp estimate.
     int cp = 290.680623072 * tan(3.096181612 * (feval - 0.5));
     // same for nodes to depth, assume nodes = 1.8 ^ depth.
-    int depth = log(float(m_nodes)) / log(1.8);
-    // TODO: See PR#466, this is not working. Revert to old way for now.
-    // int depth = m_maxdepth;
+    int depth = m_nodes==0 ? 0 : log(float(m_nodes)) / log(1.8);
     // To report nodes, use visits.
     //   - Only includes expanded nodes.
     //   - Includes nodes carried over from tree reuse.
@@ -296,7 +290,7 @@ int UCTSearch::est_playouts_left() const {
         // No time control, use playouts or visits.
         const auto playouts_left =
                 std::max(0, std::min(m_maxplayouts - playouts,
-                                     m_maxvisits - m_root->get_visits()));
+                                     m_maxnodes - m_root->get_visits()));
         return playouts_left;
     } else if (elapsed_millis < 1000 || playouts < 100) {
         // Until we reach 1 second or 100 playouts playout_rate
@@ -363,7 +357,7 @@ bool UCTSearch::have_alternate_moves() {
 
 bool UCTSearch::pv_limit_reached() const {
     return m_playouts >= m_maxplayouts
-        || m_root->get_visits() >= m_maxvisits;
+        || m_root->get_visits() >= m_maxnodes;
 }
 
 void UCTWorker::operator()() {
@@ -435,6 +429,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         Position cur_pos = bh_.cur();
         if (Tablebases::root_probe(cur_pos, m_root->get_children()) || Tablebases::root_probe_wdl(cur_pos, m_root->get_children())) {
             for (const auto& node : m_root->get_children()) {
+                m_tbhits++;
                 if (!node->active()) {
                     m_tbpruned.insert((int)node->get_move());
                 }
@@ -554,13 +549,13 @@ void UCTSearch::set_playout_limit(int playouts) {
     }
 }
 
-void UCTSearch::set_visit_limit(int visits) {
-    static_assert(std::is_convertible<decltype(visits), decltype(m_maxvisits)>::value, "Inconsistent types for visits amount.");
-    if (visits == 0) {
+void UCTSearch::set_node_limit(int nodes) {
+    static_assert(std::is_convertible<decltype(nodes), decltype(m_maxnodes)>::value, "Inconsistent types for nodes amount.");
+    if (nodes == 0) {
         // Divide max by 2 to prevent overflow when multithreading.
-        m_maxvisits = MAXINT_DIV2;
+        m_maxnodes = MAXINT_DIV2;
     } else {
-        m_maxvisits = visits;
+        m_maxnodes = nodes;
     }
 }
 

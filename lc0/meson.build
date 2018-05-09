@@ -1,7 +1,6 @@
-project('lc0', 'cpp')
-  #        default_options : ['cpp_std=c++17'])
+project('lc0', 'cpp', default_options : ['cpp_std=c++14'])
 
-add_global_arguments('-std=c++17', '-Wthread-safety', language : 'cpp')
+add_global_arguments('-Wthread-safety', language : 'cpp')
 cc = meson.get_compiler('cpp')
 
 # Installed from https://github.com/FloopCZ/tensorflow_cc
@@ -26,10 +25,11 @@ tensorflow_cc = declare_dependency(
 deps = []
 deps += tensorflow_cc
 deps += cc.find_library('stdc++fs')
+deps += cc.find_library('pthread')
 deps += cc.find_library('libcublas', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
 deps += cc.find_library('libcudnn', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
 deps += cc.find_library('libcudart', dirs: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'])
-# deps += dependency('libprofiler')
+# deps += cc.find_library('libprofiler', dirs: ['/usr/local/lib'])
 
 nvcc = find_program('nvcc')
 cuda_files = [
@@ -44,9 +44,11 @@ cuda_gen = generator(nvcc,
 files = [
   'src/chess/bitboard.cc',
   'src/chess/board.cc',
+  'src/chess/position.cc',
   'src/mcts/node.cc',
   'src/mcts/search.cc',
   'src/neural/cache.cc',
+  'src/neural/encoder.cc',
   'src/neural/factory.cc',
   'src/neural/loader.cc',
   'src/neural/writer.cc',

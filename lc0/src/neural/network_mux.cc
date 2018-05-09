@@ -52,7 +52,13 @@ class MuxingComputation : public NetworkComputation {
     for (auto& x : planes_) parent_->AddInput(std::move(x));
   }
 
-  void NotifyReady() { dataready_cv_.notify_one(); }
+  void NotifyReady() {
+    {
+      std::unique_lock<std::mutex> lock(mutex_);
+      dataready_ = true;
+    }
+    dataready_cv_.notify_one();
+  }
 
  private:
   std::vector<InputPlanes> planes_;
@@ -60,7 +66,9 @@ class MuxingComputation : public NetworkComputation {
   std::shared_ptr<NetworkComputation> parent_;
   int idx_in_parent_ = 0;
 
+  std::mutex mutex_;
   std::condition_variable dataready_cv_;
+  bool dataready_ = false;
 };
 
 class MuxingNetwork : public Network {
@@ -151,8 +159,10 @@ class MuxingNetwork : public Network {
   }
 
   void Abort() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    abort_ = true;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      abort_ = true;
+    }
     cv_.notify_all();
   }
 
@@ -175,14 +185,13 @@ class MuxingNetwork : public Network {
 };
 
 void MuxingComputation::ComputeBlocking() {
-  std::mutex mx;
-  std::unique_lock<std::mutex> lock(mx);
   network_->Enqueue(this);
-  dataready_cv_.wait(lock);
+  std::unique_lock<std::mutex> lock(mutex_);
+  dataready_cv_.wait(lock, [this]() { return dataready_; });
 }
 
 }  // namespace
 
-REGISTER_NETWORK("multiplexing", MuxingNetwork, -1);
+REGISTER_NETWORK("multiplexing", MuxingNetwork, -1000);
 
 }  // namespace lczero
