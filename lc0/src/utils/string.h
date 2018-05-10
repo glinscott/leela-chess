@@ -18,33 +18,23 @@
 
 #pragma once
 
-#include <thread>
-#include "chess/uciloop.h"
-#include "selfplay/tournament.h"
-#include "utils/optionsparser.h"
+#include <string>
+#include <vector>
 
 namespace lczero {
 
-class SelfPlayLoop : public UciLoop {
- public:
-  SelfPlayLoop();
-  ~SelfPlayLoop();
+// Joins strings using @delim as delimeter.
+std::string StrJoin(const std::vector<std::string>& strings,
+                    const std::string& delim = " ");
 
-  void RunLoop() override;
-  void CmdStart() override;
-  void CmdUci() override;
-  void CmdSetOption(const std::string& name, const std::string& value,
-                    const std::string& context) override;
+// Splits strings at whitespace.
+std::vector<std::string> StrSplitAtWhitespace(const std::string& str);
 
- private:
-  void SendGameInfo(const GameInfo& move);
-  void SendTournament(const TournamentInfo& info);
+// Split string by delimeter.
+std::vector<std::string> StrSplit(const std::string& str,
+                                  const std::string& delim);
 
-  void EnsureOptionsSent();
-  OptionsParser options_;
-
-  std::unique_ptr<SelfPlayTournament> tournament_;
-  std::unique_ptr<std::thread> thread_;
-};
+// Parses comma-separated list of integers.
+std::vector<int> ParseIntList(const std::string& str);
 
 }  // namespace lczero
