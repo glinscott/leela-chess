@@ -18,33 +18,39 @@
 
 #pragma once
 
-#include <thread>
-#include "chess/uciloop.h"
-#include "selfplay/tournament.h"
+#include <fstream>
+#include "analyzer/table.h"
+#include "chess/board.h"
+#include "chess/callbacks.h"
+#include "mcts/node.h"
+#include "neural/network.h"
 #include "utils/optionsparser.h"
 
 namespace lczero {
 
-class SelfPlayLoop : public UciLoop {
+class Analyzer {
  public:
-  SelfPlayLoop();
-  ~SelfPlayLoop();
-
-  void RunLoop() override;
-  void CmdStart() override;
-  void CmdUci() override;
-  void CmdSetOption(const std::string& name, const std::string& value,
-                    const std::string& context) override;
+  Analyzer();
+  void Run();
 
  private:
-  void SendGameInfo(const GameInfo& move);
-  void SendTournament(const TournamentInfo& info);
+  void RunOnePosition(const std::vector<Move>& position);
 
-  void EnsureOptionsSent();
-  OptionsParser options_;
+  void WriteToLog(const std::string& line) const;
+  void WriteToTsvLog(const std::vector<std::string>& line) const;
 
-  std::unique_ptr<SelfPlayTournament> tournament_;
-  std::unique_ptr<std::thread> thread_;
+  void InitializeNetwork();
+  void OnBestMove(const BestMoveInfo& move) const;
+  void OnInfo(const ThinkingInfo& info) const;
+  void GatherStats(Table3d* table, const Node* root_node, std::string& col,
+                   bool flip);
+
+  std::unique_ptr<Network> network_;
+  OptionsParser options_parser_;
+  const OptionsDict* play_options_;
+  // const OptionsDict* training_options_;
+  mutable std::ofstream log_;
+  mutable std::ofstream tsvlog_;
 };
 
 }  // namespace lczero
