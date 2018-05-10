@@ -359,7 +359,7 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     // Lower the expected eval for moves that are likely not the best.
     // Do not do this if we have introduced noise at this node exactly
     // to explore more.
-    if (!is_root || !cfg_noise) {
+    if (!is_root && !m_move.GenType == QUIET_CHECKS) {
         fpu_reduction = cfg_fpu_reduction * std::sqrt(total_visited_policy);
     }
 
