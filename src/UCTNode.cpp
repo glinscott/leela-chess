@@ -333,7 +333,7 @@ void UCTNode::accumulate_eval(float eval) {
     atomic_add(m_whiteevals, (double)eval);
 }
 
-UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
+UCTNode* UCTNode::uct_select_child(Color color, bool use_fpu_reduction) {
     UCTNode* best = nullptr;
     auto best_value = std::numeric_limits<double>::lowest();
 
@@ -359,7 +359,7 @@ UCTNode* UCTNode::uct_select_child(Color color, bool is_root) {
     // Lower the expected eval for moves that are likely not the best.
     // Do not do this if we have introduced noise at this node exactly
     // to explore more.
-    if (!is_root && !m_move.GenType == QUIET_CHECKS) {
+    if (use_fpu_reduction) {
         fpu_reduction = cfg_fpu_reduction * std::sqrt(total_visited_policy);
     }
 
