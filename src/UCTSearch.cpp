@@ -104,7 +104,7 @@ SearchResult UCTSearch::play_simulation(BoardHistory& bh, UCTNode* const node, i
     }
 
     if (node->has_children() && !result.valid()) {
-        auto next = node->uct_select_child(color, node == m_root.get());
+        auto next = node->uct_select_child(color, nDepth >= 2 && !cur.checkers());
         auto move = next->get_move();
         bh.do_move(move);
         result = play_simulation(bh, next, ndepth+1);
