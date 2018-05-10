@@ -1054,6 +1054,9 @@ Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawDa
 }
 
 Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, NNPlanes& planes, DebugRawData* debug_data) {
+    // NNPlanes is sized to support either version, so this assert uses
+    // MAX_INPUT_CHANNELS. The rest of the code uses get_input_channels()
+    // to match the actual number of bits expected by each network.
     assert(MAX_INPUT_CHANNELS == planes.bit.size()+3);
     constexpr int width = 8;
     constexpr int height = 8;
