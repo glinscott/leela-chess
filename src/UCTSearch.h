@@ -100,6 +100,7 @@ private:
     int64_t m_target_time{0};
     int64_t m_max_time{0};
     int64_t m_start_time{0};
+    int64_t m_time_after_initial_playouts{0};
     std::atomic<bool> m_run{false};
     int m_maxplayouts;
     int m_maxnodes;
