@@ -529,7 +529,7 @@ func matchResult(c *gin.Context) {
 }
 
 func getActiveUsers() (gin.H, error) {
-	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(engine_version), MAX(training_games.created_at), count(*) FROM training_games
+	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(SPLIT_PART(engine_version, '.', 2) :: INTEGER), MAX(training_games.created_at), count(*) FROM training_games
 LEFT JOIN users
 ON users.id = training_games.user_id
 WHERE training_games.created_at >= now() - INTERVAL '1 day'
