@@ -1054,6 +1054,9 @@ Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawDa
 }
 
 Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, NNPlanes& planes, DebugRawData* debug_data) {
+    // NNPlanes is sized to support either version, so this assert uses
+    // MAX_INPUT_CHANNELS. The rest of the code uses get_input_channels()
+    // to match the actual number of bits expected by each network.
     assert(MAX_INPUT_CHANNELS == planes.bit.size()+3);
     constexpr int width = 8;
     constexpr int height = 8;
@@ -1066,8 +1069,8 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     std::vector<float> winrate_data(Network::NUM_VALUE_CHANNELS);
     std::vector<float> winrate_out(1);
     // Data layout is input_data[(c * height + h) * width + w]
-    input_data.reserve(MAX_INPUT_CHANNELS * width * height);
-    for (int c = 0; c < MAX_INPUT_CHANNELS - 3; ++c) {
+    input_data.reserve(get_input_channels() * width * height);
+    for (int c = 0; c < get_input_channels() - 3; ++c) {
         for (int i = 0; i < 64; ++i) {
             input_data.emplace_back(net_t(planes.bit[c][i]));
         }
@@ -1083,7 +1086,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     for (int i = 0; i < 64; ++i) {
         input_data.emplace_back(net_t(m_format_version == 1 ? 0.0 : 1.0));
     }
-    assert(input_data.size() == MAX_INPUT_CHANNELS * width * height);
+    assert(input_data.size() == get_input_channels() * width * height);
 #ifdef USE_OPENCL
     opencl.forward(input_data, policy_data, value_data);
 #elif defined(USE_BLAS) && !defined(USE_OPENCL)
