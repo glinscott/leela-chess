@@ -135,7 +135,6 @@ type CmdWrapper struct {
 	Input    io.WriteCloser
 	BestMove chan string
 	Version  string
-	Ready	 bool
 }
 
 func (c *CmdWrapper) openInput() {
@@ -148,7 +147,6 @@ func (c *CmdWrapper) openInput() {
 
 func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 	c.BestMove = make(chan string)
-	c.Ready = false
 	weights := fmt.Sprintf("--weights=%s", networkPath)
 	dir, _ := os.Getwd()
 	c.Cmd = exec.Command(path.Join(dir, "lczero"), weights, "-t1")
@@ -187,8 +185,6 @@ func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 				c.BestMove <- strings.Split(line, " ")[1]
 			} else if strings.HasPrefix(line, "id name lczero ") {
 				c.Version = strings.Split(line, " ")[3]
-			} else if line == "readyok" {
-				c.Ready = true
 			}
 		}
 	}()
@@ -215,13 +211,9 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	baseline.launch(baselinePath, params, true)
 	defer baseline.Input.Close()
 
-	io.WriteString(baseline.Input, "isready\n")
-
 	candidate := CmdWrapper{}
 	candidate.launch(candidatePath, params, true)
 	defer candidate.Input.Close()
-
-	io.WriteString(candidate.Input, "isready\n")
 
 	p1 := &candidate
 	p2 := &baseline
@@ -232,24 +224,6 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 
 	io.WriteString(baseline.Input, "uci\n")
 	io.WriteString(candidate.Input, "uci\n")
-
-	to_start := time.Now()
-
-	for {
-		if baseline.Ready && candidate.Ready {
-			break
-		}
-
-		to_now := time.Now()
-		to_diff := to_now.Sub(to_start)
-
-		if to_diff.Seconds() > 300 {
-			log.Println("readyok timeout")
-			return 0, "", "", errors.New("timeout")
-		}
-
-		time.Sleep(200 * time.Millisecond)
-	}
 
 	// Play a game using UCI
 	var result int
