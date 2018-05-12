@@ -193,6 +193,14 @@ Node* Node::CreateChild(Move m) {
   return new_node;
 }
 
+float Node::GetVisitedPolicy() const {
+  float res = 0.0f;
+  for (const Node* node : Children()) {
+    if (node->GetNStarted() > 0) res += node->GetP();
+  }
+  return res;
+}
+
 void Node::ResetStats() {
   n_in_flight_ = 0;
   n_ = 0;
@@ -286,7 +294,7 @@ V3TrainingData Node::GetV3TrainingData(GameResult game_result,
   }
 
   // Populate planes.
-  InputPlanes planes = EncodePositionForNN(history);
+  InputPlanes planes = EncodePositionForNN(history, 8);
   int plane_idx = 0;
   for (auto& plane : result.planes) {
     plane = ReverseBitsInBytes(planes[plane_idx++].mask);
