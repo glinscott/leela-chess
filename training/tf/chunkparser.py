@@ -66,7 +66,7 @@ class ChunkParser:
         long.
         """
 
-        # Build a series of flat planes with values 0..255
+        # Build 2 flat float32 planes with values 0,1
         self.flat_planes = []
         for i in range(2):
             self.flat_planes.append(np.zeros(64, dtype=np.float32) + i)
@@ -167,7 +167,7 @@ class ChunkParser:
 
         # Unpack bit planes and cast to 32 bit float
         planes = np.unpackbits(np.frombuffer(planes, dtype=np.uint8)).astype(np.float32)
-        rule50_plane = (np.zeros(8*8, dtype=np.float32) + rule50_count) / 100
+        rule50_plane = (np.zeros(8*8, dtype=np.float32) + rule50_count) / 99
 
         # Concatenate all byteplanes. Make the last plane all 1's so the NN can
         # detect edges of the board more easily
@@ -347,7 +347,7 @@ class ChunkParserTest(unittest.TestCase):
                   np.reshape(np.frombuffer(data[2], dtype=np.float32), (batch_size, 1)) )
 
         fltplanes = truth[1].astype(np.float32)
-        fltplanes[5] /= 100
+        fltplanes[5] /= 99
         for i in range(batch_size):
             data = (batch[0][i][:104], np.array([batch[0][i][j][0] for j in range(104,111)]), batch[1][i], batch[2][i])
             self.assertTrue((data[0] == truth[0]).all())
