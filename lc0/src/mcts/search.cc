@@ -37,7 +37,7 @@ const char* Search::kMiniBatchSizeStr = "Minibatch size for NN inference";
 const char* Search::kMiniPrefetchBatchStr = "Max prefetch nodes, per NN call";
 const char* Search::kCpuctStr = "Cpuct MCTS option";
 const char* Search::kTemperatureStr = "Initial temperature";
-const char* Search::kTempDecayStr = "Per move temperature decay";
+const char* Search::kTempDecayMovesStr = "Moves with temperature decay";
 const char* Search::kNoiseStr = "Add Dirichlet noise at root node";
 const char* Search::kVerboseStatsStr = "Display verbose move stats";
 const char* Search::kSmartPruningStr = "Enable smart pruning";
@@ -56,7 +56,7 @@ void Search::PopulateUciParams(OptionsParser* options) {
   options->Add<IntOption>(kMiniPrefetchBatchStr, 0, 1024, "max-prefetch") = 32;
   options->Add<FloatOption>(kCpuctStr, 0, 100, "cpuct") = 1.2;
   options->Add<FloatOption>(kTemperatureStr, 0, 100, "temperature") = 0.0;
-  options->Add<FloatOption>(kTempDecayStr, 0, 1.00, "tempdecay") = 0.0;
+  options->Add<IntOption>(kTempDecayMovesStr, 0, 100, "tempdecay-moves") = 0;
   options->Add<BoolOption>(kNoiseStr, "noise", 'n') = false;
   options->Add<BoolOption>(kVerboseStatsStr, "verbose-move-stats") = false;
   options->Add<BoolOption>(kSmartPruningStr, "smart-pruning") = true;
@@ -64,8 +64,8 @@ void Search::PopulateUciParams(OptionsParser* options) {
       0.0f;
   options->Add<FloatOption>(kFpuReductionStr, -100, 100, "fpu-reduction") =
       0.2f;
-  options->Add<IntOption>(kCacheHistoryLengthStr, 1, 8,
-                          "cache-history-length") = 8;
+  options->Add<IntOption>(kCacheHistoryLengthStr, 0, 7,
+                          "cache-history-length") = 7;
 }
 
 Search::Search(const NodeTree& tree, Network* network,
@@ -85,7 +85,7 @@ Search::Search(const NodeTree& tree, Network* network,
       kMiniPrefetchBatch(options.Get<int>(kMiniPrefetchBatchStr)),
       kCpuct(options.Get<float>(kCpuctStr)),
       kTemperature(options.Get<float>(kTemperatureStr)),
-      kTempDecay(options.Get<float>(kTempDecayStr)),
+      kTempDecayMoves(options.Get<int>(kTempDecayMovesStr)),
       kNoise(options.Get<bool>(kNoiseStr)),
       kVerboseStats(options.Get<bool>(kVerboseStatsStr)),
       kSmartPruning(options.Get<bool>(kSmartPruningStr)),
@@ -97,14 +97,14 @@ Search::Search(const NodeTree& tree, Network* network,
 bool Search::AddNodeToCompute(Node* node, CachingComputation* computation,
                               const PositionHistory& history,
                               bool add_if_cached) {
-  auto hash = history.HashLast(kCacheHistoryLength);
+  auto hash = history.HashLast(kCacheHistoryLength + 1);
   // If already in cache, no need to do anything.
   if (add_if_cached) {
     if (computation->AddInputByHash(hash)) return true;
   } else {
     if (cache_->ContainsKey(hash)) return true;
   }
-  auto planes = EncodePositionForNN(history);
+  auto planes = EncodePositionForNN(history, 8);
 
   std::vector<uint16_t> moves;
 
@@ -302,8 +302,9 @@ int Search::PrefetchIntoCache(Node* node, int budget,
   // Populate all subnodes and their scores.
   typedef std::pair<float, Node*> ScoredNode;
   std::vector<ScoredNode> scores;
-  float factor = kCpuct * std::sqrt(std::max(node->GetN(), 1u));
-  const float parent_q = -node->GetQ(0) - kFpuReduction;
+  float factor = kCpuct * std::sqrt(std::max(node->GetChildrenVisits(), 1u));
+  // FPU reduction is not taken into account.
+  const float parent_q = -node->GetQ(0);
   for (Node* iter : node->Children()) {
     if (iter->GetP() == 0.0f) continue;
     // Flipping sign of a score to be able to easily sort.
@@ -356,9 +357,15 @@ namespace {
 // Returns a child with most visits.
 Node* GetBestChild(Node* parent) {
   Node* best_node = nullptr;
-  std::pair<int, float> best(-1, 0.0);
+  // Best child is selected using the following criteria:
+  // * Largest number of playouts.
+  // * If two nodes have equal number:
+  //   * If that number is 0, the one with larger prior wins.
+  //   * If that number is larger than 0, the one wil larger eval wins.
+  std::tuple<int, float, float> best(-1, 0.0, 0.0);
   for (Node* node : parent->Children()) {
-    std::pair<int, float> val(node->GetNStarted(), node->GetP());
+    std::tuple<int, float, float> val(node->GetNStarted(), node->GetQ(-10.0),
+                                      node->GetP());
     if (val > best) {
       best = val;
       best_node = node;
@@ -368,15 +375,16 @@ Node* GetBestChild(Node* parent) {
 }
 
 Node* GetBestChildWithTemperature(Node* parent, float temperature) {
-  std::vector<double> cumulative_sums;
-  double sum = 0.0;
+  std::vector<float> cumulative_sums;
+  float sum = 0.0;
+  const float n_parent = parent->GetN();
 
   for (Node* node : parent->Children()) {
-    sum += std::pow(node->GetNStarted(), 1 / temperature);
+    sum += std::pow(node->GetNStarted() / n_parent, 1 / temperature);
     cumulative_sums.push_back(sum);
   }
 
-  double toss = Random::Get().GetDouble(cumulative_sums.back());
+  float toss = Random::Get().GetFloat(cumulative_sums.back());
   int idx =
       std::lower_bound(cumulative_sums.begin(), cumulative_sums.end(), toss) -
       cumulative_sums.begin();
@@ -432,7 +440,9 @@ uint64_t Search::GetTimeSinceStart() const {
 
 void Search::SendMovesStats() const {
   std::vector<const Node*> nodes;
-  const float parent_q = -root_node_->GetQ(0) - kFpuReduction;
+  const float parent_q =
+      -root_node_->GetQ(0) -
+      kFpuReduction * std::sqrt(root_node_->GetVisitedPolicy());
   for (Node* iter : root_node_->Children()) {
     nodes.emplace_back(iter);
   }
@@ -448,7 +458,7 @@ void Search::SendMovesStats() const {
     oss << std::left << std::setw(5)
         << node->GetMove(is_black_to_move).as_string();
     oss << " (" << std::setw(4) << node->GetMove().as_nn_index() << ")";
-    oss << " -> ";
+    oss << " N: ";
     oss << std::right << std::setw(7) << node->GetN() << " (+" << std::setw(2)
         << node->GetNInFlight() << ") ";
     oss << "(V: " << std::setw(6) << std::setprecision(2) << node->GetV() * 100
@@ -459,13 +469,14 @@ void Search::SendMovesStats() const {
         << node->GetQ(parent_q) << ") ";
     oss << "(U: " << std::setw(6) << std::setprecision(5)
         << node->GetU() * kCpuct *
-               std::sqrt(std::max(node->GetParent()->GetN(), 1u))
+               std::sqrt(std::max(node->GetParent()->GetChildrenVisits(), 1u))
         << ") ";
 
     oss << "(Q+U: " << std::setw(8) << std::setprecision(5)
         << node->GetQ(parent_q) +
                node->GetU() * kCpuct *
-                   std::sqrt(std::max(node->GetParent()->GetN(), 1u))
+                   std::sqrt(
+                       std::max(node->GetParent()->GetChildrenVisits(), 1u))
         << ") ";
     info.comment = oss.str();
     info_callback_(info);
@@ -528,14 +539,16 @@ void Search::UpdateRemainingMoves() {
     // Adding kMiniBatchSize, as it's possible to exceed visits limit by that
     // number.
     auto remaining_visits =
-        limits_.visits - total_playouts_ - initial_visits_ + kMiniBatchSize;
+        limits_.visits - total_playouts_ - initial_visits_ + kMiniBatchSize - 1;
+
     if (remaining_visits < remaining_playouts_)
       remaining_playouts_ = remaining_visits;
   }
   if (limits_.playouts >= 0) {
     // Adding kMiniBatchSize, as it's possible to exceed visits limit by that
     // number.
-    auto remaining_playouts = limits_.visits - total_playouts_ + kMiniBatchSize;
+    auto remaining_playouts =
+        limits_.visits - total_playouts_ + kMiniBatchSize + 1;
     if (remaining_playouts < remaining_playouts_)
       remaining_playouts_ = remaining_playouts;
   }
@@ -610,11 +623,14 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
 
     // Now we are not in leave, we need to go deeper.
     SharedMutex::SharedLock lock(nodes_mutex_);
-    float factor = kCpuct * std::sqrt(std::max(node->GetN(), 1u));
+    float factor = kCpuct * std::sqrt(std::max(node->GetChildrenVisits(), 1u));
     float best = -100.0f;
     int possible_moves = 0;
-    float parent_q = (is_root_node && kNoise) ? -node->GetQ(0)
-                                              : -node->GetQ(0) - kFpuReduction;
+    float parent_q =
+        (is_root_node && kNoise)
+            ? -node->GetQ(0)
+            : -node->GetQ(0) -
+                  kFpuReduction * std::sqrt(node->GetVisitedPolicy());
     for (Node* iter : node->Children()) {
       if (is_root_node) {
         // If there's no chance to catch up the currently best node with
@@ -662,10 +678,15 @@ std::pair<Move, Move> Search::GetBestMoveInternal() const
   if (!root_node_->HasChildren()) return {};
 
   float temperature = kTemperature;
-  if (temperature && kTempDecay)
-    temperature *=
-        std::pow(1 - kTempDecay, played_history_.Last().GetGamePly() / 2);
-  if (temperature < 0.01) temperature = 0.0;
+  if (temperature && kTempDecayMoves) {
+    int moves = played_history_.Last().GetGamePly() / 2;
+    if (moves >= kTempDecayMoves) {
+      temperature = 0.0;
+    } else {
+      temperature *=
+          static_cast<float>(kTempDecayMoves - moves) / kTempDecayMoves;
+    }
+  }
 
   Node* best_node = temperature
                         ? GetBestChildWithTemperature(root_node_, temperature)
