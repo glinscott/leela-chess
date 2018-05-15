@@ -49,8 +49,8 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 	if err != nil {
 		return nil, 0, errors.New("Invalid version")
 	}
-	if version < 7 {
-		log.Println("Rejecting old game from %s, version %d", user.Username, version)
+	if version < 8 {
+		log.Printf("Rejecting old game from %s, version %d\n", user.Username, version)
 		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 	}
 
@@ -269,7 +269,7 @@ func checkEngineVersion(engineVersion string) (bool) {
 	if err != nil {
 		return false
 	}
-	target, err := version.NewVersion("0.9")
+	target, err := version.NewVersion("0.10")
 	if err != nil {
 		log.Println("Invalid comparison version, rejecting all clients!!!")
 		return false
@@ -613,7 +613,7 @@ func getProgress() ([]gin.H, error) {
 	for _, network := range networks {
 		var sprt string = "???"
 		var best bool = false
-		for matchIdx < len(matches) && matches[matchIdx].CandidateID == network.ID {
+		for matchIdx < len(matches) && (matches[matchIdx].CandidateID == network.ID || matches[matchIdx].TestOnly) {
 			matchElo := calcElo(matches[matchIdx].Wins, matches[matchIdx].Losses, matches[matchIdx].Draws)
 			if matches[matchIdx].Done {
 				if matches[matchIdx].Passed {
