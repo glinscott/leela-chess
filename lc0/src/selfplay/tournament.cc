@@ -20,8 +20,8 @@
 #include "mcts/search.h"
 #include "neural/factory.h"
 #include "neural/loader.h"
-#include "optionsparser.h"
 #include "selfplay/game.h"
+#include "utils/optionsparser.h"
 #include "utils/random.h"
 
 namespace lczero {
@@ -61,7 +61,8 @@ void SelfPlayTournament::PopulateOptions(OptionsParser* options) {
   options->Add<IntOption>(kTimeMsStr, -1, 999999999, "movetime") = -1;
   options->Add<BoolOption>(kTrainingStr, "training") = false;
   const auto backends = NetworkFactory::Get()->GetBackendsList();
-  options->Add<ChoiceOption>(kNnBackendStr, backends, "backend") = backends[0];
+  options->Add<ChoiceOption>(kNnBackendStr, backends, "backend") =
+      backends.empty() ? "<none>" : backends[0];
   options->Add<StringOption>(kNnBackendOptionsStr, "backend-opts");
   options->Add<BoolOption>(kVerboseThinkingStr, "verbose-thinking") = false;
 

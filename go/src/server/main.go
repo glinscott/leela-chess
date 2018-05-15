@@ -21,6 +21,7 @@ import (
 
 	"github.com/gin-contrib/multitemplate"
 	"github.com/gin-gonic/gin"
+	"github.com/hashicorp/go-version"
 )
 
 func checkUser(c *gin.Context) (*db.User, uint64, error) {
@@ -263,6 +264,19 @@ func uploadNetwork(c *gin.Context) {
 	c.String(http.StatusOK, fmt.Sprintf("Network %s uploaded successfully.", network.Sha))
 }
 
+func checkEngineVersion(engineVersion string) (bool) {
+	v, err := version.NewVersion(engineVersion)
+	if err != nil {
+		return false
+	}
+	target, err := version.NewVersion("0.9")
+	if err != nil {
+		log.Println("Invalid comparison version, rejecting all clients!!!")
+		return false
+	}
+	return v.Compare(target) >= 0
+}
+
 func uploadGame(c *gin.Context) {
 	user, version, err := checkUser(c)
 	if err != nil {
@@ -270,7 +284,7 @@ func uploadGame(c *gin.Context) {
 		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
-	if version, err := strconv.ParseFloat(c.PostForm("engineVersion")[1:], 64); err != nil || version < 0.7 - 1e-6{
+	if !checkEngineVersion(c.PostForm("engineVersion")) {
 		log.Printf("Rejecting game with old lczero version %s", c.PostForm("engineVersion"))
 		c.String(http.StatusBadRequest, "\n\n\n\n\nYou must upgrade to a newer lczero version!!\n\n\n\n\n")
 		return

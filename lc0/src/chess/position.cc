@@ -31,16 +31,14 @@ Position::Position(const Position& parent, Move m)
 }
 
 Position::Position(const ChessBoard& board, int no_capture_ply, int game_ply)
-    : no_capture_ply_(no_capture_ply), repetitions_(0), ply_count_(0) {
+    : no_capture_ply_(no_capture_ply), repetitions_(0), ply_count_(game_ply) {
   us_board_ = board;
   them_board_ = board;
   them_board_.Mirror();
 }
 
 uint64_t Position::Hash() const {
-  // return board.Hash();
-  return HashCat({us_board_.Hash(), static_cast<unsigned long>(no_capture_ply_),
-                  static_cast<unsigned long>(repetitions_)});
+  return HashCat({us_board_.Hash(), static_cast<unsigned long>(repetitions_)});
 }
 
 bool Position::CanCastle(Castling castling) const {
@@ -86,7 +84,10 @@ void PositionHistory::Reset(const ChessBoard& board, int no_capture_ply,
 }
 
 void PositionHistory::Append(Move m) {
-  positions_.emplace_back(Last(), m);
+  // TODO(mooskagh) That should be emplace_back(Last(), m), but MSVS STL
+  //                has a bug in implementation of emplace_back, when
+  //                reallocation happens. (it also reallocates Last())
+  positions_.push_back(Position(Last(), m));
   positions_.back().SetRepetitions(ComputeLastMoveRepetitions());
 }
 
@@ -103,6 +104,16 @@ int PositionHistory::ComputeLastMoveRepetitions() const {
     if (pos.GetNoCapturePly() < 2) return 0;
   }
   return 0;
+}
+
+uint64_t PositionHistory::HashLast(int positions) const {
+  uint64_t hash = positions;
+  for (auto iter = positions_.rbegin(), end = positions_.rend(); iter != end;
+       ++iter) {
+    if (!positions--) break;
+    hash = HashCat(hash, iter->Hash());
+  }
+  return HashCat(hash, Last().GetNoCapturePly());
 }
 
 }  // namespace lczero
