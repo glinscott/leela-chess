@@ -583,17 +583,19 @@ func calcElo(wins int, losses int, draws int) float64 {
 	return -400 * math.Log10(1.0/(score/total)-1.0)
 }
 
-func getProgress() ([]gin.H, error) {
+func getProgress() ([]gin.H, map[uint]float64, error) {
+	elos := make(map[uint]float64)
+
 	var matches []db.Match
 	err := db.GetDB().Order("id").Find(&matches).Error
 	if err != nil {
-		return nil, err
+		return nil, elos, err
 	}
 
 	var networks []db.Network
 	err = db.GetDB().Order("id").Find(&networks).Error
 	if err != nil {
-		return nil, err
+		return nil, elos, err
 	}
 
 	counts := getNetworkCounts(networks)
@@ -647,9 +649,10 @@ func getProgress() ([]gin.H, error) {
 			})
 		}
 		count += counts[network.ID]
+		elos[network.ID] = elo
 	}
 
-	return result, nil
+	return result, elos, nil
 }
 
 func filterProgress(result []gin.H) []gin.H {
@@ -686,7 +689,7 @@ func frontPage(c *gin.Context) {
 		return
 	}
 
-	progress, err := getProgress()
+	progress, _, err := getProgress()
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -822,7 +825,7 @@ func viewNetworks(c *gin.Context) {
 		return
 	}
 
-	progress, err := getProgress()
+	_, elos, err := getProgress()
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -831,10 +834,10 @@ func viewNetworks(c *gin.Context) {
 
 	counts := getNetworkCounts(networks)
 	json := []gin.H{}
-	for i, network := range networks {
+	for _, network := range networks {
 		json = append(json, gin.H{
 			"id":         network.ID,
-			"elo":        fmt.Sprintf("%.2f", progress[len(progress)-1-i]["rating"]),
+			"elo":        fmt.Sprintf("%.2f", elos[network.ID]),
 			"games":      counts[network.ID],
 			"sha":        network.Sha,
 			"short_sha":  network.Sha[0:8],
