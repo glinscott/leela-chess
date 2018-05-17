@@ -9,10 +9,12 @@ then
   BUILDTYPE=release
 fi
 
-rm -fr build
-meson build --buildtype ${BUILDTYPE} --prefix ${INSTALL_PREFIX:-/usr/local}
+BUILDDIR=build.${BUILDTYPE}
 
-pushd build
+rm -fr ${BUILDDIR}
+meson ${BUILDDIR} --buildtype ${BUILDTYPE} --prefix ${INSTALL_PREFIX:-/usr/local}
+
+pushd ${BUILDDIR}
 
 if [ -n "${INSTALL_PREFIX}" ]
 then
