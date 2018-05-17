@@ -9,7 +9,7 @@ then
   BUILDTYPE=release
 fi
 
-BUILDDIR=build.${BUILDTYPE}
+BUILDDIR=build/${BUILDTYPE}
 
 rm -fr ${BUILDDIR}
 meson ${BUILDDIR} --buildtype ${BUILDTYPE} --prefix ${INSTALL_PREFIX:-/usr/local}
