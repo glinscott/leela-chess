@@ -13,5 +13,12 @@ rm -fr build
 meson build --buildtype ${BUILDTYPE} --prefix ${INSTALL_PREFIX:-/usr/local}
 
 pushd build
-ninja install
+
+if [ -n "${INSTALL_PREFIX}" ]
+then
+  ninja install
+else
+  ninja
+fi
+
 popd
