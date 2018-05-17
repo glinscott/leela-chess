@@ -152,7 +152,7 @@ endif
 #############################################################################
 
 executable('lc0', 'src/main.cc',
-  files, include_directories: includes, dependencies: deps)
+  files, include_directories: includes, dependencies: deps, install: true)
 
 
 ### Tests
