@@ -69,6 +69,7 @@ void EngineController::PopulateOptions(OptionsParser* options) {
 
 SearchLimits EngineController::PopulateSearchLimits(int ply, bool is_black,
                                                     const GoParams& params) {
+  (void) ply;
   SearchLimits limits;
   limits.visits = params.nodes;
   limits.time_ms = params.movetime;
@@ -203,6 +204,7 @@ void EngineLoop::CmdIsReady() {
 
 void EngineLoop::CmdSetOption(const std::string& name, const std::string& value,
                               const std::string& context) {
+  (void) context;
   options_.SetOption(name, value);
   if (options_sent_) {
     options_.SendOption(name);
