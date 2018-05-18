@@ -48,15 +48,15 @@ class OptionsParser {
    private:
     virtual std::string GetOptionString(const OptionsDict& dict) const = 0;
     virtual void SendValue(const OptionsDict& dict) const = 0;
-    virtual bool ProcessLongFlag(const std::string& flag,
-                                 const std::string& value, OptionsDict* dict) {
+    virtual bool ProcessLongFlag(const std::string&,
+                                 const std::string&, OptionsDict*) {
       return false;
     }
-    virtual bool ProcessShortFlag(char flag, OptionsDict* dict) {
+    virtual bool ProcessShortFlag(char, OptionsDict*) {
       return false;
     }
-    virtual bool ProcessShortFlagWithValue(char flag, const std::string& value,
-                                           OptionsDict* dict) {
+    virtual bool ProcessShortFlagWithValue(char, const std::string&,
+                                           OptionsDict*) {
       return false;
     }
     virtual std::string GetHelp(const OptionsDict& dict) const = 0;
