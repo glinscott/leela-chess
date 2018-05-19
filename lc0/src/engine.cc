@@ -67,7 +67,7 @@ void EngineController::PopulateOptions(OptionsParser* options) {
   Search::PopulateUciParams(options);
 }
 
-SearchLimits EngineController::PopulateSearchLimits(int ply, bool is_black,
+SearchLimits EngineController::PopulateSearchLimits(int /*ply*/, bool is_black,
                                                     const GoParams& params) {
   SearchLimits limits;
   limits.visits = params.nodes;
@@ -134,6 +134,7 @@ void EngineController::SetCacheSize(int size) { cache_.SetCapacity(size); }
 
 void EngineController::NewGame() {
   SharedLock lock(busy_mutex_);
+  cache_.Clear();
   search_.reset();
   tree_.reset();
   UpdateNetwork();
@@ -202,7 +203,7 @@ void EngineLoop::CmdIsReady() {
 
 void EngineLoop::CmdSetOption(const std::string& name, const std::string& value,
                               const std::string& context) {
-  options_.SetOption(name, value);
+  options_.SetOption(name, value, context);
   if (options_sent_) {
     options_.SendOption(name);
   }
