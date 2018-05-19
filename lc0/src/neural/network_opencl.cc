@@ -21,6 +21,7 @@
 #include "utils/optionsdict.h"
 #include "utils/transpose.h"
 #include "neural/network_old.h"
+#include <cassert>
 
 namespace lczero {
 
@@ -47,18 +48,21 @@ class OpenCLNetworkComputation : public NetworkComputation {
  public:
   OpenCLNetworkComputation(const OpenCLNetwork* network) : network_(network) {}
   void AddInput(InputPlanes&& input) override {
-    (void)input; // TODO
-    batchsize_++;
-    printf("OpenCL AddInput %d\n", batchsize_);
+    raw_input_.emplace_back(input);
+    printf("OpenCL AddInput %ld\n", raw_input_.size());
   }
   void ComputeBlocking() override {
-    batchsize_--;
-    printf("OpenCL ComputeBlocking %d\n", batchsize_);
+    // TODO: Should we do FIFO, not stack?
+    // I think it doesn't matter because with batch_size=1
+    // raw_input_ will only get one value per instance of this object.
+    ::Network::get_scored_moves(raw_input_.back());
+    printf("OpenCL ComputeBlocking %ld\n", raw_input_.size());
   }
 
   int GetBatchSize() const override { 
-    printf("OpenCL GetBatchSize: %d\n", batchsize_);
-    return batchsize_;
+    printf("OpenCL GetBatchSize: %ld\n", raw_input_.size());
+    assert(raw_input_.size() <= 1);
+    return raw_input_.size();
   }
   float GetQVal(int sample) const override {
     (void)sample; // TODO
@@ -72,7 +76,7 @@ class OpenCLNetworkComputation : public NetworkComputation {
 
  private:
   const OpenCLNetwork* network_;
-  int batchsize_ = 0;
+  std::vector<InputPlanes> raw_input_;
 };
 
 OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options) {
