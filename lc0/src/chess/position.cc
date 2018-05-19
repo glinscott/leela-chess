@@ -99,7 +99,6 @@ void PositionHistory::Reset(const ChessBoard& board, int no_capture_ply,
     // alternate between adding bord copy and mirrored board
     for(int i=fake_history_ply_count_;i>0;i--){
       positions_.emplace_back(i%2 ? mirrored : board , no_capture_ply, std::max(0,game_ply-i));
-      positions_.push_back(positions_.back());
     }
 
     positions_.emplace_back(board, no_capture_ply, game_ply);
