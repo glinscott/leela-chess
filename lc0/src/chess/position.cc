@@ -81,9 +81,19 @@ GameResult PositionHistory::ComputeGameResult() const {
 }
 
 void PositionHistory::Reset(const ChessBoard& board, int no_capture_ply,
-                            int game_ply) {
+                            int game_ply,bool clone_history) {
   positions_.clear();
-  positions_.emplace_back(board, no_capture_ply, game_ply);
+  if(clone_history){
+    ChessBoard mirrored = board;
+    mirrored.Mirror();
+    for(int i=0; i<4;i++)
+      positions_.emplace_back(board, no_capture_ply, game_ply);
+      positions_.push_back(positions_.back());
+      positions_.emplace_back(mirrored, no_capture_ply, game_ply);
+      positions_.push_back(positions_.back());
+   }
+   positions_.emplace_back(board, no_capture_ply, game_ply);
+
 }
 
 void PositionHistory::Append(Move m) {

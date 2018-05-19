@@ -97,7 +97,7 @@ class PositionHistory {
   int GetLength() const { return positions_.size(); }
 
   // Resets the position to a given state.
-  void Reset(const ChessBoard& board, int no_capture_ply, int game_ply);
+  void Reset(const ChessBoard& board, int no_capture_ply, int game_ply, bool clone_history);
 
   // Appends a position to history.
   void Append(Move m);
