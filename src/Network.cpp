@@ -1183,7 +1183,7 @@ void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
     bool flip = us == BLACK;
     for (int i = 0; i < T_HISTORY; ++i) {
         // If i exceeds history, copy oldest position at index=0
-        pos = &bh.positions[max(mc - i, 0)];
+        pos = &bh.positions[std::max(mc - i, 0)];
 
         if (m_format_version == 1) {
             us = pos->side_to_move();
