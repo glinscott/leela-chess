@@ -97,7 +97,7 @@ class PositionHistory {
   int GetLength() const { return positions_.size(); }
 
   // Resets the position to a given state.
-  void Reset(const ChessBoard& board, int no_capture_ply, int game_ply, bool clone_history);
+  void Reset(const ChessBoard& board, int no_capture_ply, int game_ply, bool fill_fake_history);
 
   // Appends a position to history.
   void Append(Move m);
@@ -118,6 +118,9 @@ class PositionHistory {
   int ComputeLastMoveRepetitions() const;
 
   std::vector<Position> positions_;
+
+  // number of fake history added.. ignore these for repeat map position calcolations
+  int fake_history_ply_count_ = 0;
 };
 
 }  // namespace lczero

@@ -19,6 +19,7 @@
 #include "chess/position.h"
 #include <cassert>
 
+
 namespace lczero {
 
 Position::Position(const Position& parent, Move m)
@@ -81,18 +82,32 @@ GameResult PositionHistory::ComputeGameResult() const {
 }
 
 void PositionHistory::Reset(const ChessBoard& board, int no_capture_ply,
-                            int game_ply,bool clone_history) {
+                            int game_ply, bool fill_fake_history) {
   positions_.clear();
-  if(clone_history){
+
+  if(fill_fake_history){
     ChessBoard mirrored = board;
     mirrored.Mirror();
-    for(int i=0; i<4;i++)
-      positions_.emplace_back(board, no_capture_ply, game_ply);
+
+    // figure out how many fake ply to add
+    // if game_ply is 0 or 1 and it isnt the default starting position, then add 7 hirtoty ply
+    if(game_ply >= 8 || game_ply<=1)
+       fake_history_ply_count_ = 7;
+    else
+       fake_history_ply_count_ = game_ply-1;
+
+    // alternate between adding bord copy and mirrored board
+    for(int i=fake_history_ply_count_;i>0;i--){
+      positions_.emplace_back(i%2 ? mirrored : board , no_capture_ply, std::max(0,game_ply-i));
       positions_.push_back(positions_.back());
-      positions_.emplace_back(mirrored, no_capture_ply, game_ply);
-      positions_.push_back(positions_.back());
-   }
-   positions_.emplace_back(board, no_capture_ply, game_ply);
+    }
+
+    positions_.emplace_back(board, no_capture_ply, game_ply);
+  }
+  else {
+    positions_.emplace_back(board, no_capture_ply, game_ply);
+    fake_history_ply_count_ = 0;
+  }
 
 }
 
@@ -109,7 +124,7 @@ int PositionHistory::ComputeLastMoveRepetitions() const {
   // TODO(crem) implement hash/cache based solution.
   if (last.GetNoCapturePly() < 4) return 0;
 
-  for (int idx = positions_.size() - 3; idx >= 0; idx -= 2) {
+  for (int idx = positions_.size() - 3; idx >= fake_history_ply_count_; idx -= 2) {
     const auto& pos = positions_[idx];
     if (pos.GetBoard() == last.GetBoard()) {
       return 1 + pos.GetRepetitions();
