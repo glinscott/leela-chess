@@ -169,6 +169,7 @@ if get_option('build_backends')
   ## ~~~~~~
   # TODO: Add conditional compile
   files += 'src/neural/network_opencl.cc'
+  files += 'src/neural/Network.cpp'
   has_backends = true
 
 endif # if get_option('build_backends')

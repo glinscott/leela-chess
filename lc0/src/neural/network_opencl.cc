@@ -20,6 +20,7 @@
 #include "utils/bititer.h"
 #include "utils/optionsdict.h"
 #include "utils/transpose.h"
+#include "neural/Network.h"
 
 namespace lczero {
 
@@ -46,6 +47,7 @@ class OCLNetworkComputation : public NetworkComputation {
  public:
   OCLNetworkComputation(const OCLNetwork* network) : network_(network) {}
   void AddInput(InputPlanes&& input) override {
+    (void)input; // TODO
     batchsize_++;
     printf("OCL AddInput %d\n", batchsize_);
   }
@@ -59,9 +61,12 @@ class OCLNetworkComputation : public NetworkComputation {
     return batchsize_;
   }
   float GetQVal(int sample) const override {
+    (void)sample; // TODO
     return 0.0f;
   }
   float GetPVal(int sample, int move_id) const override {
+    (void)sample; // TODO
+    (void)move_id; // TODO
     return 0.1f; // TODO: Maybe it has to be normalized to 100% by now?
   }
 
@@ -71,7 +76,10 @@ class OCLNetworkComputation : public NetworkComputation {
 };
 
 OCLNetwork::OCLNetwork(const Weights& weights, const OptionsDict& options) {
+  (void)weights; // TODO
+  (void)options; // TODO
   printf("OCLNetwork construct\n");
+  Network::initialize();
 }
 
 std::unique_ptr<NetworkComputation> OCLNetwork::NewComputation() {
@@ -82,7 +90,7 @@ std::unique_ptr<NetworkComputation> OCLNetwork::NewComputation() {
 
 // TODO: Pick priority. Guessing it should be lower than TF?
 // Or is TF CPU only, and OpenCL would be better?
-// REGISTER_NETWORK("opencl", OCLNetwork, 90);
-REGISTER_NETWORK("opencl", OCLNetwork, 999);
+// REGISTER_NETWORK("opencl", OCLNetwork, 90)
+REGISTER_NETWORK("opencl", OCLNetwork, 999)
 
 }  // namespace lczero
