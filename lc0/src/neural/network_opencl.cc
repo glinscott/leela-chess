@@ -20,17 +20,17 @@
 #include "utils/bititer.h"
 #include "utils/optionsdict.h"
 #include "utils/transpose.h"
-#include "neural/Network.h"
+#include "neural/network_old.h"
 
 namespace lczero {
 
 namespace {
 
 
-class OCLNetworkComputation;
-class OCLNetwork : public Network {
+class OpenCLNetworkComputation;
+class OpenCLNetwork : public Network {
  public:
-  OCLNetwork(const Weights& weights, const OptionsDict& options);
+  OpenCLNetwork(const Weights& weights, const OptionsDict& options);
 
   std::unique_ptr<NetworkComputation> NewComputation() override;
 
@@ -43,21 +43,21 @@ class OCLNetwork : public Network {
   //std::unique_ptr<tensorflow::Output> value_head_;
 };
 
-class OCLNetworkComputation : public NetworkComputation {
+class OpenCLNetworkComputation : public NetworkComputation {
  public:
-  OCLNetworkComputation(const OCLNetwork* network) : network_(network) {}
+  OpenCLNetworkComputation(const OpenCLNetwork* network) : network_(network) {}
   void AddInput(InputPlanes&& input) override {
     (void)input; // TODO
     batchsize_++;
-    printf("OCL AddInput %d\n", batchsize_);
+    printf("OpenCL AddInput %d\n", batchsize_);
   }
   void ComputeBlocking() override {
     batchsize_--;
-    printf("OCL ComputeBlocking %d\n", batchsize_);
+    printf("OpenCL ComputeBlocking %d\n", batchsize_);
   }
 
   int GetBatchSize() const override { 
-    printf("OCL GetBatchSize: %d\n", batchsize_);
+    printf("OpenCL GetBatchSize: %d\n", batchsize_);
     return batchsize_;
   }
   float GetQVal(int sample) const override {
@@ -71,26 +71,26 @@ class OCLNetworkComputation : public NetworkComputation {
   }
 
  private:
-  const OCLNetwork* network_;
+  const OpenCLNetwork* network_;
   int batchsize_ = 0;
 };
 
-OCLNetwork::OCLNetwork(const Weights& weights, const OptionsDict& options) {
+OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options) {
   (void)weights; // TODO
   (void)options; // TODO
-  printf("OCLNetwork construct\n");
-  Network::initialize();
+  printf("OpenCLNetwork construct\n");
+  ::Network::initialize();
 }
 
-std::unique_ptr<NetworkComputation> OCLNetwork::NewComputation() {
-  return std::make_unique<OCLNetworkComputation>(this);
+std::unique_ptr<NetworkComputation> OpenCLNetwork::NewComputation() {
+  return std::make_unique<OpenCLNetworkComputation>(this);
 }
 
 }  // namespace
 
 // TODO: Pick priority. Guessing it should be lower than TF?
 // Or is TF CPU only, and OpenCL would be better?
-// REGISTER_NETWORK("opencl", OCLNetwork, 90)
-REGISTER_NETWORK("opencl", OCLNetwork, 999)
+// REGISTER_NETWORK("opencl", OpenCLNetwork, 90)
+REGISTER_NETWORK("opencl", OpenCLNetwork, 999)
 
 }  // namespace lczero
