@@ -690,10 +690,16 @@ void ChessBoard::SetFromFen(const std::string& fen, int* no_capture_ply,
       throw Exception("Bad fen string: " + fen + " wrong en passant rank");
     pawns_.set((square.row() == 2) ? 0 : 7, square.col());
   }
-
   if (who_to_move == "b" || who_to_move == "B") {
     Mirror();
   }
+
+  // if the fen states that we are on turn 1 and we are not in the default starting position,
+  // then the fen most likely specify the wrong move count (or it could be after just 1 ply)
+  // we modify the turn count so we later know we can add fake history to the net
+  if(total_moves < 2 && kStartingFen != fen)
+    total_moves = 5;
+
   if (no_capture_ply) *no_capture_ply = no_capture_halfmoves;
   if (moves) *moves = total_moves;
 }

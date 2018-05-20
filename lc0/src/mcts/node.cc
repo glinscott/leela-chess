@@ -357,8 +357,7 @@ void NodeTree::ResetToPosition(const std::string& starting_fen,
   }
 
   history_.Reset(starting_board, no_capture_ply,
-                 full_moves * 2 - (starting_board.flipped() ? 1 : 2),
-                 ChessBoard::kStartingFen != starting_fen);
+                 full_moves * 2 - (starting_board.flipped() ? 1 : 2));
 
   Node* old_head = current_head_;
   current_head_ = gamebegin_node_;

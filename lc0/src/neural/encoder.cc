@@ -47,9 +47,18 @@ InputPlanes EncodePositionForNN(const PositionHistory& history,
 
   bool flip = false;
   int history_idx = history.GetLength() - 1;
+  bool fake_history_plane = false;
   for (int i = 0; i < std::min(history_planes, kMoveHistory);
        ++i, flip = !flip, --history_idx) {
-    if (history_idx < 0) break;
+    if (history_idx < 0) {
+       // fill up the history window with the first history
+       // these planes was never inserted flipped into history..
+       // so keep them the same as last real plane by inverting flip again
+       history_idx=0;
+       flip = !flip;
+       fake_history_plane = true;
+    }
+
     const Position& position = history.GetPositionAt(history_idx);
     const ChessBoard& board =
         flip ? position.GetThemBoard() : position.GetBoard();
@@ -70,7 +79,7 @@ InputPlanes EncodePositionForNN(const PositionHistory& history,
     result[base + 11].mask = (board.their_king()).as_int();
 
     const int repetitions = position.GetRepetitions();
-    if (repetitions >= 1) result[base + 12].SetAll();
+    if (!fake_history_plane && repetitions >= 1) result[base + 12].SetAll();
   }
 
   return result;
