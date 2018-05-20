@@ -38,6 +38,8 @@ class ChessBoard {
   // the game.
   void SetFromFen(const std::string& fen, int* no_capture_ply = nullptr,
                   int* moves = nullptr);
+  // if the game is started from FEN with en passant into, undo the move for fake history
+  void UndoEnPassantFromFen() const;
   // Nullifies the whole structure.
   void Clear();
   // Swaps black and white pieces and mirrors them relative to the
@@ -143,9 +145,9 @@ class ChessBoard {
 
  private:
   // All white pieces.
-  BitBoard our_pieces_;
+  mutable BitBoard our_pieces_;
   // All black pieces.
-  BitBoard their_pieces_;
+  mutable BitBoard their_pieces_;
   // Rooks and queens.
   BitBoard rooks_;
   // Bishops and queens;
@@ -155,7 +157,7 @@ class ChessBoard {
   // corresponding white pawn on rank 4 can be taken en passant. Rank 8 is the
   // same for black pawns. Those "fake" pawns are not present in white_ and
   // black_ bitboards.
-  BitBoard pawns_;
+  mutable BitBoard pawns_;
   BoardSquare our_king_;
   BoardSquare their_king_;
   Castlings castlings_;

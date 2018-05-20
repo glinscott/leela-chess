@@ -704,6 +704,31 @@ void ChessBoard::SetFromFen(const std::string& fen, int* no_capture_ply,
   if (moves) *moves = total_moves;
 }
 
+void ChessBoard::UndoEnPassantFromFen() const{
+  for(int col = 0; col < 8; col++){
+    // the opponent did a pawn move in turn before fen
+    if(pawns_.get(7,col)){
+      // clear en passant flag
+      pawns_.reset(7,col);
+      //move piece back
+      pawns_.reset(4,col);
+      their_pieces_.reset(4,col);
+      pawns_.set(6,col);
+      their_pieces_.set(6,col);
+    }
+    // we did a pawn move in turn before fen
+    if(pawns_.get(0,col)){
+      // clear en passant flag
+      pawns_.reset(0,col);
+      //move piece back
+      pawns_.reset(3,col);
+      our_pieces_.reset(3,col);
+      pawns_.set(1,col);
+      our_pieces_.set(1,col);
+    }
+  }
+}
+
 bool ChessBoard::HasMatingMaterial() const {
   if (!rooks_.empty() || !pawns_.empty()) {
     return true;

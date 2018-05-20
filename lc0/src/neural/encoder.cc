@@ -63,6 +63,13 @@ InputPlanes EncodePositionForNN(const PositionHistory& history,
     const ChessBoard& board =
         flip ? position.GetThemBoard() : position.GetBoard();
 
+
+    if(fake_history_plane){
+      // if the starting fen contained en passant info, then we know the previous move
+      // create a board with the pawn moved back
+      board.UndoEnPassantFromFen();
+    }
+
     const int base = i * kPlanesPerBoard;
     result[base + 0].mask = (board.ours() * board.pawns()).as_int();
     result[base + 1].mask = (board.our_knights()).as_int();
