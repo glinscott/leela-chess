@@ -77,10 +77,9 @@ class OpenCLNetworkComputation : public NetworkComputation {
 };
 
 OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options) {
-  (void)weights; // TODO
   (void)options; // TODO
   printf("debug OpenCLNetwork construct\n");
-  NetworkOld::initialize();
+  NetworkOld::initialize(weights);
 }
 
 std::unique_ptr<NetworkComputation> OpenCLNetwork::NewComputation() {

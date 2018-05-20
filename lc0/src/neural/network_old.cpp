@@ -200,176 +200,86 @@ std::vector<float> NetworkOld::zeropad_U(const std::vector<float>& U,
 
 extern "C" void openblas_set_num_threads(int num_threads);
 
-std::pair<int, int> NetworkOld::load_network(std::istream& wtfile) {
-    // Read format version
-    auto line = std::string{};
-    if (std::getline(wtfile, line)) {
-        auto iss = std::stringstream{ line };
-        // First line is the file format version id
-        iss >> m_format_version;
-        if (iss.fail()
-            || m_format_version > MAX_FORMAT_VERSION
-            || m_format_version < 1) {
-            printf("Weights file is the wrong version.\n");
-            return {0, 0};
-        } else {
-            assert(m_format_version <= MAX_FORMAT_VERSION);
-        }
-    } else {
-        printf("Weights file is empty.\n");
-        return {0, 0};
-    }
-    // Count size of the network
-    printf("Detecting residual layers...");
-    printf("v%ld...", m_format_version);
-    // First line was the version number
-    auto linecount = size_t{1};
-    auto channels = 0;
-    while (std::getline(wtfile, line)) {
-        auto iss = std::stringstream{line};
-        // Third line of parameters are the convolution layer biases,
-        // so this tells us the amount of channels in the residual layers.
-        // We are assuming all layers have the same amount of filters.
-        if (linecount == 2) {
-            auto count = std::distance(std::istream_iterator<std::string>(iss),
-                                       std::istream_iterator<std::string>());
-            printf("%ld channels...", count);
-            channels = count;
-        }
-        linecount++;
-    }
-    // 1 format id, 1 input layer (4 x weights), 14 ending weights,
-    // the rest are residuals, every residual has 8 x weight lines
-    // Note: 14 ending weights is for value/policy head.
-    //     It's a coincidence it's the same number of input features
-    //     for V1 networks.
-    auto residual_blocks = linecount - (1 + 4 + 14);
-    if (residual_blocks % 8 != 0) {
-        printf("\nInconsistent number of weights in the file.\n");
-        printf("%ld %ld %ld %ld\n", m_format_version, residual_blocks, linecount, get_hist_planes());
-        return {0, 0};
-    }
-    residual_blocks /= 8;
-    printf("%ld blocks.\n", residual_blocks);
+void NetworkOld::load_weights(const Weights& weights) {
+    conv_weights.push_back(weights.input.weights);
+    conv_biases.push_back(weights.input.biases);
+    batchnorm_means.push_back(weights.input.bn_means);
+    batchnorm_stddivs.push_back(weights.input.bn_stddivs);
 
-    // Re-read file and process
-    wtfile.clear();
-    wtfile.seekg(0, std::ios::beg);
+    for (auto residual : weights.residual) {
+        conv_weights.push_back(residual.conv1.weights);
+        conv_biases.push_back(residual.conv1.biases);
+        batchnorm_means.push_back(residual.conv1.bn_means);
+        batchnorm_stddivs.push_back(residual.conv1.bn_stddivs);
 
-    // Get the file format id out of the way
-    std::getline(wtfile, line);
-
-    auto plain_conv_layers = 1 + (residual_blocks * 2);
-    auto plain_conv_wts = plain_conv_layers * 4;
-    linecount = 0;
-    while (std::getline(wtfile, line)) {
-        std::vector<float> weights;
-        auto it_line = cbegin(line);
-        const auto ok = phrase_parse(it_line, cend(line),
-                                     *x3::float_, x3::space, weights);
-        if (!ok || it_line != cend(line)) {
-            printf("\nFailed to parse weight file. Error on line %ld.\n",
-                    linecount + 2); //+1 from version line, +1 from 0-indexing
-            return {0, 0};
-        }
-        if (linecount < plain_conv_wts) {
-            if (linecount % 4 == 0) {
-                conv_weights.emplace_back(weights);
-            } else if (linecount % 4 == 1) {
-                // Redundant in our model, but they encode the
-                // number of outputs so we have to read them in.
-                conv_biases.emplace_back(weights);
-            } else if (linecount % 4 == 2) {
-                batchnorm_means.emplace_back(weights);
-            } else if (linecount % 4 == 3) {
-                process_bn_var(weights);
-                batchnorm_stddivs.emplace_back(weights);
-            }
-        } else if (linecount == plain_conv_wts) {
-            conv_pol_w = std::move(weights);
-        } else if (linecount == plain_conv_wts + 1) {
-            conv_pol_b = std::move(weights);
-        } else if (linecount == plain_conv_wts + 2) {
-            std::copy(begin(weights), end(weights), begin(bn_pol_w1));
-        } else if (linecount == plain_conv_wts + 3) {
-            process_bn_var(weights);
-            std::copy(begin(weights), end(weights), begin(bn_pol_w2));
-        } else if (linecount == plain_conv_wts + 4) {
-            if (m_format_version == 1) {
-                std::copy(begin(weights), end(weights), begin(v1_ip_pol_w));
-            } else {
-                std::copy(begin(weights), end(weights), begin(v2_ip_pol_w));
-            }
-        } else if (linecount == plain_conv_wts + 5) {
-            if (m_format_version == 1) {
-                std::copy(begin(weights), end(weights), begin(v1_ip_pol_b));
-            } else {
-                std::copy(begin(weights), end(weights), begin(v2_ip_pol_b));
-            }
-        } else if (linecount == plain_conv_wts + 6) {
-            conv_val_w = std::move(weights);
-        } else if (linecount == plain_conv_wts + 7) {
-            conv_val_b = std::move(weights);
-        } else if (linecount == plain_conv_wts + 8) {
-            std::copy(begin(weights), end(weights), begin(bn_val_w1));
-        } else if (linecount == plain_conv_wts + 9) {
-            process_bn_var(weights);
-            std::copy(begin(weights), end(weights), begin(bn_val_w2));
-        } else if (linecount == plain_conv_wts + 10) {
-            std::copy(begin(weights), end(weights), begin(ip1_val_w));
-        } else if (linecount == plain_conv_wts + 11) {
-            std::copy(begin(weights), end(weights), begin(ip1_val_b));
-        } else if (linecount == plain_conv_wts + 12) {
-            std::copy(begin(weights), end(weights), begin(ip2_val_w));
-        } else if (linecount == plain_conv_wts + 13) {
-            std::copy(begin(weights), end(weights), begin(ip2_val_b));
-        }
-        linecount++;
+        conv_weights.push_back(residual.conv2.weights);
+        conv_biases.push_back(residual.conv2.biases);
+        batchnorm_means.push_back(residual.conv2.bn_means);
+        batchnorm_stddivs.push_back(residual.conv2.bn_stddivs);
     }
 
-    return {channels, residual_blocks};
+    for (auto& bn : batchnorm_stddivs) {
+        process_bn_var(bn);
+    }
+
+    conv_pol_w = weights.policy.weights;
+    conv_pol_b = weights.policy.biases;
+    copy(weights.policy.bn_means.begin(), weights.policy.bn_means.end(), begin(bn_pol_w1));
+
+    // TODO: This is very ugly
+    auto tmp_policy_bn_stddivs = weights.policy.bn_stddivs;
+    process_bn_var(tmp_policy_bn_stddivs);
+    copy(tmp_policy_bn_stddivs.begin(), tmp_policy_bn_stddivs.end(), begin(bn_pol_w2));
+
+    // TODO: Just use v2 (version 2 of network weights).
+    // lc0 does not support v1?
+    copy(weights.ip_pol_w.begin(), weights.ip_pol_w.end(), begin(v2_ip_pol_w));
+    copy(weights.ip_pol_b.begin(), weights.ip_pol_b.end(), begin(v2_ip_pol_b));
+
+    conv_val_w = weights.value.weights;
+    conv_val_b = weights.value.biases;
+    copy(weights.value.bn_means.begin(), weights.value.bn_means.end(), begin(bn_val_w1));
+
+    // TODO: This is very ugly
+    auto tmp_value_bn_stddivs = weights.value.bn_stddivs;
+    process_bn_var(tmp_value_bn_stddivs);
+    copy(tmp_value_bn_stddivs.begin(), tmp_value_bn_stddivs.end(), begin(bn_val_w2));
+
+    copy(weights.ip1_val_w.begin(), weights.ip1_val_w.end(), begin(ip1_val_w));
+    copy(weights.ip1_val_b.begin(), weights.ip1_val_b.end(), begin(ip1_val_b));
+    copy(weights.ip2_val_w.begin(), weights.ip2_val_w.end(), begin(ip2_val_w));
+    copy(weights.ip2_val_b.begin(), weights.ip2_val_b.end(), begin(ip2_val_b));
 }
 
-std::pair<int, int> NetworkOld::load_network_file(std::string filename) {
-    // gzopen supports both gz and non-gz files, will decompress or just read directly as needed.
-    auto gzhandle = gzopen(filename.c_str(), "rb");
-    if (gzhandle == nullptr) {
-        printf("Could not open weights file: %s\n", filename.c_str());
-        return {0, 0};
+void debug_display_weights() {
+    for (auto w : conv_weights) {
+        printf("debug %ld %f\n", w.size(), w[0]);
     }
-    // Stream the gz file in to a memory buffer stream.
-    std::stringstream buffer;
-    const int chunkBufferSize = 64 * 1024;
-    std::vector<char> chunkBuffer(chunkBufferSize);
-    while (true) {
-        int bytesRead = gzread(gzhandle, chunkBuffer.data(), chunkBufferSize);
-        if (bytesRead == 0) break;
-        if (bytesRead < 0) {
-            printf("Failed to decompress or read: %s\n", filename.c_str());
-            gzclose(gzhandle);
-            return {0, 0};
-        }
-        assert(bytesRead <= chunkBufferSize);
-        buffer.write(chunkBuffer.data(), bytesRead);
+    for (auto w : conv_biases) {
+        printf("debug %ld %f\n", w.size(), w[0]);
     }
-    auto result = load_network(buffer);
-    gzclose(gzhandle);
-    return result;
+    for (auto w : batchnorm_means) {
+        printf("debug %ld %f\n", w.size(), w[0]);
+    }
+    printf("debug batchnorm_stddivs\n");
+    for (auto w : batchnorm_stddivs) {
+        printf("debug %ld %f\n", w.size(), w[0]);
+    }
 }
 
-void NetworkOld::initialize(void) {
+void NetworkOld::initialize(const Weights& weights) {
     if (initialized) return;
     initialized = true;
 
-    // Load network from file
-    size_t channels, residual_blocks;
-    assert(m_format_version == 0);
-    // TODO
-    std::tie(channels, residual_blocks) = load_network_file("id265");
-    assert(m_format_version > 0);
-    if (channels == 0) {
-        exit(EXIT_FAILURE);
-    }
+    load_weights(weights);
+    // debug_display_weights();
+
+    auto residual_blocks = weights.residual.size();
+    auto channels = weights.residual[0].conv1.biases.size();
+    printf("debug Detecting residual layers...");
+    //printf("v%ld...", m_format_version);
+    printf("%ld channels...", channels);
+    printf("%ld blocks.\n", residual_blocks);
 
     auto weight_index = size_t{0};
     // Input convolution
@@ -381,7 +291,7 @@ void NetworkOld::initialize(void) {
 
     // Residual block convolutions
     for (auto i = size_t{0}; i < residual_blocks * 2; i++) {
-		conv_weights[weight_index] =
+        conv_weights[weight_index] =
             winograd_transform_f(conv_weights[weight_index],
                                  channels, channels);
         weight_index++;
@@ -982,8 +892,10 @@ std::pair<std::vector<float>, float> NetworkOld::get_scored_moves(lczero::InputP
     //}
     assert(input_data.size() == get_input_channels() * width * height);
 #ifdef USE_OPENCL
+    printf("debug use_opencl forward\n");
     opencl.forward(input_data, policy_data, value_data);
 #elif defined(USE_BLAS) && !defined(USE_OPENCL)
+    printf("debug use_blas forward_cpu\n");
     forward_cpu(input_data, policy_data, value_data);
 #endif
 #ifdef USE_OPENCL_SELFCHECK

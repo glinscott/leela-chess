@@ -16,8 +16,7 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef NETWORK_OLD_H_INCLUDED
-#define NETWORK_OLD_H_INCLUDED
+#pragma once
 
 #include "neural/factory.h"
 #include "utils/bititer.h"
@@ -62,9 +61,7 @@ public:
     // 4 castling (us_oo, us_ooo, them_oo, them_ooo)
     // 1 color
     // 1 move_count
-    // 1 unused plane of zeros? ones? at end to pad it out.
-
-    // TODO: Should we send ones for padding?
+    // 1 plane of ones at end to pad it out.
 
     static constexpr int V1_HIST_PLANES = 14;
     static constexpr int V2_HIST_PLANES = 13;
@@ -79,8 +76,6 @@ public:
     static constexpr int NUM_VALUE_INPUT_PLANES = 32;
     static constexpr int NUM_POLICY_INPUT_PLANES = 32;
 
-    // using scored_node = std::pair<float, Move>;
-    // using Netresult = std::pair<std::vector<scored_node>, float>;
     using BoardPlane = std::bitset<8 * 8>;
 
     struct NNPlanes {
@@ -103,9 +98,8 @@ public:
     static constexpr auto WINOGRAD_ALPHA = 4;
     static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
 
-    static void initialize();
+    static void initialize(const Weights& weights);
 
-    //static int lookup(Move move, Color c);
     static size_t get_format_version();
     static size_t get_input_channels();
     static size_t get_hist_planes();
@@ -115,13 +109,10 @@ public:
 
 private:
     static bool initialized;
-    static std::pair<int, int> load_network(std::istream& wtfile);
-    static std::pair<int, int> load_network_file(std::string filename);
+    static void load_weights(const Weights& weights);
     static void process_bn_var(std::vector<float>& weights,
                                const float epsilon=1e-5f);
     static size_t m_format_version;
-    //static std::unordered_map<Move, int, std::hash<int>> old_move_lookup;
-    //static std::unordered_map<Move, int, std::hash<int>> new_move_lookup;
 
     static void softmax(const std::vector<float>& input,
                         std::vector<float>& output,
@@ -155,4 +146,3 @@ private:
 };
 
 } // namespace lczero
-#endif
