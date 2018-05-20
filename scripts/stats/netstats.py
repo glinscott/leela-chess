@@ -97,7 +97,8 @@ def main(cfg):
         for j in range(cur2.rowcount):
             row = cur2.fetchone()
             board = chess.Board()
-            moves = row[4].split('.')
+            with open('../../go/src/server/pgns/run1/' + str(row[0]) + '.pgn') as f:
+              moves = f.read().split('.')
             fail = False
             for move in moves[1:]:
                 san = move.split()
