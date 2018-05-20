@@ -19,12 +19,7 @@
 
 #pragma once
 
-#ifdef _WIN32
-#undef HAVE_SELECT
-#define NOMINMAX
-#else
-#define HAVE_SELECT
-#endif
+#include <cstddef>
 
 /* Features */
 #define USE_BLAS

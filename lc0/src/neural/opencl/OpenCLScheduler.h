@@ -19,12 +19,11 @@
 #pragma once
 
 #include "blas_config.h"
-
 #include <vector>
 #include <future>
 
 #include "OpenCL.h"
-#include "ThreadPool.h"
+#include "OpenCLThreadPool.h"
 
 class OpenCLScheduler {
 public:
@@ -51,6 +50,3 @@ private:
     std::vector<std::unique_ptr<OpenCL>> m_opencl;
     Utils::ThreadPool m_threadpool;
 };
-
-//extern OpenCLScheduler opencl;
-

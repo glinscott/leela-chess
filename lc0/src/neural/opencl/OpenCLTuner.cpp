@@ -16,9 +16,7 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "blas_config.h"
 
-#ifdef USE_OPENCL
 #include <array>
 #include <cassert>
 #include <iostream>
@@ -29,11 +27,11 @@
 #include <cmath>
 #include <fstream>
 
-#include "Parameters.h"
+#include "OpenCLParams.h"
 #include "OpenCL.h"
-#include "Tuner.h"
-#include "Utils.h"
-#include "Random.h"
+#include "OpenCLTuner.h"
+#include "OpenCLUtils.h"
+#include "OpenCLRandom.h"
 
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
@@ -510,4 +508,3 @@ std::string Tuner::load_sgemm_tuners(const int m, const int n, const int k,
     return tuners;
 }
 
-#endif

@@ -16,10 +16,8 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SGEMM_TUNER_H_INCLUDED
-#define SGEMM_TUNER_H_INCLUDED
+#pragma once
 
-#include "blas_config.h"
 #include <vector>
 #include <map>
 #include <string>
@@ -55,4 +53,3 @@ private:
                                        const int batch_size);
 };
 
-#endif

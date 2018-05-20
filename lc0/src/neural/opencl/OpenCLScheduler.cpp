@@ -17,10 +17,9 @@
 */
 #include "blas_config.h"
 
-#ifdef USE_OPENCL
-#include "Random.h"
+#include "OpenCLRandom.h"
 #include "OpenCLScheduler.h"
-#include "Parameters.h"
+#include "OpenCLParams.h"
 
 thread_local auto current_thread_gpu_num = size_t{0};
 OpenCLScheduler opencl;
@@ -79,4 +78,3 @@ void OpenCLScheduler::forward(const std::vector<net_t>& input,
 
     f.get();
 }
-#endif

@@ -116,6 +116,6 @@ inline void OpenCLNetwork::forwardPass(const std::vector<float>& input_data,
   opencl.forward(input_data, policy_data, value_data);
 }
 
-REGISTER_NETWORK("opencl", OpenCLNetwork, 90);
+REGISTER_NETWORK("opencl", OpenCLNetwork, 100)
 
 } // namespace lczero

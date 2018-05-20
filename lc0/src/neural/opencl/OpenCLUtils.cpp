@@ -16,15 +16,18 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "blas_config.h"
-#include "Utils.h"
+#include "OpenCLUtils.h"
 
 #include <iostream>
 #include <mutex>
-//#include <cstdarg>
-//#include <cstdio>
+#include <cstdarg>
+#include <cstdio>
 
 static std::mutex IOmutex;
+
+// TODO clean that mess
+const bool cfg_quiet =false;
+static FILE* cfg_logfile_handle=0;
 
 void Utils::myprintf(const char *fmt, ...) {
     if (cfg_quiet) {

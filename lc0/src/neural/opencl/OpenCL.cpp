@@ -18,8 +18,6 @@
 
 #include "blas_config.h"
 
-#ifdef USE_OPENCL
-
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -30,17 +28,18 @@
 #include <cmath>
 #include <array>
 #include <thread>
+#include <cassert>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
 
-#include "Utils.h"
-#include "Timing.h"
-#include "OpenCL.h"
-#include "Network.h"
-#include "Tuner.h"
-#include "Parameters.h"
-
+#include "OpenCLUtils.h"
 using namespace Utils;
+
+#include "OpenCL.h"
+#include "OpenCLTuner.h"
+#include "OpenCLParams.h"
+
 
 static std::string cl_args =
     "-cl-mad-enable -cl-fast-relaxed-math -cl-no-signed-zeros -cl-denorms-are-zero";
@@ -1179,4 +1178,3 @@ std::string OpenCL::get_device_name() {
 
     return ss.str();
 }
-#endif

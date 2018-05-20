@@ -31,7 +31,6 @@
 #include <vector>
 #include <mutex>
 
-#include "Tuner.h"
 
 class OpenCL;
 

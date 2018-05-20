@@ -37,6 +37,6 @@ class BlasNetwork : public BlasCLNetwork {
   template<size_t spatial_size> void batchnorm();
 }
 
-REGISTER_NETWORK("blas", BlasNetwork, 80);
+REGISTER_NETWORK("blas", BlasNetwork, 80)
 
 } // namespace lczero
