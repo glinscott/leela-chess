@@ -39,6 +39,8 @@ type Network struct {
 
 	// Cached here, as expensive to do COUNT(*) on Postgresql
 	GamesPlayed int
+
+	Elo float64
 }
 
 type Match struct {

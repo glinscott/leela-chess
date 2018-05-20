@@ -49,8 +49,8 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 	if err != nil {
 		return nil, 0, errors.New("Invalid version")
 	}
-	if version < 7 {
-		log.Println("Rejecting old game from %s, version %d", user.Username, version)
+	if version < 8 {
+		log.Printf("Rejecting old game from %s, version %d\n", user.Username, version)
 		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 	}
 
@@ -269,7 +269,7 @@ func checkEngineVersion(engineVersion string) (bool) {
 	if err != nil {
 		return false
 	}
-	target, err := version.NewVersion("0.9")
+	target, err := version.NewVersion("0.10")
 	if err != nil {
 		log.Println("Invalid comparison version, rejecting all clients!!!")
 		return false
@@ -529,7 +529,7 @@ func matchResult(c *gin.Context) {
 }
 
 func getActiveUsers() (gin.H, error) {
-	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(engine_version), MAX(training_games.created_at), count(*) FROM training_games
+	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(SPLIT_PART(engine_version, '.', 2) :: INTEGER), MAX(training_games.created_at), count(*) FROM training_games
 LEFT JOIN users
 ON users.id = training_games.user_id
 WHERE training_games.created_at >= now() - INTERVAL '1 day'
@@ -583,17 +583,19 @@ func calcElo(wins int, losses int, draws int) float64 {
 	return -400 * math.Log10(1.0/(score/total)-1.0)
 }
 
-func getProgress() ([]gin.H, error) {
+func getProgress() ([]gin.H, map[uint]float64, error) {
+	elos := make(map[uint]float64)
+
 	var matches []db.Match
 	err := db.GetDB().Order("id").Find(&matches).Error
 	if err != nil {
-		return nil, err
+		return nil, elos, err
 	}
 
 	var networks []db.Network
 	err = db.GetDB().Order("id").Find(&networks).Error
 	if err != nil {
-		return nil, err
+		return nil, elos, err
 	}
 
 	counts := getNetworkCounts(networks)
@@ -613,7 +615,7 @@ func getProgress() ([]gin.H, error) {
 	for _, network := range networks {
 		var sprt string = "???"
 		var best bool = false
-		for matchIdx < len(matches) && matches[matchIdx].CandidateID == network.ID {
+		for matchIdx < len(matches) && (matches[matchIdx].CandidateID == network.ID || matches[matchIdx].TestOnly) {
 			matchElo := calcElo(matches[matchIdx].Wins, matches[matchIdx].Losses, matches[matchIdx].Draws)
 			if matches[matchIdx].Done {
 				if matches[matchIdx].Passed {
@@ -647,9 +649,10 @@ func getProgress() ([]gin.H, error) {
 			})
 		}
 		count += counts[network.ID]
+		elos[network.ID] = elo
 	}
 
-	return result, nil
+	return result, elos, nil
 }
 
 func filterProgress(result []gin.H) []gin.H {
@@ -686,7 +689,7 @@ func frontPage(c *gin.Context) {
 		return
 	}
 
-	progress, err := getProgress()
+	progress, _, err := getProgress()
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -822,7 +825,7 @@ func viewNetworks(c *gin.Context) {
 		return
 	}
 
-	progress, err := getProgress()
+	_, elos, err := getProgress()
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -831,10 +834,10 @@ func viewNetworks(c *gin.Context) {
 
 	counts := getNetworkCounts(networks)
 	json := []gin.H{}
-	for i, network := range networks {
+	for _, network := range networks {
 		json = append(json, gin.H{
 			"id":         network.ID,
-			"elo":        fmt.Sprintf("%.2f", progress[len(progress)-1-i]["rating"]),
+			"elo":        fmt.Sprintf("%.2f", elos[network.ID]),
 			"games":      counts[network.ID],
 			"sha":        network.Sha,
 			"short_sha":  network.Sha[0:8],
