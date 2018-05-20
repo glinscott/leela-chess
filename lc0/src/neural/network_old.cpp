@@ -16,9 +16,7 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// #include "config.h"
 #include "neural/network_old.h"
-// #include "UCI.h"
 #include "utils/exception.h"
 
 #include <algorithm>
@@ -57,11 +55,6 @@
 
 #include "utils/random.h"
 #include "neural/network_old.h"
-// #include "NNCache.h"
-// #include "Utils.h"
-// #include "Parameters.h"
-// #include "Timing.h"
-// #include "Movegen.h"
 // TODO #include "ThreadPool.h"
 
 // TODO: Had to do this to get Im2Col.h to work
@@ -70,7 +63,7 @@ typedef float net_t;
 #include "../../src/Im2Col.h"
 
 namespace x3 = boost::spirit::x3;
-//using namespace Utils;
+
 
 // Seems this is required for the Darwin compiler.
 // Not sure why only T_HISTORY and not all the others.
@@ -1040,7 +1033,7 @@ void Network::softmax(const std::vector<float>& input,
     }
 }
 
-void Network::get_scored_moves(lczero::InputPlanes& planes) {
+std::pair<std::vector<float>, float> Network::get_scored_moves(lczero::InputPlanes& planes) {
     assert(get_input_channels() == planes.size());
     constexpr int width = 8;
     constexpr int height = 8;
@@ -1054,13 +1047,16 @@ void Network::get_scored_moves(lczero::InputPlanes& planes) {
     std::vector<float> winrate_out(1);
     // Data layout is input_data[(c * height + h) * width + w]
     input_data.reserve(get_input_channels() * width * height);
-    // TODO: I assume everything including move_count and all1s is included in planes?
     for (auto plane : planes) {
-        for (int i = 0; i < 64; ++i) {
-            auto set = plane.mask & (1 << i);
+        for (int64_t i = 0; i < 64; ++i) {
+            auto set = plane.mask & (1l << i);
             input_data.emplace_back(set ? net_t(plane.value) : 0.0f);
         }
     }
+    //printf("debug %ld %ld\n", get_input_channels(), input_data.size());
+    //for (auto d : input_data) {
+    //    printf("debug input_data %f\n", d);
+    //}
     assert(input_data.size() == get_input_channels() * width * height);
 #ifdef USE_OPENCL
     opencl.forward(input_data, policy_data, value_data);
@@ -1106,33 +1102,18 @@ void Network::get_scored_moves(lczero::InputPlanes& planes) {
     // Get the moves
     auto cfg_softmax_temp = 1.0f;
     softmax(policy_data, softmax_data, cfg_softmax_temp);
-    std::vector<float>& outputs = softmax_data;
-    (void)outputs; // TODO
+    std::vector<float>& policy_outputs = softmax_data;
 
     // Now get the score
     // TODO: What should the last 2 template args be? I took a quick guess.
     //innerproduct<NUM_VALUE_CHANNELS, 1, 1, 1>(value_data, ip2_val_w, ip2_val_b, winrate_out);
     innerproduct<NUM_VALUE_CHANNELS, 1>(value_data, ip2_val_w, ip2_val_b, winrate_out);
 
-    // Sigmoid
-    auto winrate_sig = (1.0f + std::tanh(winrate_out[0])) / 2.0f;
+    // Sigmoid on [-1,1] scale
+    auto winrate_sig = std::tanh(winrate_out[0]);
     (void)winrate_sig; // TODO
 
-    // MoveList<LEGAL> moves(pos.cur());
-    // std::vector<scored_node> result;
-    // for (Move move : moves) {
-    //     result.emplace_back(outputs[lookup(move, pos.cur().side_to_move())], move);
-    // }
-
-    // if (debug_data) {
-    //   debug_data->input = input_data;
-    //   debug_data->policy_output = outputs;
-    //   debug_data->value_output = winrate_sig;
-    //   debug_data->filtered_output = result;
-    // }
-
-    // return std::make_pair(result, winrate_sig);
-    printf("TODO: store P and V\n");
+    return std::make_pair(policy_outputs, winrate_sig);
 }
 
 std::string Network::DebugRawData::getJson() const {

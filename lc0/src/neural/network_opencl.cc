@@ -55,7 +55,7 @@ class OpenCLNetworkComputation : public NetworkComputation {
     // TODO: Should we do FIFO, not stack?
     // I think it doesn't matter because with batch_size=1
     // raw_input_ will only get one value per instance of this object.
-    ::Network::get_scored_moves(raw_input_.back());
+    std::tie(policy_output_, winrate_output_) = ::Network::get_scored_moves(raw_input_.back());
     printf("OpenCL ComputeBlocking %ld\n", raw_input_.size());
   }
 
@@ -65,18 +65,22 @@ class OpenCLNetworkComputation : public NetworkComputation {
     return raw_input_.size();
   }
   float GetQVal(int sample) const override {
-    (void)sample; // TODO
-    return 0.0f;
+    assert(sample == 0);
+    (void)sample;
+    return winrate_output_;
   }
   float GetPVal(int sample, int move_id) const override {
-    (void)sample; // TODO
-    (void)move_id; // TODO
-    return 0.1f; // TODO: Maybe it has to be normalized to 100% by now?
+    assert(sample == 0);
+    (void)sample;
+    // TODO: Check indexing is correct
+    return policy_output_[move_id];
   }
 
  private:
   const OpenCLNetwork* network_;
   std::vector<InputPlanes> raw_input_;
+  std::vector<float> policy_output_;
+  float winrate_output_;
 };
 
 OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options) {

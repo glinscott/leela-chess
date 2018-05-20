@@ -115,7 +115,7 @@ public:
     static size_t get_hist_planes();
     static size_t get_num_output_policy();
 
-    static void get_scored_moves(lczero::InputPlanes& planes);
+    static std::pair<std::vector<float>, float> get_scored_moves(lczero::InputPlanes& planes);
 
 private:
     static bool initialized;
