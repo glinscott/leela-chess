@@ -36,6 +36,7 @@
 #include <boost/spirit/home/x3.hpp>
 #include "zlib.h"
 
+// TODO Remove these defines? What about MKL? Apple?
 #define USE_BLAS
 #define USE_OPENBLAS
 
@@ -55,7 +56,6 @@
 
 #include "utils/random.h"
 #include "neural/network_old.h"
-// TODO #include "ThreadPool.h"
 
 // TODO: Had to do this to get Im2Col.h to work
 typedef float net_t;
@@ -64,15 +64,14 @@ typedef float net_t;
 
 namespace x3 = boost::spirit::x3;
 
+namespace lczero {
 
 // Seems this is required for the Darwin compiler.
 // Not sure why only T_HISTORY and not all the others.
-constexpr int Network::T_HISTORY;
+constexpr int NetworkOld::T_HISTORY;
 
-bool Network::initialized = false;
-size_t Network::m_format_version{0};
-//std::unordered_map<Move, int, std::hash<int>> Network::old_move_lookup;
-//std::unordered_map<Move, int, std::hash<int>> Network::new_move_lookup;
+bool NetworkOld::initialized = false;
+size_t NetworkOld::m_format_version{0};
 
 // Input + residual block tower
 static std::vector<std::vector<float>> conv_weights;
@@ -83,55 +82,55 @@ static std::vector<std::vector<float>> batchnorm_stddivs;
 // Policy head
 static std::vector<float> conv_pol_w;
 static std::vector<float> conv_pol_b;
-static std::array<float, Network::NUM_POLICY_INPUT_PLANES> bn_pol_w1;
-static std::array<float, Network::NUM_POLICY_INPUT_PLANES> bn_pol_w2;
+static std::array<float, NetworkOld::NUM_POLICY_INPUT_PLANES> bn_pol_w1;
+static std::array<float, NetworkOld::NUM_POLICY_INPUT_PLANES> bn_pol_w2;
 
 // TODO: These are compile time sized,
 // It would be nicer to dynamically size.
 // Just a little memory optimization.
 // But maybe there is a reason they must be array not vector?
-static std::array<float, Network::V1_NUM_OUTPUT_POLICY*8*8*Network::NUM_POLICY_INPUT_PLANES> v1_ip_pol_w;
-static std::array<float, Network::V1_NUM_OUTPUT_POLICY> v1_ip_pol_b;
-static std::array<float, Network::V2_NUM_OUTPUT_POLICY*8*8*Network::NUM_POLICY_INPUT_PLANES> v2_ip_pol_w;
-static std::array<float, Network::V2_NUM_OUTPUT_POLICY> v2_ip_pol_b;
+static std::array<float, NetworkOld::V1_NUM_OUTPUT_POLICY*8*8*NetworkOld::NUM_POLICY_INPUT_PLANES> v1_ip_pol_w;
+static std::array<float, NetworkOld::V1_NUM_OUTPUT_POLICY> v1_ip_pol_b;
+static std::array<float, NetworkOld::V2_NUM_OUTPUT_POLICY*8*8*NetworkOld::NUM_POLICY_INPUT_PLANES> v2_ip_pol_w;
+static std::array<float, NetworkOld::V2_NUM_OUTPUT_POLICY> v2_ip_pol_b;
 
 // Value head
 static std::vector<float> conv_val_w;
 static std::vector<float> conv_val_b;
-static std::array<float, Network::NUM_VALUE_INPUT_PLANES> bn_val_w1;
-static std::array<float, Network::NUM_VALUE_INPUT_PLANES> bn_val_w2;
+static std::array<float, NetworkOld::NUM_VALUE_INPUT_PLANES> bn_val_w1;
+static std::array<float, NetworkOld::NUM_VALUE_INPUT_PLANES> bn_val_w2;
 
-static std::array<float, Network::NUM_VALUE_CHANNELS*8*8*Network::NUM_VALUE_INPUT_PLANES> ip1_val_w;
-static std::array<float, Network::NUM_VALUE_CHANNELS> ip1_val_b;
+static std::array<float, NetworkOld::NUM_VALUE_CHANNELS*8*8*NetworkOld::NUM_VALUE_INPUT_PLANES> ip1_val_w;
+static std::array<float, NetworkOld::NUM_VALUE_CHANNELS> ip1_val_b;
 
-static std::array<float, Network::NUM_VALUE_CHANNELS> ip2_val_w;
+static std::array<float, NetworkOld::NUM_VALUE_CHANNELS> ip2_val_w;
 static std::array<float, 1> ip2_val_b;
 
-size_t Network::get_format_version() {
+size_t NetworkOld::get_format_version() {
     return m_format_version;
 }
 
-size_t Network::get_input_channels() {
+size_t NetworkOld::get_input_channels() {
     return m_format_version == 1 ? V1_INPUT_CHANNELS : V2_INPUT_CHANNELS;
 }
 
-size_t Network::get_hist_planes() {
+size_t NetworkOld::get_hist_planes() {
     return m_format_version == 1 ? V1_HIST_PLANES : V2_HIST_PLANES;
 }
 
-size_t Network::get_num_output_policy() {
+size_t NetworkOld::get_num_output_policy() {
     return m_format_version == 1 ? V1_NUM_OUTPUT_POLICY : V2_NUM_OUTPUT_POLICY;
 }
 
-void Network::process_bn_var(std::vector<float>& weights, const float epsilon) {
+void NetworkOld::process_bn_var(std::vector<float>& weights, const float epsilon) {
     for(auto&& w : weights) {
         w = 1.0f / std::sqrt(w + epsilon);
     }
 }
 
-std::vector<float> Network::winograd_transform_f(const std::vector<float>& f,
-                                                 const int outputs,
-                                                 const int channels) {
+std::vector<float> NetworkOld::winograd_transform_f(const std::vector<float>& f,
+                                                    const int outputs,
+                                                    const int channels) {
     // F(2x2, 3x3) Winograd filter transformation
     // transpose(G.dot(f).dot(G.transpose()))
     // U matrix is transposed for better memory layout in SGEMM
@@ -172,10 +171,10 @@ std::vector<float> Network::winograd_transform_f(const std::vector<float>& f,
     return U;
 }
 
-std::vector<float> Network::zeropad_U(const std::vector<float>& U,
-                                      const int outputs, const int channels,
-                                      const int outputs_pad,
-                                      const int channels_pad) {
+std::vector<float> NetworkOld::zeropad_U(const std::vector<float>& U,
+                                         const int outputs, const int channels,
+                                         const int outputs_pad,
+                                         const int channels_pad) {
     // Fill with zeroes
     auto Upad = std::vector<float>(WINOGRAD_TILE * outputs_pad * channels_pad);
 
@@ -201,7 +200,7 @@ std::vector<float> Network::zeropad_U(const std::vector<float>& U,
 
 extern "C" void openblas_set_num_threads(int num_threads);
 
-std::pair<int, int> Network::load_network(std::istream& wtfile) {
+std::pair<int, int> NetworkOld::load_network(std::istream& wtfile) {
     // Read format version
     auto line = std::string{};
     if (std::getline(wtfile, line)) {
@@ -331,7 +330,7 @@ std::pair<int, int> Network::load_network(std::istream& wtfile) {
     return {channels, residual_blocks};
 }
 
-std::pair<int, int> Network::load_network_file(std::string filename) {
+std::pair<int, int> NetworkOld::load_network_file(std::string filename) {
     // gzopen supports both gz and non-gz files, will decompress or just read directly as needed.
     auto gzhandle = gzopen(filename.c_str(), "rb");
     if (gzhandle == nullptr) {
@@ -358,7 +357,7 @@ std::pair<int, int> Network::load_network_file(std::string filename) {
     return result;
 }
 
-void Network::initialize(void) {
+void NetworkOld::initialize(void) {
     if (initialized) return;
     initialized = true;
 
@@ -511,86 +510,10 @@ void Network::initialize(void) {
 #endif
 }
 
-/*
-void Network::init_move_map() {
-  // old includes black promotions from 2nd to 1st rank
-  // new excludes those
-  std::vector<Move> old_moves;
-  std::vector<Move> new_moves;
-  for (Square s = SQ_A1; s <= SQ_H8; ++s) {
-    // Queen and knight moves
-    Bitboard b = attacks_bb(QUEEN, s, 0) | attacks_bb(KNIGHT, s, 0);
-    while (b) {
-      old_moves.push_back(make_move(s, pop_lsb(&b)));
-      new_moves.push_back(old_moves.back());
-    }
-  }
-
-  // Pawn promotions
-  for (Color c = WHITE; c <= BLACK; ++c) {
-    for (int c_from = 0; c_from < 8; ++c_from) {
-      for (int c_to = c_from - 1; c_to <= c_from + 1; ++c_to) {
-        if (c_to < 0 || c_to >= 8) {
-          continue;
-        }
-        Square from = make_square(File(c_from), c == WHITE? RANK_7 : RANK_2);
-        Square to = make_square(File(c_to), c == WHITE ? RANK_8 : RANK_1);
-        // push both black and white promotions for old
-        old_moves.push_back(make<PROMOTION>(from, to, QUEEN));
-        old_moves.push_back(make<PROMOTION>(from, to, ROOK));
-        old_moves.push_back(make<PROMOTION>(from, to, BISHOP));
-        // Don't need knight, as it's equivalent to pawn push to final rank.
-        if (c == WHITE) {
-          // only push white promotions (7th to 8th rank) for new
-          new_moves.push_back(make<PROMOTION>(from, to, QUEEN));
-          new_moves.push_back(make<PROMOTION>(from, to, ROOK));
-          new_moves.push_back(make<PROMOTION>(from, to, BISHOP));
-        }
-      }
-    }
-  }
-
-  for (size_t i = 0; i < old_moves.size(); ++i) {
-    old_move_lookup[old_moves[i]] = i;
-  }
-  for (size_t i = 0; i < new_moves.size(); ++i) {
-    new_move_lookup[new_moves[i]] = i;
-  }
-}
-*/
-
-/*
-int Network::lookup(Move move, Color c) {
-    if (type_of(move) != PROMOTION || promotion_type(move) == KNIGHT) {
-        // Mask off the special move flags,
-        // in particular en passant and castling
-        move = Move(move & 0xfff);
-    }
-    if (m_format_version == 1) {
-        return old_move_lookup.at(move);
-    } else {
-        if (c == WHITE) {
-            return new_move_lookup.at(move);
-        } else {
-            Move flipped_move;
-            if (type_of(move) == PROMOTION) {
-                flipped_move = make<PROMOTION>(~from_sq(move), ~to_sq(move), promotion_type(move));
-            } else {
-                flipped_move = make_move(~from_sq(move), ~to_sq(move));
-            }
-            // The NN plays BLACK with the board flipped vertically,
-            // And outputs the moves as if BLACK is moving up.
-            // Flip the policy so the moves are normal.
-            return new_move_lookup.at(flipped_move);
-        }
-    }
-}
-*/
-
 #ifdef USE_BLAS
-void Network::winograd_transform_in(const std::vector<float>& in,
-                                    std::vector<float>& V,
-                                    const int C) {
+void NetworkOld::winograd_transform_in(const std::vector<float>& in,
+                                       std::vector<float>& V,
+                                       const int C) {
     constexpr auto W = 8;
     constexpr auto H = 8;
     constexpr auto wtiles = (W + 1) / 2;
@@ -674,10 +597,10 @@ void Network::winograd_transform_in(const std::vector<float>& in,
     }
 }
 
-void Network::winograd_sgemm(const std::vector<float>& U,
-                             std::vector<float>& V,
-                             std::vector<float>& M,
-                             const int C, const int K) {
+void NetworkOld::winograd_sgemm(const std::vector<float>& U,
+                                std::vector<float>& V,
+                                std::vector<float>& M,
+                                const int C, const int K) {
     constexpr auto P = 8 * 8 / WINOGRAD_ALPHA;
 
     for (auto b = 0; b < WINOGRAD_TILE; b++) {
@@ -695,9 +618,9 @@ void Network::winograd_sgemm(const std::vector<float>& U,
     }
 }
 
-void Network::winograd_transform_out(const std::vector<float>& M,
-                                     std::vector<float>& Y,
-                                     const int K) {
+void NetworkOld::winograd_transform_out(const std::vector<float>& M,
+                                        std::vector<float>& Y,
+                                        const int K) {
     constexpr auto W = 8;
     constexpr auto H = 8;
     constexpr auto wtiles = (W + 1) / 2;
@@ -760,12 +683,12 @@ void Network::winograd_transform_out(const std::vector<float>& M,
     }
 }
 
-void Network::winograd_convolve3(const int outputs,
-                                 const std::vector<float>& input,
-                                 const std::vector<float>& U,
-                                 std::vector<float>& V,
-                                 std::vector<float>& M,
-                                 std::vector<float>& output) {
+void NetworkOld::winograd_convolve3(const int outputs,
+                                    const std::vector<float>& input,
+                                    const std::vector<float>& U,
+                                    std::vector<float>& V,
+                                    std::vector<float>& M,
+                                    std::vector<float>& output) {
 
     constexpr unsigned int filter_len = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
     const auto input_channels = U.size() / (outputs * filter_len);
@@ -841,7 +764,7 @@ void innerproduct(const std::vector<float>& input,
 
     for (unsigned int o = 0; o < outputs; o++) {
         float val = biases[o] + output[o];
-        if (outputs == Network::NUM_VALUE_CHANNELS) {
+        if (outputs == NetworkOld::NUM_VALUE_CHANNELS) {
             val = lambda_ReLU(val);
         }
         output[o] = val;
@@ -880,9 +803,9 @@ void batchnorm(size_t channels,
     }
 }
 
-void Network::forward_cpu(std::vector<float>& input,
-                          std::vector<float>& output_pol,
-                          std::vector<float>& output_val) {
+void NetworkOld::forward_cpu(std::vector<float>& input,
+                             std::vector<float>& output_pol,
+                             std::vector<float>& output_val) {
     // Input convolution
     constexpr int width = 8;
     constexpr int height = 8;
@@ -900,8 +823,8 @@ void Network::forward_cpu(std::vector<float>& input,
     auto V = std::vector<float>(WINOGRAD_TILE * input_channels * tiles);
     auto M = std::vector<float>(WINOGRAD_TILE * output_channels * tiles);
 
-    std::vector<float> policy_data(Network::NUM_POLICY_INPUT_PLANES * width * height);
-    std::vector<float> value_data(Network::NUM_VALUE_INPUT_PLANES * width * height);
+    std::vector<float> policy_data(NetworkOld::NUM_POLICY_INPUT_PLANES * width * height);
+    std::vector<float> value_data(NetworkOld::NUM_VALUE_INPUT_PLANES * width * height);
 
     winograd_convolve3(output_channels, input, conv_weights[0], V, M, conv_out);
     batchnorm<64>(output_channels, conv_out,
@@ -1012,9 +935,9 @@ bool compare_net_outputs(std::vector<float>& data,
 }
 #endif
 
-void Network::softmax(const std::vector<float>& input,
-                      std::vector<float>& output,
-                      float temperature) {
+void NetworkOld::softmax(const std::vector<float>& input,
+                         std::vector<float>& output,
+                         float temperature) {
     assert(&input != &output);
 
     auto alpha = *std::max_element(begin(input),
@@ -1033,17 +956,17 @@ void Network::softmax(const std::vector<float>& input,
     }
 }
 
-std::pair<std::vector<float>, float> Network::get_scored_moves(lczero::InputPlanes& planes) {
+std::pair<std::vector<float>, float> NetworkOld::get_scored_moves(lczero::InputPlanes& planes) {
     assert(get_input_channels() == planes.size());
     constexpr int width = 8;
     constexpr int height = 8;
     const auto convolve_channels = conv_pol_w.size() / conv_pol_b.size();
     std::vector<net_t> input_data;
     std::vector<net_t> output_data(convolve_channels * width * height);
-    std::vector<float> value_data(Network::NUM_VALUE_INPUT_PLANES * width * height);
+    std::vector<float> value_data(NetworkOld::NUM_VALUE_INPUT_PLANES * width * height);
     std::vector<float> policy_data(get_num_output_policy());
     std::vector<float> softmax_data(get_num_output_policy());
-    std::vector<float> winrate_data(Network::NUM_VALUE_CHANNELS);
+    std::vector<float> winrate_data(NetworkOld::NUM_VALUE_CHANNELS);
     std::vector<float> winrate_out(1);
     // Data layout is input_data[(c * height + h) * width + w]
     input_data.reserve(get_input_channels() * width * height);
@@ -1080,7 +1003,7 @@ std::pair<std::vector<float>, float> Network::get_scored_moves(lczero::InputPlan
             compare_net_outputs(policy_data, cpu_policy_data, fatal, true, "orig policy");
             compare_net_outputs(value_data, cpu_value_data, fatal, true, "orig value");
             // Call opencl.forward again to see if the error is reproduceable.
-            std::vector<float> value_data_retry(Network::NUM_VALUE_INPUT_PLANES * width * height);
+            std::vector<float> value_data_retry(NetworkOld::NUM_VALUE_INPUT_PLANES * width * height);
             std::vector<float> policy_data_retry(get_num_output_policy());
             opencl.forward(input_data, policy_data_retry, value_data_retry);
             auto almost_equal_retry = compare_net_outputs(policy_data_retry, policy_data, fatal, true, "retry policy");
@@ -1111,12 +1034,11 @@ std::pair<std::vector<float>, float> Network::get_scored_moves(lczero::InputPlan
 
     // Sigmoid on [-1,1] scale
     auto winrate_sig = std::tanh(winrate_out[0]);
-    (void)winrate_sig; // TODO
 
     return std::make_pair(policy_outputs, winrate_sig);
 }
 
-std::string Network::DebugRawData::getJson() const {
+std::string NetworkOld::DebugRawData::getJson() const {
   std::stringstream s;
   s << "{\n\"value_output\":" << value_output << ",\n";
   s << "\"input\":[";
@@ -1141,3 +1063,4 @@ std::string Network::DebugRawData::getJson() const {
   return s.str();
 }
 
+} // namespace lczero

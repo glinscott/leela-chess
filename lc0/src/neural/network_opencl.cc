@@ -35,13 +35,6 @@ class OpenCLNetwork : public Network {
 
   std::unique_ptr<NetworkComputation> NewComputation() override;
 
- //private:
-  //tensorflow::Scope scope_;
-  //tensorflow::ClientSession session_;
-
-  //std::unique_ptr<tensorflow::ops::Placeholder> input_;
-  //std::unique_ptr<tensorflow::Output> policy_head_;
-  //std::unique_ptr<tensorflow::Output> value_head_;
 };
 
 class OpenCLNetworkComputation : public NetworkComputation {
@@ -49,18 +42,18 @@ class OpenCLNetworkComputation : public NetworkComputation {
   OpenCLNetworkComputation(const OpenCLNetwork* network) : network_(network) {}
   void AddInput(InputPlanes&& input) override {
     raw_input_.emplace_back(input);
-    printf("OpenCL AddInput %ld\n", raw_input_.size());
+    printf("debug OpenCL AddInput %ld\n", raw_input_.size());
   }
   void ComputeBlocking() override {
     // TODO: Should we do FIFO, not stack?
     // I think it doesn't matter because with batch_size=1
     // raw_input_ will only get one value per instance of this object.
-    std::tie(policy_output_, winrate_output_) = ::Network::get_scored_moves(raw_input_.back());
-    printf("OpenCL ComputeBlocking %ld\n", raw_input_.size());
+    std::tie(policy_output_, winrate_output_) = NetworkOld::get_scored_moves(raw_input_.back());
+    printf("debug OpenCL ComputeBlocking %ld\n", raw_input_.size());
   }
 
   int GetBatchSize() const override { 
-    printf("OpenCL GetBatchSize: %ld\n", raw_input_.size());
+    printf("debug OpenCL GetBatchSize: %ld\n", raw_input_.size());
     assert(raw_input_.size() <= 1);
     return raw_input_.size();
   }
@@ -86,8 +79,8 @@ class OpenCLNetworkComputation : public NetworkComputation {
 OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options) {
   (void)weights; // TODO
   (void)options; // TODO
-  printf("OpenCLNetwork construct\n");
-  ::Network::initialize();
+  printf("debug OpenCLNetwork construct\n");
+  NetworkOld::initialize();
 }
 
 std::unique_ptr<NetworkComputation> OpenCLNetwork::NewComputation() {

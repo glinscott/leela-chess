@@ -16,19 +16,16 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef NETWORK_H_INCLUDED
-#define NETWORK_H_INCLUDED
+#ifndef NETWORK_OLD_H_INCLUDED
+#define NETWORK_OLD_H_INCLUDED
 
 #include "neural/factory.h"
 #include "utils/bititer.h"
 #include "utils/optionsdict.h"
 #include "utils/transpose.h"
 #include "neural/network_old.h"
-// TODO: Why does network_tf.cc know this definition, but here it doesn't?
-// Some namespace issue?
 #include "neural/network.h"
 
-// #include "config.h"
 #include <vector>
 #include <string>
 #include <bitset>
@@ -41,10 +38,9 @@
 class UCTNode;
 #endif
 
+namespace lczero {
 
-// #include "Position.h"
-
-class Network {
+class NetworkOld {
 public:
     // File format version
     static constexpr int MAX_FORMAT_VERSION = 2;
@@ -158,4 +154,5 @@ private:
 // #endif
 };
 
+} // namespace lczero
 #endif
