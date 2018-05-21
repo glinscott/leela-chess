@@ -58,6 +58,36 @@ void BlasCLNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer=fals
   }
 }
 
+std::pair<float value, float[] policy> evaluate(InputPlanes&& inputplanes) {
+  // thanks to Francois and crem for verifying
+  auto input_data = std::make_unique<float[]>(kInputPlanes*64){0}; // get_input_channels()*w*h
+  size_t index = 0;
+  for (auto& plane : inputplanes) {
+    for (auto index : IterateBits(plane.mask)) {
+      input_data[i+index] = plane.value;
+    }
+    i += 64;
+  }
+  assert(i == input_data.size());
+
+  auto policy_data = std::make_unique<float[]>(weights.ip_pol_b.size()); // get_num_output_policy()
+  auto  value_data = std::make_unique<float[]>(weights.value.bn_means.size()*64); //NUM_VALUE_INPUT_PLANES*64
+  
+  forward(input_data, policy_data, value_data); // virtual
+  
+  // Get the moves
+  auto policy = softmax(policy_data, cfg_softmax_temp);
+
+  // Now get the score
+  auto output = innerproduct<weights.ip1_val_b.size(), 1>(value_data, weights.ip2_val_w, weights.ip2_val_b);
+  assert(output.size() == 1);
+  value = output[0];
+  
+  value = std::tanh(value);
+
+  return {value, policy};
+}
+
 std::vector<float> BlasCLNetwork::winograd_transform_f(const std::vector<float>& f, const int outputs, const int channels) {
   // F(2x2, 3x3) Winograd filter transformation
   // transpose(G.dot(f).dot(G.transpose()))
@@ -99,8 +129,8 @@ std::vector<float> BlasCLNetwork::winograd_transform_f(const std::vector<float>&
     return U;
 }
 
-std::vector<float> BlasCLNetwork::softmax(const std::vector<float>& input, float temperature) {
-  std::vector<float>  output(input.size());
+std::array<float> BlasCLNetwork::softmax(const std::vector<float>& input, float temperature) {
+  auto output = std::make_unique<float[]>(input.size());
   auto alpha = *std::max_element(begin(input), begin(input) + output.size());
   alpha /= temperature
   auto demon = 0.0f;
@@ -114,24 +144,34 @@ std::vector<float> BlasCLNetwork::softmax(const std::vector<float>& input, float
   return out;
 }
 
-std::pair<float value, float[] policy> evaluate(InputPlanes&& input) {
-  // something something convert input data
-  forward(input_data, policy_data, value_data); // virtual
-  
-  // Get the moves
-  softmax(policy_data, softmax_data, cfg_softmax_temp);
-  std::vector<float>& outputs = softmax_data;
+template<unsigned int inputs,
+         unsigned int outputs,
+         size_t W, size_t B>
+         // TODO: surely this can be simplified? replace template array sizes with std::make_unique, or even replace arrays with vectors
+std::vector<float> innerproduct(const std::vector<float>& input,
+                   const std::array<float, W>& weights,
+                   const std::array<float, B>& biases) {
 
-  // Now get the score
-  innerproduct<NUM_VALUE_CHANNELS, 1>(value_data, ip2_val_w, ip2_val_b, winrate_out);
-  
-  // blah blah further processing
-  
-  float[] policy = std::make_unique<float[]>();
-  
-  // blah blah
-  
-  return {value, policy};
+  assert(B == outputs);
+  auto output = std::vector<float>(outputs);
+
+  cblas_sgemv(CblasRowMajor, CblasNoTrans,
+              // M     K
+              outputs, inputs,
+              1.0f, &weights[0], inputs,
+              &input[0], 1,
+              0.0f, &output[0], 1);
+
+  auto lambda_ReLU = [](float val) { return (val > 0.0f) ? val : 0.0f; };
+
+  for (size_t o = 0; o < outputs; o++) {
+    float val = biases[o] + output[o];
+    if (outputs == weights.ip1_val_b.size()) { // NUM_VALUE_CHANNELS
+      val = lambda_ReLU(val);
+    }
+    output[o] = val;
+  }
+  return output;
 }
 
 } // namespace lczero

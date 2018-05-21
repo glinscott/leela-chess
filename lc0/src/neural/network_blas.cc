@@ -36,7 +36,6 @@ class BlasNetwork : public BlasCLNetwork {
   void winograd_transform_out();
   void winograd_convolve3();
   template<unsigned int filter_size> void convolve();
-  template<...> void innerproduct();
   template<size_t spatial_size> void batchnorm();
 }
 

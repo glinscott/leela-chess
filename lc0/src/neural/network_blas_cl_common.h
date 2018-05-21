@@ -17,21 +17,31 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/*
-get_input_channels() -> kInputPlanes, Network::initialize::channels -> ConvBlock.biases.size()
-conv_weights -> ConvBlock.weights, conv_biases -> ConvBlock.biases
-batchnorm_means -> ConvBlock.bn_means, batchnorm_stddivs -> ConvBlock.bn_stddivs
-conv_pol_w -> Weights.policy.weights, conv_pol_b -> Weights.policy.biases
-bn_pol_w1 -> Weights.policy.bn_means, bn_pol_w2 -> Weights.policy.bn_stddivs // ??? not very useful oldnames
-NUM_POLICY_INPUT_PLANES -> Weights.policy.bn_means.size()
-ip_pol_w -> Weights.ip_pol_w, ip_pol_b -> Weights.ip_pol_b
-get_num_output_policy() -> Weights.ip_pol_b.size()
-conv_val_w -> Weights.value.weights, conv_val_b -> Weights.value.biases
-bn_val_w1 -> Weights.value.bn_means, bn_val_w2 -> Weights.value.bn_stddivs
-NUM_VALUE_INPUT_PLANES -> Weights.value.bn_means.size()
-{ip1_val_w,ip1_val_b,ip2_val_w,ip2_val_b} -> Weights.{}
-NUM_VALUE_CHANNELS -> Weights.ip1_val_b.size()
+/* A table of variable conversions from lczero/Network.cpp to lc0/network.h
 
+get_input_channels()     -> kInputPlanes
+Network::initialize::channels -> ConvBlock.biases.size()
+conv_weights             -> ConvBlock.weights
+conv_biases              -> ConvBlock.biases
+batchnorm_means          -> ConvBlock.bn_means
+batchnorm_stddivs        -> ConvBlock.bn_stddivs
+conv_pol_w               -> Weights.policy.weights
+conv_pol_b               -> Weights.policy.biases
+bn_pol_w1                -> Weights.policy.bn_means,
+bn_pol_w2                -> Weights.policy.bn_stddivs // ??? not very useful oldnames
+NUM_POLICY_INPUT_PLANES  -> Weights.policy.bn_means.size()
+ip_pol_w                 -> Weights.ip_pol_w
+ip_pol_b                 -> Weights.ip_pol_b
+get_num_output_policy()  -> Weights.ip_pol_b.size()
+conv_val_w               -> Weights.value.weights
+conv_val_b               -> Weights.value.biases
+bn_val_w1                -> Weights.value.bn_means
+bn_val_w2                -> Weights.value.bn_stddivs
+NUM_VALUE_INPUT_PLANES   -> Weights.value.bn_means.size()
+{ip1_val_w,ip1_val_b,ip2_val_w,ip2_val_b} -> Weights.{}
+NUM_VALUE_CHANNELS       -> Weights.ip1_val_b.size()
+
+TODO: convert as many vectors as possible to arrays, dynamically-safely allocated with std::make_unique
 */
 
 #pragma once
@@ -84,7 +94,14 @@ class BlasCLNetwork : public Network {
   
  protected:
   virtual void forward(...);
-  void softmax();
+  std::array<float> softmax(const std::vector<float>& input, float temp);
+
+  template<unsigned int inputs,
+           unsigned int outputs,
+           size_t W, size_t B> // TODO: surely this can be simplified?
+  float innerproduct(const std::vector<float>& input,
+                     const std::array<float, W>& weights,
+                     const std::array<float, B>& biases);
  
   void initialize(void);
   void initOneBlock(Weights::ConvBlock& block, bool inputlayer=false);
