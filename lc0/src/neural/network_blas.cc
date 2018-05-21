@@ -17,7 +17,7 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "factory.h" // network.h, optionsdict.h
+#include "network_blas_cl_common.h" // factory.h, network.h, optionsdict.h
 #include <cblas.h>
 
 namespace lczero {

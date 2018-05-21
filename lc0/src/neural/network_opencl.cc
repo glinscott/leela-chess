@@ -17,9 +17,8 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "network_blas_cl_common.cc" // ???
-#include "OpenCLScheduler.h"
-#include <atomic>
+#include "network_blas_cl_common.h" // factory.h, network.h, optionsdict.h
+#include "opencl/OpenCLScheduler.h"
 
 namespace lczero {
 
