@@ -132,7 +132,7 @@ func main() {
 
 	leaveGames := 500000
 	chunkSize := 100000
-	log.Printf("Deleting from %d\n", ids[0])
+	log.Printf("Deleting from %d (last %d)\n", ids[0], ids[len(ids)-1])
 	for idx, id := range ids {
 		if id + leaveGames >= ids[len(ids)-1] / chunkSize * chunkSize {
 			log.Printf("Deleted to %d\n", id)
