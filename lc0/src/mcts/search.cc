@@ -54,7 +54,7 @@ const int kSmartPruningToleranceMs = 200;
 void Search::PopulateUciParams(OptionsParser* options) {
   options->Add<IntOption>(kMiniBatchSizeStr, 1, 1024, "minibatch-size") = 256;
   options->Add<IntOption>(kMiniPrefetchBatchStr, 0, 1024, "max-prefetch") = 32;
-  options->Add<FloatOption>(kCpuctStr, 0, 100, "cpuct") = 1.2;
+  options->Add<FloatOption>(kCpuctStr, 0, 100, "cpuct") = 2.2;
   options->Add<FloatOption>(kTemperatureStr, 0, 100, "temperature") = 0.0;
   options->Add<IntOption>(kTempDecayMovesStr, 0, 100, "tempdecay-moves") = 0;
   options->Add<BoolOption>(kNoiseStr, "noise", 'n') = false;
@@ -576,19 +576,22 @@ void Search::ExtendNode(Node* node, const PositionHistory& history) {
     return;
   }
 
-  if (!board.HasMatingMaterial()) {
-    node->MakeTerminal(GameResult::DRAW);
-    return;
-  }
+  // If it's root node and we're asked to think, pretend there's no draw.
+  if (node != root_node_) {
+    if (!board.HasMatingMaterial()) {
+      node->MakeTerminal(GameResult::DRAW);
+      return;
+    }
 
-  if (history.Last().GetNoCapturePly() >= 100) {
-    node->MakeTerminal(GameResult::DRAW);
-    return;
-  }
+    if (history.Last().GetNoCapturePly() >= 100) {
+      node->MakeTerminal(GameResult::DRAW);
+      return;
+    }
 
-  if (history.Last().GetRepetitions() >= 2) {
-    node->MakeTerminal(GameResult::DRAW);
-    return;
+    if (history.Last().GetRepetitions() >= 2) {
+      node->MakeTerminal(GameResult::DRAW);
+      return;
+    }
   }
 
   // Add legal moves as children to this node.
