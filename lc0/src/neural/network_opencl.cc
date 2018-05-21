@@ -33,7 +33,7 @@ class OpenCLNetwork : public BlasCLNetwork {
  protected:
   void initialize(void);
   std::vector<float> zeropad_U(const std::vector<float>& U, const int outputs, const int channels, const int outputs_pad, const int channels_pad);
-  OpenCLSchedular opencl;
+  OpenCLScheduler opencl;
 }
 
 void initialize(void) {

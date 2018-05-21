@@ -92,6 +92,8 @@ class BlasCLNetwork : public Network {
   
   Weights weights; // optimal memory use? is one reference shared among multiple backends?
   OptionsDict& options;
-  static constexpr auto WINOGRAD_ALPHA = 4;
+  static constexpr auto WINOGRAD_ALPHA = 4; // TODO: best place for these defines, formerly of Network.h?
   static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
 }
+
+} // namespace lczero
