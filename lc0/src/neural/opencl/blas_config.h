@@ -15,6 +15,8 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// I admit I'm rather uncertain where this particular include belongs in lc0...
+
 #pragma once
 
 #ifdef _WIN32
@@ -51,3 +53,14 @@ using net_t = float;
     #pragma warning(disable : 4996)
 #endif /* VC8+ */
 
+size_t ceilMultiple(size_t a, size_t b) {
+    if (a % b == 0) {
+        return a;
+    }
+    auto ret = a + (b - a % b);
+    return ret;
+}
+
+static constexpr auto WINOGRAD_ALPHA = 4;
+static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
+static constexpr auto WINOGRAD_P = 8 * 8 / 4;

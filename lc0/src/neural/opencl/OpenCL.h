@@ -33,9 +33,6 @@
 
 #include "Tuner.h"
 
-static constexpr auto WINOGRAD_P = 8 * 8 / 4;
-static constexpr auto WINOGRAD_TILE = 4 * 4;
-
 class OpenCL;
 
 class Layer {

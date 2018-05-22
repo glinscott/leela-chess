@@ -32,26 +32,29 @@ class OpenCLNetwork : public BlasCLNetwork {
  protected:
   void initialize(void);
   std::vector<float> zeropad_U(const std::vector<float>& U, const int outputs, const int channels, const int outputs_pad, const int channels_pad);
+  void forwardPass(const std::vector<float>& input_data,
+                                std::vector<float>& policy_data,
+                                std::vector<float>& value_data) override;
   OpenCLScheduler opencl;
-}
+};
 
-void initialize(void) {
+void OpenCLNetwork::initialize(void) {
   // this function corresponds to Network.cpp:418-496
   //myprintf("Initializing OpenCL.\n");
-  channels = weights.input.biases.size();
+  auto channels = weights.input.biases.size();
   opencl.initialize(channels);
-  
+
   for (auto& opencl_net : opencl.get_networks()) {
     auto tuners = opencl_net->getOpenCL().get_sgemm_tuners();
     auto mwg = tuners[0];
     auto kwg = tuners[2];
     auto vwm = tuners[3];
     size_t m_ceil = ceilMultiple(ceilMultiple(channels, mwg), vwm);
-    size_t k_ceil = ceilMultiple(ceilMultiple(get_input_channels(), kwg), vwm);
+    size_t k_ceil = ceilMultiple(ceilMultiple(kInputPlanes, kwg), vwm);
 
     auto Upad = zeropad_U(weights.input.weights, channels, kInputPlanes, m_ceil, k_ceil);
 
-    opencl_net->push_input_convolution(WINOGRAD_ALPHA, kInputChannels, channels,
+    opencl_net->push_input_convolution(WINOGRAD_ALPHA, kInputPlanes, channels,
                                        Upad, weights.input.bn_means, weights.input.bn_stddivs);
 
     for (auto& resblock : weights.residual) {
@@ -61,14 +64,14 @@ void initialize(void) {
                                 Upad1, resblock.conv1.bn_means, resblock.conv1.bn_stddivs,
                                 Upad2, resblock.conv2.bn_means, resblock.conv2.bn_stddivs);
     }
-    
+
     constexpr unsigned int width = 8;
     constexpr unsigned int height = 8;
     const auto num_p_inputs  = weights.policy.bn_means.size(); // NUM_POLICY_INPUT_PLANES
-    const auto num_p_outputs = weights.ip_pol_b.size()         // get_num_output_policy()
+    const auto num_p_outputs = weights.ip_pol_b.size();        // get_num_output_policy()
     const auto num_v_inputs  = weights.value.bn_means.size();  // NUM_VALUE_INPUT_PLANES
     const auto num_v_outputs = weights.ip1_val_b.size();       // NUM_VALUE_CHANNELS
-    
+
     opencl_net->push_policy(channels, num_p_inputs, num_p_inputs*width*height, num_p_outputs,
                             weights.policy.weights,
                             weights.policy.bn_means, weights.policy.bn_stddivs,
@@ -78,7 +81,7 @@ void initialize(void) {
                             weights.value.weights,
                             weights.value.bn_means, weights.value.bn_stddivs,
                             weights.ip1_val_w, weights.ip1_val_b);
-                            
+
   }
 }
 
@@ -107,9 +110,9 @@ std::vector<float> OpenCLNetwork::zeropad_U(const std::vector<float>& U, const i
   return Upad;
 }
 
-inline virtual void forwardPass(const std::vector<float>& input_data,
-			        std::vector<float>& policy_data,
-				std::vector<float>& value_data) {
+inline void OpenCLNetwork::forwardPass(const std::vector<float>& input_data,
+                              std::vector<float>& policy_data,
+                              std::vector<float>& value_data) {
   opencl.forward(input_data, policy_data, value_data);
 }
 

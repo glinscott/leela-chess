@@ -46,6 +46,7 @@ NUM_VALUE_CHANNELS       -> Weights.ip1_val_b.size()
 #pragma once
 
 #include "factory.h" // network.h, optionsdict.h
+#include "opencl/blas_config.h"
 
 namespace lczero {
 
@@ -53,25 +54,26 @@ class BlasCLNetwork;
 
 class BlasCLNetworkComputation : public NetworkComputation {
 
+ public:
   BlasCLNetworkComputation(BlasCLNetwork* network) : network(network) {}
 
-  virtual void AddInput(InputPlanes&& input) override {
+  void AddInput(InputPlanes&& input) override {
     inputs.push_back(input);
   }
 
-  virtual int GetBatchSize() const override {
+  int GetBatchSize() const override {
     return inputs.size();
   }
 
-  virtual float GetQVal(int sample) const override {
+  float GetQVal(int sample) const override {
     return output_values[sample];
   }
-  
-  virtual float GetPVal(int sample, int move_id) const override {
+
+  float GetPVal(int sample, int move_id) const override {
     return output_policies[sample][move_id];
   }
 
-  virtual void ComputeBlocking() override;
+  void ComputeBlocking() override;
 
  private:
   std::vector<InputPlanes> inputs;
@@ -86,17 +88,17 @@ class BlasCLNetwork : public Network {
     : weights(weights), options(options) {
     initialize();
   }
-    
-  virtual std::unique_ptr<NetworkComputation> NewComputation() override {
+
+  std::unique_ptr<NetworkComputation> NewComputation() override {
     return std::make_unique<BlasCLNetworkComputation>(this);
   }
 
-  virtual std::pair<float, std::vector<float>> evaluate(InputPlanes& input);
+  std::pair<float, std::vector<float>> evaluate(InputPlanes& input);
 
  protected:
   virtual void forwardPass(const std::vector<float>& input,
                                  std::vector<float>& policy_data,
-				 std::vector<float>& value_data);
+                                 std::vector<float>& value_data);
 
   std::vector<float> softmax(const std::vector<float>& input, float temperature=1.0f);
   // TODO: softmaxtemp hardcoded from lczero
@@ -112,8 +114,6 @@ class BlasCLNetwork : public Network {
 
   Weights weights; // optimal memory use? is one reference shared among multiple backends?
   const OptionsDict& options;
-  static constexpr auto WINOGRAD_ALPHA = 4; // TODO: best place for these defines, formerly of Network.h?
-  static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
 };
 
 } // namespace lczero
