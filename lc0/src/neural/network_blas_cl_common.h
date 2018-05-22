@@ -58,7 +58,7 @@ class BlasCLNetworkComputation : public NetworkComputation {
   BlasCLNetworkComputation(BlasCLNetwork* network) : network(network) {}
 
   void AddInput(InputPlanes&& input) override {
-    inputs.push_back(input);
+    inputs.emplace_back(input);
   }
 
   int GetBatchSize() const override {
@@ -84,10 +84,7 @@ class BlasCLNetworkComputation : public NetworkComputation {
 
 class BlasCLNetwork : public Network {
  public:
-  BlasCLNetwork(const Weights& weights, const OptionsDict& options)
-    : weights(weights), options(options) {
-    initialize();
-  }
+  BlasCLNetwork(const Weights& weights, const OptionsDict& options);
 
   std::unique_ptr<NetworkComputation> NewComputation() override {
     return std::make_unique<BlasCLNetworkComputation>(this);
@@ -100,20 +97,19 @@ class BlasCLNetwork : public Network {
                                  std::vector<float>& policy_data,
                                  std::vector<float>& value_data) = 0;
 
-  std::vector<float> softmax(const std::vector<float>& input, float temperature=1.0f);
+  static std::vector<float> softmax(const std::vector<float>& input, float temperature=1.0f);
   // TODO: softmaxtemp hardcoded from lczero
 
-  std::vector<float> innerproduct(const std::vector<float>& inputs,
+  static std::vector<float> innerproduct(const std::vector<float>& inputs,
                                   const std::vector<float>& weights,
                                   const std::vector<float>& biases,
                                   bool apply_relu=false);
 
-  void initialize(void);
   void initOneBlock(Weights::ConvBlock& block, bool inputlayer=false);
-  std::vector<float> winograd_transform_f(const std::vector<float>& f, const int outputs, const int channels);
+  static std::vector<float> winograd_transform_f(const std::vector<float>& f, const int outputs, const int channels);
 
-  Weights weights; // optimal memory use? is one reference shared among multiple backends?
-  const OptionsDict& options;
+  Weights weights_; // optimal memory use? is one reference shared among multiple backends?
+  const OptionsDict& options_;
 };
 
 } // namespace lczero

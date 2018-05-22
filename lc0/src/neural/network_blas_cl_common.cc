@@ -32,17 +32,17 @@ void BlasCLNetworkComputation::ComputeBlocking() {
   for (size_t i = 0; i < inputs.size(); i++)
     std::tie(output_values[i], output_policies[i]) = network->evaluate(inputs[i]);
 }
-  
 
-void BlasCLNetwork::initialize(void) {
-  // this matches old Network::initialize, in Network.cpp:375-416   
-  initOneBlock(weights.input, true);
-  for (auto& resblock : weights.residual) {
+BlasCLNetwork::BlasCLNetwork(const Weights& weights, const OptionsDict& options)
+  : weights_(weights), options_(options) {
+  // this matches old Network::initialize, in Network.cpp:375-416
+  initOneBlock(weights_.input, true);
+  for (auto& resblock : weights_.residual) {
     initOneBlock(resblock.conv1);
     initOneBlock(resblock.conv2);
   }
-  initOneBlock(weights.policy);
-  initOneBlock(weights.value);
+  initOneBlock(weights_.policy);
+  initOneBlock(weights_.value);
 }
 
 void BlasCLNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer) {
@@ -77,19 +77,19 @@ std::pair<float, std::vector<float>> BlasCLNetwork::evaluate(InputPlanes& inputp
   }
   assert(index == input_data.size());
 
-  auto policy_data = std::vector<float>(weights.ip_pol_b.size()); // get_num_output_policy()
-  auto  value_data = std::vector<float>(weights.value.bn_means.size()*64); //NUM_VALUE_INPUT_PLANES*64
-  
+  auto policy_data = std::vector<float>(weights_.ip_pol_b.size()); // get_num_output_policy()
+  auto  value_data = std::vector<float>(weights_.value.bn_means.size()*64); //NUM_VALUE_INPUT_PLANES*64
+
   forwardPass(input_data, policy_data, value_data); // virtual
-  
+
   // Get the moves
   auto policy = softmax(policy_data);
 
   // Now get the score
-  auto output = innerproduct(value_data, weights.ip2_val_w, weights.ip2_val_b);
+  auto output = innerproduct(value_data, weights_.ip2_val_w, weights_.ip2_val_b);
   assert(output.size() == 1);
   auto value = output[0];
-  
+
   value = std::tanh(value);
 
   return std::pair<float, std::vector<float>>(value, policy);
