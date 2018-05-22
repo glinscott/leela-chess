@@ -127,8 +127,8 @@ func nextGame(c *gin.Context) {
 		"sha":        network.Sha,
 		"params":     training_run.TrainParameters,
 	}
-	if (rand.Intn(100) < 50) {
-		result.params = result.params[0:len(result.Params)-1] + ", --resign=5" + ']'
+	if (rand.Intn(100) < 90) {
+		result.params = result.params[0:len(result.Params)-1] + ", --resign=4" + ']'
 	}
 	c.JSON(http.StatusOK, result)
 }
@@ -251,7 +251,7 @@ func uploadNetwork(c *gin.Context) {
 		CurrentBestID: training_run.BestNetworkID,
 		Done:          false,
 		GameCap:       400,
-		Parameters:    `["--tempdecay=10", --resign=5]`,
+		Parameters:    `["--tempdecay=10", --resign=0]`,
 	}
 	err = db.GetDB().Create(&match).Error
 	if err != nil {
