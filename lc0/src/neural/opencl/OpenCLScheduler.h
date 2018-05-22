@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "utils/blas_config.h"
+#include "blas_config.h"
 
 #include <vector>
 #include <future>

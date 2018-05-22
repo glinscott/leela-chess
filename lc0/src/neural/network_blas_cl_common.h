@@ -50,34 +50,36 @@ TODO: convert as many vectors as possible to arrays, dynamically-safely allocate
 
 namespace lczero {
 
+class BlasCLNetwork;
+
 class BlasCLNetworkComputation : public NetworkComputation {
 
-  BlasCLNetworkComputation(const BlasCLNetwork* network) : network(network) {}
+  BlasCLNetworkComputation(BlasCLNetwork* network) : network(network) {}
 
-  void AddInput(InputPlanes&& input) override {
+  virtual void AddInput(InputPlanes&& input) override {
     inputs.push_back(input);
   }
 
-  void GetBatchSize() override {
+  virtual int GetBatchSize() const override {
     return inputs.size();
   }
 
-  int GetQVal(int sample) override {
+  virtual float GetQVal(int sample) const override {
     return output_values[sample];
   }
   
-  float GetPVal(int sample, int move_id) override {
+  virtual float GetPVal(int sample, int move_id) const override {
     return output_policies[sample][move_id];
   }
 
-  void ComputeBlocking() override;
+  virtual void ComputeBlocking() override;
 
  private:
   std::vector<InputPlanes> inputs;
-  float[]   output_values;
-  float[][] output_policies;
+  std::vector<float>   output_values;
+  std::vector<std::vector<float>> output_policies;
   BlasCLNetwork* network;
-}
+};
 
 class BlasCLNetwork : public Network {
  public:
@@ -86,15 +88,19 @@ class BlasCLNetwork : public Network {
     initialize();
   }
     
-  std::unique_ptr<NetworkComputation> NewComputation() override {
+  virtual std::unique_ptr<NetworkComputation> NewComputation() override {
     return std::make_unique<BlasCLNetworkComputation>(this);
   }
-  
-  virtual std::pair<float value, float[] policy> evaluate(InputPlanes&& input);
-  
+
+  virtual std::pair<float, std::vector<float>> evaluate(InputPlanes& input);
+
  protected:
-  virtual void forward(...);
-  std::array<float> softmax(const std::vector<float>& input, float temp);
+  virtual void forwardPass(const std::vector<float>& input,
+                                 std::vector<float>& policy_data,
+				 std::vector<float>& value_data);
+
+  std::vector<float> softmax(const std::vector<float>& input, float temp=1.0f);
+  // TODO: softmaxtemp hardcoded from lczero
 
   template<unsigned int inputs,
            unsigned int outputs,
@@ -102,15 +108,15 @@ class BlasCLNetwork : public Network {
   float innerproduct(const std::vector<float>& input,
                      const std::array<float, W>& weights,
                      const std::array<float, B>& biases);
- 
+
   void initialize(void);
   void initOneBlock(Weights::ConvBlock& block, bool inputlayer=false);
   std::vector<float> winograd_transform_f(const std::vector<float>& f, const int outputs, const int channels);
   
   Weights weights; // optimal memory use? is one reference shared among multiple backends?
-  OptionsDict& options;
+  const OptionsDict& options;
   static constexpr auto WINOGRAD_ALPHA = 4; // TODO: best place for these defines, formerly of Network.h?
   static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;
-}
+};
 
 } // namespace lczero

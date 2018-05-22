@@ -18,14 +18,16 @@
 */
 
 #include "network_blas_cl_common.h"
+#include "utils/bititer.h"
+#include <cassert>
 
 namespace lczero {
 
-void BlasCLNetworkComputation::ComputeBlocking() override {
-  output_values = std::make_unique<float[]>(inputs.size());
-  output_policies = std::make_unique<float[][]>(inputs.size());
+void BlasCLNetworkComputation::ComputeBlocking() {
+  output_values = std::vector<float>(inputs.size());
+  output_policies = std::vector<std::vector<float>>(inputs.size());
   for (size_t i = 0; i < inputs.size(); i++)
-    output_values[i], output_policies[i] = network->evaluate(inputs[i]);
+    std::tie(output_values[i], output_policies[i]) = network->evaluate(inputs[i]);
 }
   
 
@@ -40,8 +42,9 @@ void BlasCLNetwork::initialize(void) {
   initOneBlock(weights.value);
 }
 
-void BlasCLNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer=false) {
+void BlasCLNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer) {
 
+  size_t channels;
   if (inputlayer)
     channels = kInputPlanes;
   else
@@ -58,25 +61,26 @@ void BlasCLNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer=fals
   }
 }
 
-std::pair<float value, float[] policy> evaluate(InputPlanes&& inputplanes) {
+std::pair<float, std::vector<float>> BlasCLNetwork::evaluate(InputPlanes& inputplanes) {
   // thanks to Francois and crem for verifying
-  auto input_data = std::make_unique<float[]>(kInputPlanes*64){0}; // get_input_channels()*w*h
+  auto input_data = std::vector<float>(kInputPlanes*64, 0.0); // get_input_channels()*w*h
+  // the loop below assumes that input_data[i] is initialized to 0 ^
   size_t index = 0;
   for (auto& plane : inputplanes) {
-    for (auto index : IterateBits(plane.mask)) {
-      input_data[i+index] = plane.value;
+    for (auto i : IterateBits(plane.mask)) {
+      input_data[index+i] = plane.value;
     }
-    i += 64;
+    index += 64;
   }
-  assert(i == input_data.size());
+  assert(index == input_data.size());
 
-  auto policy_data = std::make_unique<float[]>(weights.ip_pol_b.size()); // get_num_output_policy()
-  auto  value_data = std::make_unique<float[]>(weights.value.bn_means.size()*64); //NUM_VALUE_INPUT_PLANES*64
+  auto policy_data = std::vector<float>(weights.ip_pol_b.size()); // get_num_output_policy()
+  auto  value_data = std::vector<float>(weights.value.bn_means.size()*64); //NUM_VALUE_INPUT_PLANES*64
   
-  forward(input_data, policy_data, value_data); // virtual
+  forwardPass(input_data, policy_data, value_data); // virtual
   
   // Get the moves
-  auto policy = softmax(policy_data, cfg_softmax_temp);
+  auto policy = softmax(policy_data);
 
   // Now get the score
   auto output = innerproduct<weights.ip1_val_b.size(), 1>(value_data, weights.ip2_val_w, weights.ip2_val_b);

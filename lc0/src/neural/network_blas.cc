@@ -27,8 +27,6 @@ class BlasNetwork : public BlasCLNetwork {
   BlasNetwork(const Weights& weights, const OptionsDict& options)
     : BlasCLNetwork(weights, options { }
 
-  std::pair<float value, float[] policy> forward(InputPlanes&& input) override;
-  // output array should be std::make_unique
   
  protected:
   void winograd_transform_in();
@@ -38,7 +36,6 @@ class BlasNetwork : public BlasCLNetwork {
   template<unsigned int filter_size> void convolve();
   template<size_t spatial_size> void batchnorm();
 }
-
 
 REGISTER_NETWORK("blas", BlasNetwork, 80);
 

@@ -28,7 +28,6 @@ class OpenCLNetwork : public BlasCLNetwork {
     : BlasCLNetwork(weights, options) {
     initialize();
   }
-  std::pair<float value, float[] policy> forwardEval(InputPlanes&& input) override;
 
  protected:
   void initialize(void);
@@ -106,6 +105,12 @@ std::vector<float> OpenCLNetwork::zeropad_U(const std::vector<float>& U, const i
   }
 
   return Upad;
+}
+
+inline virtual void forwardPass(const std::vector<float>& input_data,
+			        std::vector<float>& policy_data,
+				std::vector<float>& value_data) {
+  opencl.forward(input_data, policy_data, value_data);
 }
 
 REGISTER_NETWORK("opencl", OpenCLNetwork, 90);
