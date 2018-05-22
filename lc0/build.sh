@@ -2,13 +2,11 @@
 
 set -e
 
-export CC=gcc CXX=g++
-
 BUILDTYPE=$1
 
 if [ -z "${BUILDTYPE}" ]
 then
-  BUILDTYPE=debug
+  BUILDTYPE=release
 fi
 
 BUILDDIR=build/${BUILDTYPE}
