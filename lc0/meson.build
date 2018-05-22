@@ -170,6 +170,11 @@ if get_option('build_backends')
   # TODO: Add conditional compile
   files += 'src/neural/network_opencl.cc'
   files += 'src/neural/network_blas_cl_common.cc'
+  files += 'src/neural/opencl/OpenCL.cpp'
+  files += 'src/neural/opencl/OpenCLRandom.cpp'
+  files += 'src/neural/opencl/OpenCLScheduler.cpp'
+  files += 'src/neural/opencl/OpenCLTuner.cpp'
+  files += 'src/neural/opencl/OpenCLUtils.cpp'
   deps += cc.find_library('openblas')
   deps += cc.find_library('OpenCL')
   # TODO: My system doesn't have this dir.
