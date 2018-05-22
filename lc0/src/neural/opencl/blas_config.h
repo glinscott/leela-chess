@@ -48,13 +48,7 @@ using net_t = float;
     #pragma warning(disable : 4996)
 #endif /* VC8+ */
 
-size_t ceilMultiple(size_t a, size_t b) {
-    if (a % b == 0) {
-        return a;
-    }
-    auto ret = a + (b - a % b);
-    return ret;
-}
+size_t ceilMultiple(size_t a, size_t b);
 
 static constexpr auto WINOGRAD_ALPHA = 4;
 static constexpr auto WINOGRAD_TILE = WINOGRAD_ALPHA * WINOGRAD_ALPHA;

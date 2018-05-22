@@ -40,6 +40,13 @@ using namespace Utils;
 #include "OpenCLTuner.h"
 #include "OpenCLParams.h"
 
+size_t ceilMultiple(size_t a, size_t b) {
+    if (a % b == 0) {
+        return a;
+    }
+    auto ret = a + (b - a % b);
+    return ret;
+}
 
 static std::string cl_args =
     "-cl-mad-enable -cl-fast-relaxed-math -cl-no-signed-zeros -cl-denorms-are-zero";
