@@ -98,7 +98,7 @@ class BlasCLNetwork : public Network {
  protected:
   virtual void forwardPass(const std::vector<float>& input,
                                  std::vector<float>& policy_data,
-                                 std::vector<float>& value_data);
+                                 std::vector<float>& value_data) = 0;
 
   std::vector<float> softmax(const std::vector<float>& input, float temperature=1.0f);
   // TODO: softmaxtemp hardcoded from lczero
