@@ -19,7 +19,7 @@
 #ifndef UTILS_H_DEFINED
 #define UTILS_H_DEFINED
 
-#include "config.h"
+#include "utils/blas_config.h"
 
 #include <atomic>
 #include <limits>

@@ -16,7 +16,7 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "config.h"
+#include "utils/blas_config.h"
 
 #ifdef USE_OPENCL
 

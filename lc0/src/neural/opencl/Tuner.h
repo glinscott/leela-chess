@@ -19,7 +19,7 @@
 #ifndef SGEMM_TUNER_H_INCLUDED
 #define SGEMM_TUNER_H_INCLUDED
 
-#include "config.h"
+#include "utils/blas_config.h"
 #include <vector>
 #include <map>
 #include <string>

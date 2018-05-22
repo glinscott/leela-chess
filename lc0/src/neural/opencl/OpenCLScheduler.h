@@ -16,9 +16,9 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef OPENCL_SCHEDULER_H_INCLUDED
-#define OPENCL_SCHEDULER_H_INCLUDED
-#include "config.h"
+#pragma once
+
+#include "utils/blas_config.h"
 
 #include <vector>
 #include <future>
@@ -52,6 +52,5 @@ private:
     Utils::ThreadPool m_threadpool;
 };
 
-extern OpenCLScheduler opencl;
+//extern OpenCLScheduler opencl;
 
-#endif
