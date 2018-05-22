@@ -41,7 +41,6 @@ NUM_VALUE_INPUT_PLANES   -> Weights.value.bn_means.size()
 {ip1_val_w,ip1_val_b,ip2_val_w,ip2_val_b} -> Weights.{}
 NUM_VALUE_CHANNELS       -> Weights.ip1_val_b.size()
 
-TODO: convert as many vectors as possible to arrays, dynamically-safely allocated with std::make_unique
 */
 
 #pragma once
@@ -99,20 +98,18 @@ class BlasCLNetwork : public Network {
                                  std::vector<float>& policy_data,
 				 std::vector<float>& value_data);
 
-  std::vector<float> softmax(const std::vector<float>& input, float temp=1.0f);
+  std::vector<float> softmax(const std::vector<float>& input, float temperature=1.0f);
   // TODO: softmaxtemp hardcoded from lczero
 
-  template<unsigned int inputs,
-           unsigned int outputs,
-           size_t W, size_t B> // TODO: surely this can be simplified?
-  float innerproduct(const std::vector<float>& input,
-                     const std::array<float, W>& weights,
-                     const std::array<float, B>& biases);
+  std::vector<float> innerproduct(const std::vector<float>& inputs,
+                                  const std::vector<float>& weights,
+                                  const std::vector<float>& biases,
+                                  bool apply_relu=false);
 
   void initialize(void);
   void initOneBlock(Weights::ConvBlock& block, bool inputlayer=false);
   std::vector<float> winograd_transform_f(const std::vector<float>& f, const int outputs, const int channels);
-  
+
   Weights weights; // optimal memory use? is one reference shared among multiple backends?
   const OptionsDict& options;
   static constexpr auto WINOGRAD_ALPHA = 4; // TODO: best place for these defines, formerly of Network.h?

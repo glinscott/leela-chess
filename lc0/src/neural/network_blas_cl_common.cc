@@ -19,7 +19,10 @@
 
 #include "network_blas_cl_common.h"
 #include "utils/bititer.h"
+#include <cblas.h>
 #include <cassert>
+#include <complex>
+#include <algorithm>
 
 namespace lczero {
 
@@ -83,13 +86,13 @@ std::pair<float, std::vector<float>> BlasCLNetwork::evaluate(InputPlanes& inputp
   auto policy = softmax(policy_data);
 
   // Now get the score
-  auto output = innerproduct<weights.ip1_val_b.size(), 1>(value_data, weights.ip2_val_w, weights.ip2_val_b);
+  auto output = innerproduct(value_data, weights.ip2_val_w, weights.ip2_val_b);
   assert(output.size() == 1);
-  value = output[0];
+  auto value = output[0];
   
   value = std::tanh(value);
 
-  return {value, policy};
+  return std::pair<float, std::vector<float>>(value, policy);
 }
 
 std::vector<float> BlasCLNetwork::winograd_transform_f(const std::vector<float>& f, const int outputs, const int channels) {
@@ -133,49 +136,45 @@ std::vector<float> BlasCLNetwork::winograd_transform_f(const std::vector<float>&
     return U;
 }
 
-std::array<float> BlasCLNetwork::softmax(const std::vector<float>& input, float temperature) {
-  auto output = std::make_unique<float[]>(input.size());
-  auto alpha = *std::max_element(begin(input), begin(input) + output.size());
-  alpha /= temperature
-  auto demon = 0.0f;
-  for (size_t i = 0; i < input.size(); i++) {
-    auto val = std::exp((input[i]/temperature) - alpha);
-    output[i] = val;
+std::vector<float> BlasCLNetwork::softmax(const std::vector<float>& inputs, float temperature) {
+  auto outputs = std::vector<float>(inputs.size());
+  auto alpha = *std::max_element(begin(inputs), begin(inputs) + outputs.size());
+  alpha /= temperature;
+  auto denom = 0.0f;
+  for (size_t i = 0; i < inputs.size(); i++) {
+    auto val = std::exp((inputs[i]/temperature) - alpha);
+    outputs[i] = val;
     denom += val;
   }
-  for (size_t i = 0; i < input.size(); i++)
-    output[i] /= denom;
-  return out;
+  for (size_t i = 0; i < outputs.size(); i++) {
+    outputs[i] /= denom;
+  }
+  return outputs;
 }
 
-template<unsigned int inputs,
-         unsigned int outputs,
-         size_t W, size_t B>
-         // TODO: surely this can be simplified? replace template array sizes with std::make_unique, or even replace arrays with vectors
-std::vector<float> innerproduct(const std::vector<float>& input,
-                   const std::array<float, W>& weights,
-                   const std::array<float, B>& biases) {
-
-  assert(B == outputs);
-  auto output = std::vector<float>(outputs);
+std::vector<float> BlasCLNetwork::innerproduct(const std::vector<float>& inputs,
+                                               const std::vector<float>& weights,
+                                               const std::vector<float>& biases,
+                                               bool apply_relu) {
+  auto outputs = std::vector<float>(biases.size());
 
   cblas_sgemv(CblasRowMajor, CblasNoTrans,
-              // M     K
-              outputs, inputs,
-              1.0f, &weights[0], inputs,
-              &input[0], 1,
-              0.0f, &output[0], 1);
+              // M           K
+              biases.size(), inputs.size(),
+              1.0f, weights.data(), inputs.size(),
+              inputs.data(), 1, 0.0f,
+              outputs.data(), 1);
 
   auto lambda_ReLU = [](float val) { return (val > 0.0f) ? val : 0.0f; };
 
-  for (size_t o = 0; o < outputs; o++) {
-    float val = biases[o] + output[o];
-    if (outputs == weights.ip1_val_b.size()) { // NUM_VALUE_CHANNELS
+  for (size_t o = 0; o < outputs.size(); o++) {
+    float val = biases[o] + outputs[o];
+    if (apply_relu) { // TODO: for value head fully connected layer in blas-cpu
       val = lambda_ReLU(val);
     }
-    output[o] = val;
+    outputs[o] = val;
   }
-  return output;
+  return outputs;
 }
 
 } // namespace lczero
