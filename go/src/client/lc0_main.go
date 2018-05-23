@@ -169,7 +169,13 @@ func convertMovesToPGN(moves []string) string {
 			log.Fatalf("movstr: %v", err)
 		}
 	}
-	return game.String()
+	game2 := chess.NewGame()
+	b, err := game.MarshalText()
+	if err != nil {
+		log.Fatalf("MarshalText failed: %v", err)
+	}
+	game2.UnmarshalText(b)
+	return game2.String()
 }
 
 func CreateCmdWrapper() *CmdWrapper {
