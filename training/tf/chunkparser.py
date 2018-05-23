@@ -103,6 +103,7 @@ class ChunkParser:
         """
         for i in range(len(self.readers)):
             self.processes[i].terminate()
+            self.processes[i].join()
             self.readers[i].close()
             self.writers[i].close()
 
