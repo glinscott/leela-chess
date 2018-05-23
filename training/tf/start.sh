@@ -3,21 +3,36 @@
 set -e
 
 CONFIG=$1
-ADDRESS=$2
+GAMES=$2
+
 NET="/tmp/weights.txt"
 NETDIR="/home2/networks/upload"
+GAMEFILE="$HOME/.lc0.dat"
+
+if [ ! -f "$GAMEFILE" ]
+then
+  echo "File $GAMEFILE must contain a single number, exiting now!"
+  exit 1
+fi
+
+game_num=$(cat $GAMEFILE)
+game_num=$((game_num + GAMES))
+echo "Starting with training.$game_num.gz as last game in window"
 
 while true
 do
-  unbuffer ./train.py --cfg=$CONFIG --output=$NET 2>&1 | tee /home2/logs/$(date +%Y%m%d-%H%M%S).log
-
-  # prepare network for uploading
-  CHECKSUM=$(sha256sum $NET | awk '{print $1}')
-  mv -v $NET $NETDIR/$CHECKSUM
-  gzip -9 $NETDIR/$CHECKSUM
-  FILE="$NETDIR/$CHECKSUM.gz"
-
-  # upload in the background and continue next training session
-  echo "Uploading '$FILE' to $ADDRESS"
-  curl -s -F "file=@${FILE}" -F "training_id=1" -F "layers=15" -F "filters=192" $ADDRESS &
+  if [ -f "/home/folkert/data/run1/training.${game_num}.gz" ]
+  then
+    echo ""
+    unbuffer ./train.py --cfg=$CONFIG --output=$NET 2>&1 | tee /home2/logs/$(date +%Y%m%d-%H%M%S).log
+    TSTAMP=$(date +"%Y_%m%d_%H%M_%S_%3N")
+    FILE="$NETDIR/$TSTAMP.lc0"
+    mv -v $NET $FILE
+    echo $game_num > $GAMEFILE
+    game_num=$((game_num + GAMES))
+    echo "waiting for training.$game_num.gz"
+  else
+    echo -n "."
+    sleep 60
+  fi
 done
