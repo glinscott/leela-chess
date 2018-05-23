@@ -35,7 +35,9 @@ using std::string;
 const string ChessBoard::kStartingFen =
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-void ChessBoard::Clear() { std::memset(this, 0, sizeof(ChessBoard)); }
+void ChessBoard::Clear() {
+  std::memset(reinterpret_cast<void*>(this), 0, sizeof(ChessBoard));
+}
 
 void ChessBoard::Mirror() {
   our_pieces_.Mirror();
@@ -52,6 +54,8 @@ void ChessBoard::Mirror() {
 }
 
 namespace {
+static const BitBoard kPawnMask = 0x00FFFFFFFFFFFF00ULL;
+
 static const std::pair<int, int> kKingMoves[] = {
     {-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}};
 
@@ -171,7 +175,9 @@ static const Move::Promotion kPromotions[] = {
 
 }  // namespace
 
-MoveList ChessBoard::GeneratePseudovalidMoves() const {
+BitBoard ChessBoard::pawns() const { return pawns_ * kPawnMask; }
+
+MoveList ChessBoard::GeneratePseudolegalMoves() const {
   MoveList result;
   for (auto source : our_pieces_) {
     // King
@@ -501,8 +507,88 @@ bool ChessBoard::IsUnderAttack(BoardSquare square) const {
   return false;
 }
 
-std::vector<MoveExecution> ChessBoard::GenerateValidMoves() const {
-  MoveList move_list = GeneratePseudovalidMoves();
+bool ChessBoard::IsLegalMove(Move move, bool was_under_check) const {
+  const auto& from = move.from();
+  const auto& to = move.to();
+
+  // If we are already under check, also apply move and check if valid.
+  // TODO(mooskagh) Optimize this case
+  if (was_under_check) {
+    ChessBoard board(*this);
+    board.ApplyMove(move);
+    return !board.IsUnderCheck();
+  }
+
+  // En passant. Complex but rare. Just apply
+  // and check that we are not under check.
+  if (from.row() == 4 && pawns_.get(from) && from.col() != to.col() &&
+      pawns_.get(7, to.col())) {
+    ChessBoard board(*this);
+    board.ApplyMove(move);
+    return !board.IsUnderCheck();
+  }
+
+  // If it's kings move, check that destination
+  // is not under attack.
+  if (from == our_king_) {
+    // Castlings were checked earlier.
+    if (std::abs(static_cast<int>(from.col()) - static_cast<int>(to.col())) > 1)
+      return true;
+    return !IsUnderAttack(to);
+  }
+
+  // Not check that piece was pinned. And it was, check that after the move
+  // it is still on like of attack.
+  int dx = from.col() - our_king_.col();
+  int dy = from.row() - our_king_.row();
+
+  // If it's not on the same file/rank/diagonal as our king, cannot be pinned.
+  if (dx != 0 && dy != 0 && std::abs(dx) != std::abs(dy)) return true;
+  dx = (dx > 0) - (dx < 0);  // Sign.
+  dy = (dy > 0) - (dy < 0);
+  auto col = our_king_.col();
+  auto row = our_king_.row();
+  while (true) {
+    col += dx;
+    row += dy;
+    // Attacking line left board, good.
+    if (!BoardSquare::IsValid(row, col)) return true;
+    const BoardSquare square(row, col);
+    // The source square of the move is now free.
+    if (square == from) continue;
+    // The destination square if the move is our piece. King is not under
+    // attack.
+    if (square == to) return true;
+    // Our piece on the line. Not under attack.
+    if (our_pieces_.get(square)) return true;
+    if (their_pieces_.get(square)) {
+      if (dx == 0 || dy == 0) {
+        // Have to be afraid of rook-like piece.
+        return !rooks_.get(square);
+      } else {
+        // Have to be afraid of bishop-like piece.
+        return !bishops_.get(square);
+      }
+      return true;
+    }
+  }
+}
+
+MoveList ChessBoard::GenerateLegalMoves() const {
+  const bool was_under_check = IsUnderCheck();
+  MoveList move_list = GeneratePseudolegalMoves();
+  MoveList result;
+  result.reserve(move_list.size());
+
+  for (Move m : move_list) {
+    if (IsLegalMove(m, was_under_check)) result.emplace_back(m);
+  }
+
+  return result;
+}
+
+std::vector<MoveExecution> ChessBoard::GenerateLegalMovesAndPositions() const {
+  MoveList move_list = GeneratePseudolegalMoves();
   std::vector<MoveExecution> result;
 
   for (const auto& move : move_list) {
@@ -605,7 +691,7 @@ void ChessBoard::SetFromFen(const std::string& fen, int* no_capture_ply,
     pawns_.set((square.row() == 2) ? 0 : 7, square.col());
   }
 
-  if (who_to_move == "b") {
+  if (who_to_move == "b" || who_to_move == "B") {
     Mirror();
   }
   if (no_capture_ply) *no_capture_ply = no_capture_halfmoves;

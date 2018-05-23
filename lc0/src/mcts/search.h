@@ -21,14 +21,14 @@
 #include <functional>
 #include <shared_mutex>
 #include <thread>
-#include "mcts/callbacks.h"
+#include "chess/callbacks.h"
+#include "chess/uciloop.h"
 #include "mcts/node.h"
 #include "neural/cache.h"
 #include "neural/network.h"
-#include "optionsparser.h"
-#include "uciloop.h"
 #include "utils/mutex.h"
 #include "utils/optionsdict.h"
+#include "utils/optionsparser.h"
 
 namespace lczero {
 
@@ -40,7 +40,7 @@ struct SearchLimits {
 
 class Search {
  public:
-  Search(Node* root_node, NodePool* node_pool, Network* network,
+  Search(const NodeTree& tree, Network* network,
          BestMoveInfo::Callback best_move_callback,
          ThinkingInfo::Callback info_callback, const SearchLimits& limits,
          const OptionsDict& options, NNCache* cache);
@@ -51,10 +51,10 @@ class Search {
   static void PopulateUciParams(OptionsParser* options);
 
   // Starts worker threads and returns immediately.
-  void StartThreads(int how_many);
+  void StartThreads(size_t how_many);
 
   // Starts search with k threads and wait until it finishes.
-  void RunBlocking(int threads);
+  void RunBlocking(size_t threads);
 
   // Runs search single-threaded, blocking.
   void RunSingleThreaded();
@@ -70,25 +70,39 @@ class Search {
   // Returns best move, from the point of view of white player. And also ponder.
   std::pair<Move, Move> GetBestMove() const;
 
+  // Strings for UCI params. So that others can override defaults.
+  static const char* kMiniBatchSizeStr;
+  static const char* kMiniPrefetchBatchStr;
+  static const char* kCpuctStr;
+  static const char* kTemperatureStr;
+  static const char* kTempDecayMovesStr;
+  static const char* kNoiseStr;
+  static const char* kVerboseStatsStr;
+  static const char* kSmartPruningStr;
+  static const char* kVirtualLossBugStr;
+  static const char* kFpuReductionStr;
+  static const char* kCacheHistoryLengthStr;
+
  private:
   // Can run several copies of it in separate threads.
   void Worker();
 
   std::pair<Move, Move> GetBestMoveInternal() const;
-  uint64_t GetTimeSinceStart() const;
+  int64_t GetTimeSinceStart() const;
   void UpdateRemainingMoves();
   void MaybeTriggerStop();
   void MaybeOutputInfo();
   void SendMovesStats() const;
   bool AddNodeToCompute(Node* node, CachingComputation* computation,
+                        const PositionHistory& history,
                         bool add_if_cached = true);
-  int PrefetchIntoCache(Node* node, int budget,
-                        CachingComputation* computation);
+  int PrefetchIntoCache(Node* node, int budget, CachingComputation* computation,
+                        PositionHistory* history);
 
   void SendUciInfo();  // Requires nodes_mutex_ to be held.
 
-  Node* PickNodeToExtend(Node* node);
-  void ExtendNode(Node* node);
+  Node* PickNodeToExtend(Node* node, PositionHistory* history);
+  void ExtendNode(Node* node, const PositionHistory& history);
 
   mutable Mutex counters_mutex_ ACQUIRED_AFTER(nodes_mutex_);
   // Tells all threads to stop.
@@ -106,19 +120,20 @@ class Search {
   std::vector<std::thread> threads_ GUARDED_BY(threads_mutex_);
 
   Node* root_node_;
-  NodePool* node_pool_;
   NNCache* cache_;
+  // Fixed positions which happened before the search.
+  const PositionHistory& played_history_;
 
   Network* const network_;
   const SearchLimits limits_;
   const std::chrono::steady_clock::time_point start_time_;
-  const uint64_t initial_visits_;
+  const int64_t initial_visits_;
 
   mutable SharedMutex nodes_mutex_;
   Node* best_move_node_ GUARDED_BY(nodes_mutex_) = nullptr;
   Node* last_outputted_best_move_node_ GUARDED_BY(nodes_mutex_) = nullptr;
   ThinkingInfo uci_info_ GUARDED_BY(nodes_mutex_);
-  uint64_t total_playouts_ GUARDED_BY(nodes_mutex_) = 0;
+  int64_t total_playouts_ GUARDED_BY(nodes_mutex_) = 0;
   int remaining_playouts_ GUARDED_BY(nodes_mutex_) =
       std::numeric_limits<int>::max();
 
@@ -130,11 +145,13 @@ class Search {
   const int kMiniPrefetchBatch;
   const float kCpuct;
   const float kTemperature;
-  const float kTempDecay;
+  const int kTempDecayMoves;
   const bool kNoise;
   const bool kVerboseStats;
   const bool kSmartPruning;
   const float kVirtualLossBug;
+  const float kFpuReduction;
+  const bool kCacheHistoryLength;
 };
 
 }  // namespace lczero

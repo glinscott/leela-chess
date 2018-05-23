@@ -17,58 +17,35 @@
 */
 
 #include "selfplay/game.h"
+#include <algorithm>
+
 #include "neural/writer.h"
 
 namespace lczero {
 
 SelfPlayGame::SelfPlayGame(PlayerOptions player1, PlayerOptions player2,
-                           bool shared_tree, NodePool* node_pool)
-    : options_{player1, player2}, node_pool_(node_pool) {
-  tree_[0] = std::make_shared<NodeTree>(node_pool_);
+                           bool shared_tree)
+    : options_{player1, player2} {
+  tree_[0] = std::make_shared<NodeTree>();
   tree_[0]->ResetToPosition(ChessBoard::kStartingFen, {});
 
   if (shared_tree) {
     tree_[1] = tree_[0];
   } else {
-    tree_[1] = std::make_shared<NodeTree>(node_pool_);
+    tree_[1] = std::make_shared<NodeTree>();
     tree_[1]->ResetToPosition(ChessBoard::kStartingFen, {});
   }
 }
-
-namespace {
-
-GameInfo::GameResult ComputeGameResult(Node* node) {
-  // Checks whether the passed node is an endgame, and if yes, which exactly
-  // (win/lose/draw).
-  const auto& board = node->board;
-  auto valid_moves = board.GenerateValidMoves();
-  if (valid_moves.empty()) {
-    if (board.IsUnderCheck()) {
-      // Checkmate.
-      return board.flipped() ? GameInfo::WHITE_WON : GameInfo::BLACK_WON;
-    }
-    // Stalemate.
-    return GameInfo::DRAW;
-  }
-
-  if (!board.HasMatingMaterial()) return GameInfo::DRAW;
-  if (node->no_capture_ply >= 100) return GameInfo::DRAW;
-  if (node->ComputeRepetitions() >= 2) return GameInfo::DRAW;
-
-  return GameInfo::UNDECIDED;
-}
-
-}  // namespace
 
 void SelfPlayGame::Play(int white_threads, int black_threads) {
   bool blacks_move = false;
 
   // Do moves while not end of the game. (And while not abort_)
   while (!abort_) {
-    game_result_ = ComputeGameResult(tree_[0]->GetCurrentHead());
+    game_result_ = tree_[0]->GetPositionHistory().ComputeGameResult();
 
     // If endgame, stop.
-    if (game_result_ != GameInfo::UNDECIDED) break;
+    if (game_result_ != GameResult::UNDECIDED) break;
 
     // Initialize search.
     const int idx = blacks_move ? 1 : 0;
@@ -76,10 +53,9 @@ void SelfPlayGame::Play(int white_threads, int black_threads) {
       std::lock_guard<std::mutex> lock(mutex_);
       if (abort_) break;
       search_ = std::make_unique<Search>(
-          tree_[idx]->GetCurrentHead(), node_pool_, options_[idx].network,
-          options_[idx].best_move_callback, options_[idx].info_callback,
-          options_[idx].search_limits, *options_[idx].uci_options,
-          options_[idx].cache);
+          *tree_[idx], options_[idx].network, options_[idx].best_move_callback,
+          options_[idx].info_callback, options_[idx].search_limits,
+          *options_[idx].uci_options, options_[idx].cache);
     }
 
     // Do search.
@@ -87,8 +63,8 @@ void SelfPlayGame::Play(int white_threads, int black_threads) {
     if (abort_) break;
 
     // Append training data.
-    training_data_.push_back(
-        tree_[0]->GetCurrentHead()->GetV3TrainingData(GameInfo::UNDECIDED));
+    training_data_.push_back(tree_[idx]->GetCurrentHead()->GetV3TrainingData(
+        GameResult::UNDECIDED, tree_[idx]->GetPositionHistory()));
 
     // Add best move to the tree.
     Move move = search_->GetBestMove().first;
@@ -100,9 +76,11 @@ void SelfPlayGame::Play(int white_threads, int black_threads) {
 
 std::vector<Move> SelfPlayGame::GetMoves() const {
   std::vector<Move> moves;
+  bool flip = !tree_[0]->IsBlackToMove();
   for (Node* node = tree_[0]->GetCurrentHead();
-       node != tree_[0]->GetGameBeginNode(); node = node->parent) {
-    moves.push_back(node->move);
+       node != tree_[0]->GetGameBeginNode(); node = node->GetParent()) {
+    moves.push_back(node->GetMove(flip));
+	flip = !flip;
   }
   std::reverse(moves.begin(), moves.end());
   return moves;
@@ -115,11 +93,12 @@ void SelfPlayGame::Abort() {
 }
 
 void SelfPlayGame::WriteTrainingData(TrainingDataWriter* writer) const {
-  bool black_to_move = tree_[0]->GetGameBeginNode()->board.flipped();
+  bool black_to_move =
+      tree_[0]->GetPositionHistory().Starting().IsBlackToMove();
   for (auto chunk : training_data_) {
-    if (game_result_ == GameInfo::WHITE_WON) {
+    if (game_result_ == GameResult::WHITE_WON) {
       chunk.result = black_to_move ? -1 : 1;
-    } else if (game_result_ == GameInfo::BLACK_WON) {
+    } else if (game_result_ == GameResult::BLACK_WON) {
       chunk.result = black_to_move ? 1 : -1;
     } else {
       chunk.result = 0;

@@ -17,38 +17,63 @@
 */
 
 #include "neural/loader.h"
+#include <zlib.h>
 #include <algorithm>
-#include <experimental/filesystem>
+#include <cctype>
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include "utils/commandline.h"
 #include "utils/exception.h"
+#include "utils/filesystem.h"
 
 namespace lczero {
 
 FloatVectors LoadFloatsFromFile(const std::string& filename) {
-  FloatVectors res;
+  const int kStartingSize = 8 * 1024 * 1024;  // 8M
+  std::vector<char> buffer(kStartingSize);
+  int bytes_read = 0;
 
-  std::ifstream file(filename.c_str());
-  std::string line;
-  while (std::getline(file, line)) {
-    FloatVector vec;
-
-    std::istringstream iss(line);
-    float val;
-    while (iss >> val) {
-      vec.push_back(val);
-    }
-    if (!iss.eof()) throw Exception("Cannot read weights from " + filename);
-
-    if (!vec.empty()) {
-      res.emplace_back(std::move(vec));
+  // Read whole file into a buffer.
+  gzFile file = gzopen(filename.c_str(), "rb");
+  if (!file) throw Exception("Cannot read weights from " + filename);
+  while (true) {
+    int sz = gzread(file, &buffer[bytes_read], buffer.size() - bytes_read);
+    if (sz == static_cast<int>(buffer.size()) - bytes_read) {
+      bytes_read = buffer.size();
+      buffer.resize(buffer.size() * 2);
+    } else {
+      bytes_read += sz;
+      buffer.resize(bytes_read);
+      // Add newline in the end for the case it was not there.
+      buffer.push_back('\n');
+      break;
     }
   }
-  if (!file.eof()) throw Exception("Cannot read weights from " + filename);
+  gzclose(file);
 
-  return res;
+  // Parse buffer.
+  FloatVectors result;
+  FloatVector line;
+  size_t start = 0;
+  for (size_t i = 0; i < buffer.size(); ++i) {
+    char& c = buffer[i];
+    const bool is_newline = (c == '\n' || c == '\r');
+    if (!std::isspace(c)) continue;
+    if (start < i) {
+      // If previous character was not space too.
+      c = '\0';
+      line.push_back(std::atof(&buffer[start]));
+    }
+    if (is_newline && !line.empty()) {
+      result.emplace_back();
+      result.back().swap(line);
+    }
+    start = i + 1;
+  }
+
+  return result;
 }
 
 namespace {
@@ -101,26 +126,39 @@ Weights LoadWeightsFromFile(const std::string& filename) {
 }
 
 std::string DiscoveryWeightsFile() {
-  const int kMinFileSize = 30000000;
+  const int kMinFileSize = 10000000;  // 10 MB
 
-  using namespace std::experimental::filesystem;
-  std::string path = CommandLine::BinaryDirectory();
+  std::string root_path = CommandLine::BinaryDirectory();
 
-  std::vector<std::pair<file_time_type, std::string>> candidates;
-  for (const auto& file : recursive_directory_iterator(path)) {
-    if (!is_regular_file(file.path())) continue;
-    if (file_size(file.path()) < kMinFileSize) continue;
-    candidates.emplace_back(last_write_time(file.path()),
-                            file.path().generic_u8string());
+  // Open all files in <binary dir> amd <binary dir>/networks,
+  // ones which are >= kMinFileSize are candidates.
+  std::vector<std::pair<time_t, std::string>> time_and_filename;
+  for (const auto& path : {"", "/networks"}) {
+    for (const auto& file : GetFileList(root_path + path)) {
+      const std::string filename = root_path + path + "/" + file;
+      if (GetFileSize(filename) < kMinFileSize) continue;
+      time_and_filename.emplace_back(GetFileSize(filename), filename);
+    }
   }
 
-  std::sort(candidates.rbegin(), candidates.rend());
+  std::sort(time_and_filename.rbegin(), time_and_filename.rend());
 
-  for (const auto& candidate : candidates) {
-    std::ifstream file(candidate.second.c_str());
+  // Open all candidates, from newest to oldest, possibly gzipped, and try to
+  // read version for it. If version is 2, return it.
+  for (const auto& candidate : time_and_filename) {
+    gzFile file = gzopen(candidate.second.c_str(), "rb");
+
+    if (!file) continue;
+    char buf[256];
+    int sz = gzread(file, buf, 256);
+    gzclose(file);
+    if (sz < 0) continue;
+
+    std::string str(buf, buf + sz);
+    std::istringstream data(str);
     int val = 0;
-    file >> val;
-    if (!file.fail() && val == 2) {
+    data >> val;
+    if (!data.fail() && val == 2) {
       std::cerr << "Found network file: " << candidate.second << std::endl;
       return candidate.second;
     }

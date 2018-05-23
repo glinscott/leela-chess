@@ -18,11 +18,12 @@
 
 #pragma once
 
+#include "chess/position.h"
+#include "chess/uciloop.h"
 #include "mcts/search.h"
 #include "neural/cache.h"
 #include "neural/network.h"
-#include "optionsparser.h"
-#include "uciloop.h"
+#include "utils/optionsparser.h"
 
 namespace lczero {
 
@@ -48,8 +49,7 @@ class SelfPlayGame {
   // If shared_tree is true, search tree is reused between players.
   // (useful for training games). Otherwise the tree is separate for black
   // and white (useful i.e. when they use different networks).
-  SelfPlayGame(PlayerOptions player1, PlayerOptions player2, bool shared_tree,
-               NodePool* node_pool_);
+  SelfPlayGame(PlayerOptions player1, PlayerOptions player2, bool shared_tree);
 
   // Starts the game and blocks until the game is finished.
   void Play(int white_threads, int black_threads);
@@ -60,21 +60,21 @@ class SelfPlayGame {
   // Writes training data to a file.
   void WriteTrainingData(TrainingDataWriter* writer) const;
 
-  GameInfo::GameResult GetGameResult() const { return game_result_; }
+  GameResult GetGameResult() const { return game_result_; }
   std::vector<Move> GetMoves() const;
 
  private:
   // options_[0] is for white player, [1] for black.
   PlayerOptions options_[2];
-  NodePool* node_pool_;
   // Node tree for player1 and player2. If the tree is shared between players,
   // tree_[0] == tree_[1].
   std::shared_ptr<NodeTree> tree_[2];
+
   // Search that is currently in progress. Stored in members so that Abort()
   // can stop it.
   std::unique_ptr<Search> search_;
   bool abort_ = false;
-  GameInfo::GameResult game_result_ = GameInfo::UNDECIDED;
+  GameResult game_result_ = GameResult::UNDECIDED;
   std::mutex mutex_;
 
   // Training data to send.

@@ -356,12 +356,14 @@ bool FloatOption::ProcessShortFlagWithValue(char flag, const std::string& value,
 std::string FloatOption::GetHelp(const OptionsDict& dict) const {
   std::string long_flag = GetLongFlag();
   if (!long_flag.empty()) {
-    long_flag += "=" + std::to_string(min_) + ".." + std::to_string(max_);
+    std::ostringstream oss;
+    oss << std::setprecision(3) << min_ << ".." << max_;
+    long_flag += "=" + oss.str();
   }
-  return FormatFlag(GetShortFlag(), long_flag, GetName(),
-                    std::to_string(GetVal(dict)) +
-                        "  min: " + std::to_string(min_) +
-                        "  max: " + std::to_string(max_));
+  std::ostringstream oss;
+  oss << std::setprecision(3) << GetVal(dict) << "  min: " << min_
+      << "  max: " << max_;
+  return FormatFlag(GetShortFlag(), long_flag, GetName(), oss.str());
 }
 
 std::string FloatOption::GetOptionString(const OptionsDict& dict) const {
@@ -405,8 +407,7 @@ bool BoolOption::ProcessLongFlag(const std::string& flag,
   return false;
 }
 
-bool BoolOption::ProcessShortFlagWithValue(char flag, const std::string& value,
-                                           OptionsDict* dict) {
+bool BoolOption::ProcessShortFlag(char flag, OptionsDict* dict) {
   if (flag == GetShortFlag()) {
     SetVal(dict, !GetVal(*dict));
     return true;

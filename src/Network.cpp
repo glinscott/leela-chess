@@ -34,6 +34,7 @@
 #include <thread>
 #include <boost/utility.hpp>
 #include <boost/format.hpp>
+#include <boost/spirit/home/x3.hpp>
 #include "zlib.h"
 
 #ifdef __APPLE__
@@ -60,6 +61,7 @@
 #include "ThreadPool.h"
 #include "Im2Col.h"
 
+namespace x3 = boost::spirit::x3;
 using namespace Utils;
 
 // Seems this is required for the Darwin compiler.
@@ -262,18 +264,10 @@ std::pair<int, int> Network::load_network(std::istream& wtfile) {
     linecount = 0;
     while (std::getline(wtfile, line)) {
         std::vector<float> weights;
-        float weight;
-        char * fz = &line[0];
-        bool ok = true;
-        for (; *fz != '\0';) {
-            char * tmp = fz;
-            weight = strtof(fz, &fz); // if the read fails, fz is unchanged and weight is 0.0F.
-            if (weight == 0.0F && tmp == fz) {
-                ok = false; break;
-            }
-            weights.emplace_back(weight);
-        }
-        if (!ok) {
+        auto it_line = cbegin(line);
+        const auto ok = phrase_parse(it_line, cend(line),
+                                     *x3::float_, x3::space, weights);
+        if (!ok || it_line != cend(line)) {
             myprintf("\nFailed to parse weight file. Error on line %d.\n",
                     linecount + 2); //+1 from version line, +1 from 0-indexing
             return {0, 0};
@@ -1034,6 +1028,13 @@ void Network::softmax(const std::vector<float>& input,
 Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawData* debug_data, bool skip_cache) {
     Netresult result;
     auto full_key = pos.cur().full_key();
+    // Mix in the history to try and ensure no false positive lookups where
+    // the cached values would differ from the NN evals.
+    int history_count = pos.positions.size();
+    for (int i = history_count - 2; i >= std::max(0, history_count - T_HISTORY); i--) {
+        full_key *= 31;
+        full_key ^= pos.positions[i].full_key();
+    }
 
     // See if we already have this in the cache.
     if (!skip_cache) {
@@ -1053,6 +1054,9 @@ Network::Netresult Network::get_scored_moves(const BoardHistory& pos, DebugRawDa
 }
 
 Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, NNPlanes& planes, DebugRawData* debug_data) {
+    // NNPlanes is sized to support either version, so this assert uses
+    // MAX_INPUT_CHANNELS. The rest of the code uses get_input_channels()
+    // to match the actual number of bits expected by each network.
     assert(MAX_INPUT_CHANNELS == planes.bit.size()+3);
     constexpr int width = 8;
     constexpr int height = 8;
@@ -1065,8 +1069,8 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     std::vector<float> winrate_data(Network::NUM_VALUE_CHANNELS);
     std::vector<float> winrate_out(1);
     // Data layout is input_data[(c * height + h) * width + w]
-    input_data.reserve(MAX_INPUT_CHANNELS * width * height);
-    for (int c = 0; c < MAX_INPUT_CHANNELS - 3; ++c) {
+    input_data.reserve(get_input_channels() * width * height);
+    for (int c = 0; c < get_input_channels() - 3; ++c) {
         for (int i = 0; i < 64; ++i) {
             input_data.emplace_back(net_t(planes.bit[c][i]));
         }
@@ -1082,7 +1086,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     for (int i = 0; i < 64; ++i) {
         input_data.emplace_back(net_t(m_format_version == 1 ? 0.0 : 1.0));
     }
-    assert(input_data.size() == MAX_INPUT_CHANNELS * width * height);
+    assert(input_data.size() == get_input_channels() * width * height);
 #ifdef USE_OPENCL
     opencl.forward(input_data, policy_data, value_data);
 #elif defined(USE_BLAS) && !defined(USE_OPENCL)

@@ -27,6 +27,7 @@
 #include <unordered_set>
 #include <utility>
 #include "utils/exception.h"
+#include "utils/string.h"
 
 namespace lczero {
 
@@ -53,7 +54,10 @@ ParseCommand(const std::string& line) {
 
   std::istringstream iss(line);
   std::string token;
-  iss >> /* std::noskipws >> */ token >> std::ws;
+  iss >> token >> std::ws;
+
+  // If empty line, return empty command.
+  if (token.empty()) return {};
 
   auto command = kKnownCommands.find(token);
   if (command == kKnownCommands.end()) {
@@ -98,6 +102,8 @@ void UciLoop::RunLoop() {
     if (debug_log_) debug_log_ << '>' << line << std::endl << std::flush;
     try {
       auto command = ParseCommand(line);
+      // Ignore empty line.
+      if (command.first.empty()) continue;
       if (!DispatchCommand(command.first, command.second)) break;
     } catch (Exception& ex) {
       SendResponse(std::string("error ") + ex.what());
@@ -121,12 +127,8 @@ bool UciLoop::DispatchCommand(
     if (ContainsKey(params, "fen") == ContainsKey(params, "startpos")) {
       throw Exception("Position requires either fen or startpos");
     }
-    std::vector<std::string> moves;
-    {
-      std::istringstream iss(GetOrEmpty(params, "moves"));
-      std::string move;
-      while (iss >> move) moves.push_back(move);
-    }
+    std::vector<std::string> moves =
+        StrSplitAtWhitespace(GetOrEmpty(params, "moves"));
     CmdPosition(GetOrEmpty(params, "fen"), moves);
   } else if (command == "go") {
     GoParams go_params;

@@ -18,12 +18,12 @@
 
 #pragma once
 
+#include "chess/uciloop.h"
 #include "mcts/search.h"
 #include "neural/cache.h"
 #include "neural/network.h"
-#include "optionsparser.h"
-#include "uciloop.h"
 #include "utils/mutex.h"
+#include "utils/optionsparser.h"
 
 // CUDNN eval
 // comment/disable this to enable tensor flow path
@@ -61,6 +61,9 @@ class EngineController {
   void Stop();
   void SetCacheSize(int size);
 
+  SearchLimits PopulateSearchLimits(int ply, bool is_black,
+                                    const GoParams& params);
+
  private:
   void UpdateNetwork();
 
@@ -76,7 +79,6 @@ class EngineController {
   RpSharedMutex busy_mutex_;
   using SharedLock = std::shared_lock<RpSharedMutex>;
 
-  std::unique_ptr<NodePool> node_pool_;
   std::unique_ptr<Search> search_;
   std::unique_ptr<NodeTree> tree_;
 

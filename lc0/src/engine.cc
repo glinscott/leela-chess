@@ -26,31 +26,20 @@
 
 namespace lczero {
 namespace {
+// TODO(mooskagh) Move threads parameter handling to search.
 const int kDefaultThreads = 2;
 const char* kThreadsOption = "Number of worker threads";
 const char* kDebugLogStr = "Do debug logging into file";
 
+// TODO(mooskagh) Move weights/backend/backend-opts parameter handling to
+//                network factory.
 const char* kWeightsStr = "Network weights file path";
 const char* kNnBackendStr = "NN backend to use";
 const char* kNnBackendOptionsStr = "NN backend parameters";
+const char* kSlowMoverStr = "Scale thinking time";
+const char* kMoveOverheadStr = "Move time overhead in milliseconds";
 
 const char* kAutoDiscover = "<autodiscover>";
-
-SearchLimits PopulateSearchLimits(int ply, bool is_black,
-                                  const GoParams& params) {
-  SearchLimits limits;
-  limits.visits = params.nodes;
-  limits.time_ms = params.movetime;
-  int64_t time = (is_black ? params.btime : params.wtime);
-  if (params.infinite || time < 0) return limits;
-  int increment = std::max(int64_t(0), is_black ? params.binc : params.winc);
-
-  int movestogo = params.movestogo < 0 ? 50 : params.movestogo;
-  limits.time_ms = (time + (increment * (movestogo - 1))) * 0.95 / movestogo;
-
-  return limits;
-}
-
 }  // namespace
 
 EngineController::EngineController(BestMoveInfo::Callback best_move_callback,
@@ -71,10 +60,49 @@ void EngineController::PopulateOptions(OptionsParser* options) {
       std::bind(&EngineController::SetCacheSize, this, _1)) = 200000;
 
   const auto backends = NetworkFactory::Get()->GetBackendsList();
-  options->Add<ChoiceOption>(kNnBackendStr, backends, "backend") = backends[0];
+  options->Add<ChoiceOption>(kNnBackendStr, backends, "backend") =
+      backends.empty() ? "<none>" : backends[0];
   options->Add<StringOption>(kNnBackendOptionsStr, "backend-opts");
+  options->Add<FloatOption>(kSlowMoverStr, 0.0, 100.0, "slowmover") = 2.2;
+  options->Add<IntOption>(kMoveOverheadStr, 0, 10000, "move-overhead") = 100;
 
   Search::PopulateUciParams(options);
+}
+
+SearchLimits EngineController::PopulateSearchLimits(int /*ply*/, bool is_black,
+                                                    const GoParams& params) {
+  SearchLimits limits;
+  limits.visits = params.nodes;
+  limits.time_ms = params.movetime;
+  int64_t time = (is_black ? params.btime : params.wtime);
+  if (params.infinite || time < 0) return limits;
+  int increment = std::max(int64_t(0), is_black ? params.binc : params.winc);
+
+  int movestogo = params.movestogo < 0 ? 50 : params.movestogo;
+  // Fix non-standard uci command.
+  if (movestogo == 0) movestogo = 1;
+
+  // How to scale moves time.
+  float slowmover = options_.Get<float>(kSlowMoverStr);
+  int64_t move_overhead = options_.Get<int>(kMoveOverheadStr);
+  // Total time till control including increments.
+  auto total_moves_time = std::max(
+      int64_t{0}, time + increment * (movestogo - 1) - move_overhead * movestogo);
+
+  const int kSmartPruningToleranceMs = 200;
+
+  // Compute the move time without slowmover.
+  int64_t this_move_time = total_moves_time / movestogo;
+
+  // Only extend thinking time with slowmover if smart pruning can potentially
+  // reduce it.
+  if (slowmover < 1.0 || this_move_time > kSmartPruningToleranceMs) {
+    // Budget X*slowmover for current move, X*1.0 for the rest.
+    this_move_time = total_moves_time / (movestogo - 1 + slowmover) * slowmover;
+  }
+  // Make sure we don't exceed current time limit with what we calculated.
+  limits.time_ms = std::max(int64_t{0}, std::min(this_move_time, time - move_overhead));
+  return limits;
 }
 
 void EngineController::UpdateNetwork() {
@@ -107,6 +135,7 @@ void EngineController::SetCacheSize(int size) { cache_.SetCapacity(size); }
 
 void EngineController::NewGame() {
   SharedLock lock(busy_mutex_);
+  cache_.Clear();
   search_.reset();
   tree_.reset();
   UpdateNetwork();
@@ -117,8 +146,7 @@ void EngineController::SetPosition(const std::string& fen,
   SharedLock lock(busy_mutex_);
   search_.reset();
 
-  if (!node_pool_) node_pool_ = std::make_unique<NodePool>();
-  if (!tree_) tree_ = std::make_unique<NodeTree>(node_pool_.get());
+  if (!tree_) tree_ = std::make_unique<NodeTree>();
 
   std::vector<Move> moves;
   for (const auto& move : moves_str) moves.emplace_back(move);
@@ -134,15 +162,18 @@ void EngineController::Go(const GoParams& params) {
   auto limits = PopulateSearchLimits(tree_->GetPlyCount(),
                                      tree_->IsBlackToMove(), params);
 
-  search_ = std::make_unique<Search>(
-      tree_->GetCurrentHead(), tree_->GetNodePool(), network_.get(),
-      best_move_callback_, info_callback_, limits, options_, &cache_);
+  search_ =
+      std::make_unique<Search>(*tree_, network_.get(), best_move_callback_,
+                               info_callback_, limits, options_, &cache_);
 
   search_->StartThreads(options_.Get<int>(kThreadsOption));
 }
 
 void EngineController::Stop() {
-  if (search_) search_->Stop();
+  if (search_) {
+    search_->Stop();
+    search_->Wait();
+  }
 }
 
 EngineLoop::EngineLoop()
@@ -176,7 +207,7 @@ void EngineLoop::CmdIsReady() {
 
 void EngineLoop::CmdSetOption(const std::string& name, const std::string& value,
                               const std::string& context) {
-  options_.SetOption(name, value);
+  options_.SetOption(name, value, context);
   if (options_sent_) {
     options_.SendOption(name);
   }

@@ -20,8 +20,8 @@
 #include "mcts/search.h"
 #include "neural/factory.h"
 #include "neural/loader.h"
-#include "optionsparser.h"
 #include "selfplay/game.h"
+#include "utils/optionsparser.h"
 #include "utils/random.h"
 
 namespace lczero {
@@ -56,13 +56,13 @@ void SelfPlayTournament::PopulateOptions(OptionsParser* options) {
   options->Add<IntOption>(kThreadsStr, 1, 8, "threads", 't') = 1;
   options->Add<IntOption>(kNnCacheSizeStr, 0, 999999999, "nncache") = 200000;
   options->Add<StringOption>(kNetFileStr, "weights", 'w') = kAutoDiscover;
-  options->Add<IntOption>(kNnCacheSizeStr, 0, 999999999, "nncache") = 200000;
   options->Add<IntOption>(kPlayoutsStr, -1, 999999999, "playouts", 'p') = -1;
   options->Add<IntOption>(kVisitsStr, -1, 999999999, "visits", 'v') = -1;
   options->Add<IntOption>(kTimeMsStr, -1, 999999999, "movetime") = -1;
   options->Add<BoolOption>(kTrainingStr, "training") = false;
   const auto backends = NetworkFactory::Get()->GetBackendsList();
-  options->Add<ChoiceOption>(kNnBackendStr, backends, "backend") = backends[0];
+  options->Add<ChoiceOption>(kNnBackendStr, backends, "backend") =
+      backends.empty() ? "<none>" : backends[0];
   options->Add<StringOption>(kNnBackendOptionsStr, "backend-opts");
   options->Add<BoolOption>(kVerboseThinkingStr, "verbose-thinking") = false;
 
@@ -163,7 +163,8 @@ void SelfPlayTournament::PlayOneGame(int game_number) {
 
   PlayerOptions options[2];
 
-  ThinkingInfo last_thinking_info = {-1};
+  ThinkingInfo last_thinking_info;
+  last_thinking_info.depth = -1;
   for (int pl_idx : {0, 1}) {
     const bool verbose_thinking =
         player_options_[pl_idx].Get<bool>(kVerboseThinkingStr);
@@ -212,8 +213,8 @@ void SelfPlayTournament::PlayOneGame(int game_number) {
   std::list<std::unique_ptr<SelfPlayGame>>::iterator game_iter;
   {
     Mutex::Lock lock(mutex_);
-    games_.emplace_front(std::make_unique<SelfPlayGame>(
-        options[0], options[1], kShareTree, &node_pool_));
+    games_.emplace_front(
+        std::make_unique<SelfPlayGame>(options[0], options[1], kShareTree));
     game_iter = games_.begin();
   }
   auto& game = **game_iter;
@@ -222,7 +223,7 @@ void SelfPlayTournament::PlayOneGame(int game_number) {
   game.Play(kThreads[color_idx[0]], kThreads[color_idx[1]]);
 
   // If game was aborted, it's still undecided.
-  if (game.GetGameResult() != GameInfo::UNDECIDED) {
+  if (game.GetGameResult() != GameResult::UNDECIDED) {
     // Game callback.
     GameInfo game_info;
     game_info.game_result = game.GetGameResult();
@@ -240,9 +241,9 @@ void SelfPlayTournament::PlayOneGame(int game_number) {
     // Update tournament stats.
     {
       Mutex::Lock lock(mutex_);
-      int result = game.GetGameResult() == GameInfo::DRAW
+      int result = game.GetGameResult() == GameResult::DRAW
                        ? 1
-                       : game.GetGameResult() == GameInfo::WHITE_WON ? 0 : 2;
+                       : game.GetGameResult() == GameResult::WHITE_WON ? 0 : 2;
       if (player1_black) result = 2 - result;
       ++tournament_info_.results[result][player1_black ? 1 : 0];
       tournament_callback_(tournament_info_);

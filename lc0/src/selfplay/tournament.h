@@ -19,10 +19,10 @@
 #pragma once
 
 #include <list>
-#include "optionsparser.h"
 #include "selfplay/game.h"
 #include "utils/mutex.h"
 #include "utils/optionsdict.h"
+#include "utils/optionsparser.h"
 
 namespace lczero {
 
@@ -57,8 +57,6 @@ class SelfPlayTournament {
   void Worker();
   void PlayOneGame(int game_id);
 
-  NodePool node_pool_;
-
   Mutex mutex_;
   // Whether next game will be black for player1.
   bool next_game_black_ GUARDED_BY(mutex_) = false;
@@ -89,7 +87,7 @@ class SelfPlayTournament {
   const int kThreads[2];
   const int kTotalGames;
   const bool kShareTree;
-  const int kParallelism;
+  const size_t kParallelism;
   const bool kTraining;
 };
 

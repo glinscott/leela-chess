@@ -168,27 +168,38 @@ void UCTNode::dirichlet_noise(float epsilon, float alpha) {
     }
 }
 
-void UCTNode::randomize_first_proportionally(float tau) {
+std::vector<float> UCTNode::calc_proportional(float tau, Color color) {
     auto accum = 0.0f;
-    auto normfactor = 0.0f;
+    auto parent_visits = get_visits();
     auto accum_vector = std::vector<float>{};
+    auto& best_child = get_best_root_child(color);
 
-    // Calculate exponentiated visit count vector, normalised to the first child visits
+    // Calculate exponentiated visit count vector
     for (const auto& child : m_children) {
-        if (normfactor == 0.0f) {
-            normfactor = child->get_visits();
+        if ((child->get_eval(color) > best_child.get_eval(color) - cfg_rand_eval_maxdiff) &&
+            (child->get_visits() > best_child.get_visits() * cfg_rand_visit_floor)) {
+            // Only increment accum for children that reach the thresholds.
+            accum += std::pow(1.0f*child->get_visits()/parent_visits, 1.0f/tau);
         }
-        accum += std::pow(child->get_visits()/normfactor,1/tau);
         accum_vector.emplace_back(accum);
-        // myprintf("Visits: %d Exponentiated visits: %11.9f Cumulative visits: %11.9f\n",child->get_visits(), std::pow(child->get_visits()/normfactor,1.0f/tau), accum); 
     }
+
+    // normalize
+    for (auto& prob : accum_vector) {
+        prob /= accum;
+    }
+
+    return accum_vector;
+}
+
+void UCTNode::randomize_first_proportionally(float tau, Color color) {
+    auto accum_vector = calc_proportional(tau, color);
 
     // For the root move selection, a random number between 0 and the integer numerical
     // limit (~2.1e9) is scaled to the cumulative exponentiated visit count
     auto int_limit = std::numeric_limits<int>::max();
     auto pick = Random::GetRng().RandInt<std::uint32_t>(int_limit);
-    auto pick_scaled = pick*accum/int_limit;
-    // myprintf("pick, pick_scaled: %d, %11.9f\n",pick,pick_scaled);
+    auto pick_scaled = pick*accum_vector.back()/int_limit;
     auto index = size_t{0};
     for (size_t i = 0; i < accum_vector.size(); i++) {
         if (pick_scaled < accum_vector[i]) {

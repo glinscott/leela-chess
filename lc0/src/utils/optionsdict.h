@@ -82,6 +82,8 @@ class OptionsDict : TypeDict<bool>,
   // Returns list of subdictionaries.
   std::vector<std::string> ListSubdicts() const;
 
+  bool HasSubdict(const std::string& name) const;
+
  private:
   const OptionsDict* parent_ = nullptr;
   std::map<std::string, OptionsDict> subdicts_;
@@ -117,7 +119,7 @@ T OptionsDict::GetOrDefault(const std::string& key,
 
 template <typename T>
 void OptionsDict::Set(const std::string& key, const T& value) {
-  TypeDict<T>::dict_.emplace(key, value);
+  TypeDict<T>::dict_[key] = value;
 }
 
 template <typename T>

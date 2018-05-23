@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/marcsauter/single"
 )
 
 func addFile(tw *tar.Writer, path string) error {
@@ -50,7 +52,7 @@ func tarGame(game *db.TrainingGame, dir string, tw *tar.Writer) error {
 
 	gzFile, err := os.Open(source)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer gzFile.Close()
 	gzr, err := gzip.NewReader(gzFile)
@@ -198,6 +200,15 @@ func compactGames() bool {
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	s := single.New("compact_games")
+	if err := s.CheckLock(); err != nil && err == single.ErrAlreadyRunning {
+		log.Fatal("another instance of the app is already running, exiting")
+	} else if err != nil {
+		// Another error occurred, might be worth handling it as well
+		log.Fatalf("failed to acquire exclusive app lock: %v", err)
+	}
+	defer s.TryUnlock()
 
 	db.Init(true)
 	defer db.Close()

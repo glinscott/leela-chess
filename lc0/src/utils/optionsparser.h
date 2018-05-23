@@ -48,15 +48,17 @@ class OptionsParser {
    private:
     virtual std::string GetOptionString(const OptionsDict& dict) const = 0;
     virtual void SendValue(const OptionsDict& dict) const = 0;
-    virtual bool ProcessLongFlag(const std::string& flag,
-                                 const std::string& value, OptionsDict* dict) {
+    virtual bool ProcessLongFlag(const std::string& /*flag*/,
+                                 const std::string& /*value*/,
+                                 OptionsDict* /*dict*/) {
       return false;
     }
-    virtual bool ProcessShortFlag(char flag, OptionsDict* dict) {
+    virtual bool ProcessShortFlag(char /*flag*/, OptionsDict* /*dict*/) {
       return false;
     }
-    virtual bool ProcessShortFlagWithValue(char flag, const std::string& value,
-                                           OptionsDict* dict) {
+    virtual bool ProcessShortFlagWithValue(char /*flag*/,
+                                           const std::string& /*value*/,
+                                           OptionsDict* /*dict*/) {
       return false;
     }
     virtual std::string GetHelp(const OptionsDict& dict) const = 0;
@@ -96,6 +98,8 @@ class OptionsParser {
   const OptionsDict& GetOptionsDict(const std::string& context = {});
   // Gets the dictionary for given context which caller can modify.
   OptionsDict* GetMutableOptions(const std::string& context = {});
+  // Gets the mutable list of default options.
+  OptionsDict* GetMutableDefaultsOptions() { return &defaults_; }
   // Adds a subdictionary for a given context.
   void AddContext(const std::string&);
 
@@ -199,8 +203,7 @@ class BoolOption : public OptionsParser::Option {
   bool ProcessLongFlag(const std::string& flag, const std::string& value,
                        OptionsDict* dict) override;
   std::string GetHelp(const OptionsDict& dict) const override;
-  bool ProcessShortFlagWithValue(char flag, const std::string& value,
-                                 OptionsDict* dict) override;
+  bool ProcessShortFlag(char flag, OptionsDict* dict) override;
 
   ValueType GetVal(const OptionsDict&) const;
   void SetVal(OptionsDict* dict, const ValueType& val) const;
