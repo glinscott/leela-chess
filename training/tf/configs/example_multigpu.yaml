@@ -22,7 +22,7 @@ training:
     policy_loss_weight: 1.0            # weight of policy loss
     value_loss_weight: 1.0             # weight of value loss
     path: '/path/to/store/networks'    # network storage dir
-    multi_gpu_train_device: '/cpu:0'   # device to do the aggregated training on (default: /cpu:0), not used when single gpu
+    multi_gpu_coordinator_device: '/cpu:0'   # device to coordinate the training (default: /cpu:0), not used when single gpu
 
 model:
   filters: 64

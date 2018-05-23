@@ -271,7 +271,7 @@ class TFProcess:
             correct_prediction = tf.cast(correct_prediction, tf.float32)
             self.accuracy = tf.reduce_mean(correct_prediction)
         else:
-            self.train_device = self.cfg['training']['multi_gpu_train_device'] if 'multi_gpu_train_device' in self.cfg['training'] else '/cpu:0'
+            self.train_device = self.cfg['training']['multi_gpu_coordinator_device'] if 'multi_gpu_coordinator_device' in self.cfg['training'] else '/cpu:0'
             with tf.device(self.train_device):
                 # You need to change the learning rate here if you are training
                 # from a self-play training set, for example start with 0.005 instead.
