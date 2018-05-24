@@ -16,8 +16,6 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "blas_config.h"
-
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>

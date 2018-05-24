@@ -15,23 +15,22 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// I admit I'm rather uncertain where this particular include belongs in lc0...
 
 #pragma once
 
 #include <cstddef>
 
 /* Features */
-#define USE_BLAS
-#if !defined(__APPLE__) && !defined(__MACOSX)
-#define USE_OPENBLAS
+#if defined(USE_BLAS) && !defined(__APPLE__) && !defined(__MACOSX)
+#define USE_OPENBLAS // TODO: move this to meson
 #endif
 //#define USE_MKL
-#ifndef FEATURE_USE_CPU_ONLY
-#define USE_OPENCL
-#define USE_OPENCL_SELFCHECK
-#endif
-#define USE_TUNER
+
+//#ifndef FEATURE_USE_CPU_ONLY
+//#define USE_OPENCL
+//#define USE_OPENCL_SELFCHECK
+//#endif
+//#define USE_TUNER
 
 // OpenBLAS limitation
 #if defined(USE_BLAS) && defined(USE_OPENBLAS)

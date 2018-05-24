@@ -19,7 +19,7 @@
 #ifndef OPENCL_H_INCLUDED
 #define OPENCL_H_INCLUDED
 
-#include "blas_config.h"
+#include "neural/blas_config.h"
 
 #define CL_HPP_MINIMUM_OPENCL_VERSION   110
 #define CL_HPP_TARGET_OPENCL_VERSION    120

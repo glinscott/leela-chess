@@ -15,7 +15,6 @@
     You should have received a copy of the GNU General Public License
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "blas_config.h"
 
 #include "OpenCLRandom.h"
 #include "OpenCLScheduler.h"

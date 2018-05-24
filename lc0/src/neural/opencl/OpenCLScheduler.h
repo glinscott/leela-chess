@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "blas_config.h"
+#include "neural/blas_config.h"
 #include <vector>
 #include <future>
 

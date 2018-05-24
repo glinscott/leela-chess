@@ -57,7 +57,7 @@ members are those used exclusively by the CPU implementation.
 #pragma once
 
 #include "factory.h" // network.h, optionsdict.h
-#include "opencl/blas_config.h"
+#include "blas_config.h"
 #include "opencl/OpenCLScheduler.h"
 
 namespace lczero {

@@ -143,7 +143,8 @@ if get_option('build_backends')
       'src/neural/opencl/OpenCLUtils.cpp'
     ]
 
-    add_project_arguments('-DUSE_OPENBLAS', language : 'cpp')
+    add_project_arguments('-DUSE_BLAS', '-DUSE_OPENCL', '-DUSE_OPENCL_SELFCHECK', language : 'cpp')
+    # TODO: USE_TUNER, USE_OPENBLAS, USE_MKL
 
     files += opencl_files
     deps += [ opencl_lib, openblas_lib ]
