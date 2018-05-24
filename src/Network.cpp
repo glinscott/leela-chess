@@ -1076,8 +1076,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
         }
     }
     for (int i = 0; i < 64; ++i) {
-        // normalize rule50_count
-        input_data.emplace_back(net_t(planes.rule50_count / 99.0f));
+        input_data.emplace_back(net_t(planes.rule50_count));
     }
     for (int i = 0; i < 64; ++i) {
         input_data.emplace_back(net_t(planes.move_count));
