@@ -123,7 +123,6 @@ if get_option('build_backends')
     
 
 
-
   ## ~~~~~
   ## OpenCL
   ## ~~~~~
@@ -135,12 +134,12 @@ if get_option('build_backends')
   if opencl_lib.found() and openblas_lib.found()
 
     opencl_files = [
-      'src/neural/network_opencl.cc'
-      'src/neural/network_blas_cl_common.cc'
-      'src/neural/opencl/OpenCL.cpp'
-      'src/neural/opencl/OpenCLRandom.cpp'
-      'src/neural/opencl/OpenCLScheduler.cpp'
-      'src/neural/opencl/OpenCLTuner.cpp'
+      'src/neural/network_opencl.cc',
+      'src/neural/network_blas.cc',
+      'src/neural/opencl/OpenCL.cpp',
+      'src/neural/opencl/OpenCLRandom.cpp',
+      'src/neural/opencl/OpenCLScheduler.cpp',
+      'src/neural/opencl/OpenCLTuner.cpp',
       'src/neural/opencl/OpenCLUtils.cpp'
     ]
 

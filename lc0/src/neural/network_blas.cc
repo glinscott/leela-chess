@@ -17,7 +17,7 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "network_blas_cl_common.h"
+#include "network_blas_cl.h"
 #include "utils/bititer.h"
 #include <cblas.h>
 #include <cassert>
@@ -26,14 +26,14 @@
 
 namespace lczero {
 
-void BlasCLNetworkComputation::ComputeBlocking() {
+void BlasNetworkComputation::ComputeBlocking() {
   output_values = std::vector<float>(inputs.size());
   output_policies = std::vector<std::vector<float>>(inputs.size());
   for (size_t i = 0; i < inputs.size(); i++)
     std::tie(output_values[i], output_policies[i]) = network->evaluate(inputs[i]);
 }
 
-BlasCLNetwork::BlasCLNetwork(const Weights& weights, const OptionsDict& options)
+BlasNetwork::BlasNetwork(const Weights& weights, const OptionsDict& options)
   : weights_(weights), options_(options) {
   // this matches old Network::initialize, in Network.cpp:375-416
   initOneBlock(weights_.input, true);
@@ -45,7 +45,7 @@ BlasCLNetwork::BlasCLNetwork(const Weights& weights, const OptionsDict& options)
   initOneBlock(weights_.value);
 }
 
-void BlasCLNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer) {
+void BlasNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer) {
 
   size_t channels;
   if (inputlayer)
@@ -71,7 +71,13 @@ void BlasCLNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer) {
   }
 }
 
-std::pair<float, std::vector<float>> BlasCLNetwork::evaluate(InputPlanes& inputplanes) {
+void BlasNetwork::forwardPass(const std::vector<float>& input_data,
+                              std::vector<float>& policy_data,
+                              std::vector<float>& value_data) {
+
+}
+
+std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputplanes) {
   // thanks to Francois and crem for verifying
   auto input_data = std::vector<float>(kInputPlanes*64, 0.0); // get_input_channels()*w*h
   // the loop below requires that input_data[i] is initialized to 0 ^
@@ -87,7 +93,7 @@ std::pair<float, std::vector<float>> BlasCLNetwork::evaluate(InputPlanes& inputp
   auto policy_data = std::vector<float>(weights_.ip_pol_b.size()); // get_num_output_policy()
   auto  value_data = std::vector<float>(weights_.value.bn_means.size()*64); //NUM_VALUE_INPUT_PLANES*64
 
-  forwardPass(input_data, policy_data, value_data); // virtual
+  forwardPass(input_data, policy_data, value_data);
 
   // Get the moves
   auto policy = softmax(policy_data);
@@ -102,7 +108,7 @@ std::pair<float, std::vector<float>> BlasCLNetwork::evaluate(InputPlanes& inputp
   return std::pair<float, std::vector<float>>(value, policy);
 }
 
-std::vector<float> BlasCLNetwork::winograd_transform_f(const std::vector<float>& f, const int outputs, const int channels) {
+std::vector<float> BlasNetwork::winograd_transform_f(const std::vector<float>& f, const int outputs, const int channels) {
   // F(2x2, 3x3) Winograd filter transformation
   // transpose(G.dot(f).dot(G.transpose()))
   // U matrix is transposed for better memory layout in SGEMM
@@ -143,7 +149,7 @@ std::vector<float> BlasCLNetwork::winograd_transform_f(const std::vector<float>&
     return U;
 }
 
-std::vector<float> BlasCLNetwork::softmax(const std::vector<float>& inputs, float temperature) {
+std::vector<float> BlasNetwork::softmax(const std::vector<float>& inputs, float temperature) {
   auto outputs = std::vector<float>(inputs.size());
   auto alpha = *std::max_element(begin(inputs), begin(inputs) + outputs.size());
   alpha /= temperature;
@@ -159,7 +165,7 @@ std::vector<float> BlasCLNetwork::softmax(const std::vector<float>& inputs, floa
   return outputs;
 }
 
-std::vector<float> BlasCLNetwork::innerproduct(const std::vector<float>& inputs,
+std::vector<float> BlasNetwork::innerproduct(const std::vector<float>& inputs,
                                                const std::vector<float>& weights,
                                                const std::vector<float>& biases,
                                                bool apply_relu) {
