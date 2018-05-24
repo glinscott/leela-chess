@@ -17,26 +17,15 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "network_blas_cl_common.h" // factory.h, network.h, optionsdict.h
+#include "network_blas_cl.h" // factory.h, network.h, optionsdict.h
 #include "opencl/OpenCLScheduler.h"
+#include "utils/random.h"
 
 namespace lczero {
 
-class OpenCLNetwork : public BlasCLNetwork {
- public:
-  OpenCLNetwork(const Weights& weights, const OptionsDict& options);
-
- protected:
-  void initialize(void);
-  static std::vector<float> zeropad_U(const std::vector<float>& U, const int outputs, const int channels, const int outputs_pad, const int channels_pad);
-  void forwardPass(const std::vector<float>& input_data,
-                                std::vector<float>& policy_data,
-                                std::vector<float>& value_data) override;
-  OpenCLScheduler opencl_;
-};
-
 OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
   : BlasCLNetwork(weights, options) {
+  // ^ nontrivial: all cpu initialization is shared by OpenCL initialization
   // this function corresponds to Network.cpp:418-496
   //myprintf("Initializing OpenCL.\n");
   auto channels = weights_.input.biases.size();
@@ -109,9 +98,111 @@ std::vector<float> OpenCLNetwork::zeropad_U(const std::vector<float>& U, const i
 }
 
 inline void OpenCLNetwork::forwardPass(const std::vector<float>& input_data,
-                              std::vector<float>& policy_data,
-                              std::vector<float>& value_data) {
+                                       std::vector<float>& policy_data,
+                                       std::vector<float>& value_data) {
   opencl_.forward(input_data, policy_data, value_data);
+
+#ifdef USE_OPENCL_SELFCHECK
+  if (Random::Get().GetInt(1, SELFCHECK_PROBABILITY) == 1) {
+    doSelfCheck(input_data, policy_data, value_data);
+  }
+#endif
+}
+
+// silly helper function
+template<typename T>
+T relative_difference(T a, T b) {
+  // Handle NaN
+  if (std::isnan(a) || std::isnan(b)) {
+    return std::numeric_limits<T>::max();
+  }
+
+  constexpr auto small_number = 1e-3f;
+  auto fa = std::fabs(a);
+  auto fb = std::fabs(b);
+
+  if (fa > small_number && fb > small_number) {
+    // Handle sign difference
+    if (((a < 0) != (b < 0)) && (a != 0) && (b != 0)) {
+      return std::numeric_limits<T>::max();
+    }
+  }
+
+  // Handle underflow
+  fa = std::max(fa, small_number);
+  fb = std::max(fb, small_number);
+
+  return std::max(fabs((fa - fb) / fa), fabs((fa - fb) / fb));
+}
+
+bool OpenCLNetwork::compare_net_outputs(std::vector<float>& data,
+                                        std::vector<float>& ref,
+                                        bool& fatal,
+                                        bool display_only,
+                                        std::string info) {
+    bool almost_equal = true;
+    // The idea is to allow an OpenCL error > 10% every SELFCHECK_MIN_EXPANSIONS
+    // correct expansions. As the num_expansions increases between errors > 10%,
+    // we'll allow more errors to occur (max 3) before crashing. As if it
+    // builds up credit.
+    constexpr int64 min_correct_expansions = SELFCHECK_MIN_EXPANSIONS / SELFCHECK_PROBABILITY / 2;
+    static_assert(min_correct_expansions > 0, "Increase minimal nof expansions");
+    static std::atomic<int64> num_expansions{min_correct_expansions};
+    num_expansions = std::min(num_expansions + 1, 3 * min_correct_expansions);
+
+    // We accept an error up to 10%, but output values
+    // smaller than 1/1000th are "rounded up" for the comparison.
+    constexpr float relative_error = 0.1f;
+    for (auto idx = size_t{0}; idx < data.size(); ++idx) {
+        auto err = relative_difference(data[idx], ref[idx]);
+        if (display_only) {
+            //myprintf("compare_net_outputs %s idx %d data %f ref %f err=%f\n",
+            //    info.c_str(), idx, data[idx], ref[idx], err);
+        } else if (err > relative_error) {
+            almost_equal = false;
+            //myprintf("Error in OpenCL calculation: expected %f got %f (%lli"
+            //           "(error=%f%%)\n", ref[idx], data[idx], num_expansions.load(), err * 100.0);
+            if (num_expansions < min_correct_expansions) {
+                fatal = true;
+            }
+            else {
+                num_expansions -= min_correct_expansions;
+            }
+        }
+    }
+    return almost_equal;
+}
+
+void OpenCLNetwork::doSelfCheck(const std::vector<float>& input_data,
+                                const std::vector<float>& policy_data,
+                                const std::vector<float>& value_data) {
+  std::vector<float> cpu_policy_data(policy_data.size());
+  std::vector<float> cpu_value_data(value_data.size());
+  bool fatal = false;
+  BlasNetwork::forwardPass(input_data, cpu_policy_data, cpu_value_data);
+  bool almost_equal = compare_net_outputs(policy_data, cpu_policy_data, fatal);
+  almost_equal &= compare_net_outputs(value_data, cpu_value_data, fatal);
+  if (!almost_equal) {
+    // myprintf("PGN\n%s\nEND\n", pos.pgn().c_str());
+    // Compare again but with debug info
+    compare_net_outputs(policy_data, cpu_policy_data, fatal, true, "orig policy");
+    compare_net_outputs(value_data, cpu_value_data, fatal, true, "orig value");
+    // Call opencl.forward again to see if the error is reproducible.
+    std::vector<float> value_data_retry(value_data.size());
+    std::vector<float> policy_data_retry(policy_data.size());
+    opencl_.forward(input_data, policy_data_retry, value_data_retry);
+    bool almost_equal_retry = compare_net_outputs(policy_data_retry, policy_data, fatal, true, "retry policy");
+    almost_equal_retry &= compare_net_outputs(value_data_retry, value_data, fatal, true, "retry value");
+    if (!almost_equal_retry) {
+      throw std::runtime_error("OpenCL retry self-check mismatch.");
+    } else {
+      //myprintf("compare_net_outputs retry was ok\n");
+    }
+    if (fatal) {
+      //myprintf_so("Update your GPU drivers or reduce the amount of games played simultaneously.\n");
+      throw std::runtime_error("OpenCL self-check mismatch.");
+    }
+  }
 }
 
 REGISTER_NETWORK("opencl", OpenCLNetwork, 100)
