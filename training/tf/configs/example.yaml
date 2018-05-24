@@ -42,7 +42,8 @@ model:
 
 # `lr_values` is the set of learning rates, used according to the
 # `lr_boundaries` schedule of using a given learning rate for how
-# many training steps.
+# many training steps. (At lr_bnd_1, switch from lr_1 to lr_2. At
+# lr_bnd_2, switch from lr_2 to lr_3, etc.)
 # `policy_loss_weight` and `value_loss_weight` determine how much
 # either the policy head or value head should be emphasized by the
 # gradient descent, relative to each other and to the regularization
