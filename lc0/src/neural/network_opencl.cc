@@ -18,13 +18,12 @@
 */
 
 #include "network_blas_cl.h" // factory.h, network.h, optionsdict.h
-#include "opencl/OpenCLScheduler.h"
 #include "utils/random.h"
 
 namespace lczero {
 
 OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
-  : BlasCLNetwork(weights, options) {
+  : BlasNetwork(weights, options) {
   // ^ nontrivial: all cpu initialization is shared by OpenCL initialization
   // this function corresponds to Network.cpp:418-496
   //myprintf("Initializing OpenCL.\n");
@@ -135,8 +134,8 @@ T relative_difference(T a, T b) {
   return std::max(fabs((fa - fb) / fa), fabs((fa - fb) / fb));
 }
 
-bool OpenCLNetwork::compare_net_outputs(std::vector<float>& data,
-                                        std::vector<float>& ref,
+bool OpenCLNetwork::compare_net_outputs(const std::vector<float>& data,
+                                        const std::vector<float>& ref,
                                         bool& fatal,
                                         bool display_only,
                                         std::string info) {
@@ -145,9 +144,9 @@ bool OpenCLNetwork::compare_net_outputs(std::vector<float>& data,
     // correct expansions. As the num_expansions increases between errors > 10%,
     // we'll allow more errors to occur (max 3) before crashing. As if it
     // builds up credit.
-    constexpr int64 min_correct_expansions = SELFCHECK_MIN_EXPANSIONS / SELFCHECK_PROBABILITY / 2;
+    constexpr unsigned int min_correct_expansions = SELFCHECK_MIN_EXPANSIONS / SELFCHECK_PROBABILITY / 2;
     static_assert(min_correct_expansions > 0, "Increase minimal nof expansions");
-    static std::atomic<int64> num_expansions{min_correct_expansions};
+    static std::atomic<unsigned int> num_expansions{min_correct_expansions};
     num_expansions = std::min(num_expansions + 1, 3 * min_correct_expansions);
 
     // We accept an error up to 10%, but output values

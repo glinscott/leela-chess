@@ -58,6 +58,7 @@ members are those used exclusively by the CPU implementation.
 
 #include "factory.h" // network.h, optionsdict.h
 #include "opencl/blas_config.h"
+#include "opencl/OpenCLScheduler.h"
 
 namespace lczero {
 
@@ -108,7 +109,7 @@ class BlasNetwork : public Network {
  protected: // shared functions between blas and OpenCL implementations
   virtual void forwardPass(const std::vector<float>& input,
                                  std::vector<float>& policy_data,
-                                 std::vector<float>& value_data) = 0;
+                                 std::vector<float>& value_data);
   // forwardPass is the actual network computation; evaluate() wraps this.
   static std::vector<float> innerproduct(const std::vector<float>& inputs,
                                          const std::vector<float>& weights,
@@ -167,6 +168,7 @@ class OpenCLNetwork : public BlasNetwork {
                    const std::vector<float>& value_data);
 
   static constexpr int SELFCHECK_PROBABILITY = 2000; // 1/2000
+  static constexpr int SELFCHECK_MIN_EXPANSIONS = 2'000'000;
 
   OpenCLScheduler opencl_;
 };

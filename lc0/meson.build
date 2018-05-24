@@ -169,7 +169,7 @@ if get_option('build_backends')
   ## ~~~~~~
   # TODO: Add conditional compile
   files += 'src/neural/network_opencl.cc'
-  files += 'src/neural/network_blas_cl_common.cc'
+  files += 'src/neural/network_blas.cc'
   files += 'src/neural/opencl/OpenCL.cpp'
   files += 'src/neural/opencl/OpenCLRandom.cpp'
   files += 'src/neural/opencl/OpenCLScheduler.cpp'
