@@ -122,6 +122,38 @@ if get_option('build_backends')
   endif
     
 
+
+
+  ## ~~~~~
+  ## OpenCL
+  ## ~~~~~
+
+  opencl_libdirs = get_option('opencl_libdirs')
+  opencl_lib=cc.find_library('OpenCL', dirs: opencl_libdirs, required: true)
+  openblas_lib = cc.find_library('libopenblas', required: true)
+
+  if opencl_lib.found() and openblas_lib.found()
+
+    opencl_files = [
+      'src/neural/network_opencl.cc'
+      'src/neural/network_blas_cl_common.cc'
+      'src/neural/opencl/OpenCL.cpp'
+      'src/neural/opencl/OpenCLRandom.cpp'
+      'src/neural/opencl/OpenCLScheduler.cpp'
+      'src/neural/opencl/OpenCLTuner.cpp'
+      'src/neural/opencl/OpenCLUtils.cpp'
+    ]
+
+    add_project_arguments('-DUSE_OPENBLAS', language : 'cpp')
+
+    files += opencl_files
+    deps += [ opencl_lib, openblas_lib ]
+
+    has_backends = true
+
+  endif
+
+
   ## ~~~~~
   ## cuDNN
   ## ~~~~~
@@ -163,22 +195,6 @@ if get_option('build_backends')
     has_backends = true
   endif
 
-
-  ## ~~~~~~
-  ## OpenCL
-  ## ~~~~~~
-  # TODO: Add conditional compile
-  files += 'src/neural/network_opencl.cc'
-  files += 'src/neural/network_blas_cl_common.cc'
-  files += 'src/neural/opencl/OpenCL.cpp'
-  files += 'src/neural/opencl/OpenCLRandom.cpp'
-  files += 'src/neural/opencl/OpenCLScheduler.cpp'
-  files += 'src/neural/opencl/OpenCLTuner.cpp'
-  files += 'src/neural/opencl/OpenCLUtils.cpp'
-  deps += cc.find_library('openblas')
-  deps += cc.find_library('OpenCL')
-  # TODO: My system doesn't have this dir.
-  #includes += include_directories('/usr/include/openblas')
 
   has_backends = true
 
