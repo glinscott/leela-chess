@@ -54,6 +54,13 @@ void BlasCLNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer) {
     channels = block.biases.size();
   block.weights = winograd_transform_f(block.weights, block.biases.size(), channels);
 
+  // the weights stored are actually variances, not stddivs, and also all the
+  // code downstream assumes that they're inverse stddivs for efficiency
+  constexpr float epsilon = 1e-5f;
+  for (auto& weight : block.bn_stddivs) {
+    weight = 1.0f / std::sqrt(weight + epsilon);
+  }
+
   // Biases are not calculated and are typically zero but some networks might
   // still have non-zero biases.
   // Move biases to batchnorm means to make the output match without having
@@ -67,7 +74,7 @@ void BlasCLNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer) {
 std::pair<float, std::vector<float>> BlasCLNetwork::evaluate(InputPlanes& inputplanes) {
   // thanks to Francois and crem for verifying
   auto input_data = std::vector<float>(kInputPlanes*64, 0.0); // get_input_channels()*w*h
-  // the loop below assumes that input_data[i] is initialized to 0 ^
+  // the loop below requires that input_data[i] is initialized to 0 ^
   size_t index = 0;
   for (auto& plane : inputplanes) {
     for (auto i : IterateBits(plane.mask)) {
