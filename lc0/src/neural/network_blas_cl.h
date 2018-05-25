@@ -58,7 +58,8 @@ members are those used exclusively by the CPU implementation.
 
 #include "factory.h" // network.h, optionsdict.h
 #include "blas_config.h"
-#include "opencl/OpenCLScheduler.h"
+#include "opencl/OpenCLParams.h"
+#include "opencl/OpenCL.h"
 
 namespace lczero {
 
@@ -193,7 +194,9 @@ class OpenCLNetwork : public BlasNetwork {
   static constexpr int SELFCHECK_PROBABILITY = 2000; // 1/2000
   static constexpr int SELFCHECK_MIN_EXPANSIONS = 2'000'000;
 
-  OpenCLScheduler opencl_;
+  OpenCLParams params_;
+  OpenCL opencl_;
+  OpenCL_Network opencl_net_;
 };
 
 } // namespace lczero

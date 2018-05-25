@@ -18,21 +18,32 @@
 */
 
 #include "network_blas_cl.h" // factory.h, network.h, optionsdict.h
+
 #include "utils/random.h"
 #include <cstdio>
 
 namespace lczero {
 
 OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
-  : BlasNetwork(weights, options) {
+  : BlasNetwork(weights, options),
+    params_(),
+    opencl_(),
+    opencl_net_(opencl_) {
   // ^ nontrivial: all cpu initialization is shared by OpenCL initialization
+
+  params_.gpuId=options.GetOrDefault<int>("gpu", -1);
+  params_.verbose=options.GetOrDefault<bool>("verbose", false);
+  params_.force_tune=options.GetOrDefault<int>("force_tune", false);
+  params_.tune_only=options.GetOrDefault<int>("tune_only", false);
+  params_.tune_exhaustive=options.GetOrDefault<int>("tune_exhaustive", false);
+
   // this function corresponds to Network.cpp:418-496
   printf("Initializing OpenCL.\n");
   auto channels = weights_.input.biases.size();
-  opencl_.initialize(channels);
+  opencl_.initialize(channels, params_);
 
-  for (auto& opencl_net : opencl_.get_networks()) {
-    auto tuners = opencl_net->getOpenCL().get_sgemm_tuners();
+  {
+    auto tuners = opencl_net_->getOpenCL().get_sgemm_tuners();
     auto mwg = tuners[0];
     auto kwg = tuners[2];
     auto vwm = tuners[3];
@@ -41,13 +52,13 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
 
     auto Upad = zeropad_U(weights_.input.weights, channels, kInputPlanes, m_ceil, k_ceil);
 
-    opencl_net->push_input_convolution(WINOGRAD_ALPHA, kInputPlanes, channels,
+    opencl_net_->push_input_convolution(WINOGRAD_ALPHA, kInputPlanes, channels,
                                        Upad, weights_.input.bn_means, weights_.input.bn_stddivs);
 
     for (auto& resblock : weights_.residual) {
       auto Upad1 = zeropad_U(resblock.conv1.weights, channels, channels, m_ceil, m_ceil);
       auto Upad2 = zeropad_U(resblock.conv2.weights, channels, channels, m_ceil, m_ceil);
-      opencl_net->push_residual(WINOGRAD_ALPHA, channels, channels,
+      opencl_net_->push_residual(WINOGRAD_ALPHA, channels, channels,
                                 Upad1, resblock.conv1.bn_means, resblock.conv1.bn_stddivs,
                                 Upad2, resblock.conv2.bn_means, resblock.conv2.bn_stddivs);
     }
@@ -59,12 +70,12 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
     const auto num_v_inputs  = weights_.value.bn_means.size();  // NUM_VALUE_INPUT_PLANES
     const auto num_v_outputs = weights_.ip1_val_b.size();       // NUM_VALUE_CHANNELS
 
-    opencl_net->push_policy(channels, num_p_inputs, num_p_inputs*width*height, num_p_outputs,
+    opencl_net_->push_policy(channels, num_p_inputs, num_p_inputs*width*height, num_p_outputs,
                             weights_.policy.weights,
                             weights_.policy.bn_means, weights_.policy.bn_stddivs,
                             weights_.ip_pol_w, weights_.ip_pol_b);
 
-    opencl_net->push_value (channels, num_v_inputs, num_v_inputs*width*height, num_v_outputs,
+    opencl_net_->push_value (channels, num_v_inputs, num_v_inputs*width*height, num_v_outputs,
                             weights_.value.weights,
                             weights_.value.bn_means, weights_.value.bn_stddivs,
                             weights_.ip1_val_w, weights_.ip1_val_b);

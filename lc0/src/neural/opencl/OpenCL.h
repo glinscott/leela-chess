@@ -16,8 +16,7 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef OPENCL_H_INCLUDED
-#define OPENCL_H_INCLUDED
+#pragma once
 
 #include "neural/blas_config.h"
 
@@ -31,6 +30,7 @@
 #include <vector>
 #include <mutex>
 
+#include "OpenCLParams.h"
 
 class OpenCL;
 
@@ -166,7 +166,7 @@ public:
 
     void forward(const std::vector<net_t>& input,
             std::vector<net_t>& output_pol,
-            std::vector<net_t>& output_val);
+            std::vector<net_t>& output_val) const;
 
 private:
     using weight_slice_t = std::vector<cl::Buffer>::const_iterator;
@@ -184,20 +184,20 @@ private:
                     cl::Buffer* bufferResidual,
                     weight_slice_t bn_weights,
                     bool skip_in_transform,
-                    bool fuse_in_transform, bool store_inout);
+                    bool fuse_in_transform, bool store_inout) const;
 
     void convolve1(int channels, int outputs,
                   cl::Buffer& bufferInput,
                   cl::Buffer& bufferOutput,
                   cl::Buffer& bufferMerge,
-                  weight_slice_t weights);
+                  weight_slice_t weights) const;
 
     void innerproduct(cl::Buffer& input,
                   weight_slice_t weights,
                   weight_slice_t biases,
                   cl::Buffer& output,
                   const int inputs, const int outputs,
-                  const int relu);
+                  const int relu) const;
 
     OpenCL & m_opencl;
 
@@ -205,7 +205,7 @@ private:
     // because queue.finish() is a busy wait and having a lot of threads
     // waiting here is counterproductive CPU-wise.  At least std::mutex
     // isn't busy wait so it should be better.
-    std::mutex m_queue_finish_mutex;
+    mutable std::mutex m_queue_finish_mutex;
     std::vector<Layer> m_layers;
 };
 
@@ -213,8 +213,7 @@ class OpenCL {
     friend class OpenCL_Network;
     friend class Tuner;
 public:
-    void initialize(const int channels, const std::vector<int> & gpus,
-                    bool silent = false);
+    void initialize(const int channels, const OpenCLParams& params);
     void ensure_thread_initialized(void);
     std::string get_device_name();
 
@@ -241,7 +240,6 @@ private:
     bool m_init_ok{false};
 };
 
-extern thread_local ThreadData opencl_thread_data;
 extern const std::string sourceCode_sgemm;
 
-#endif
+
