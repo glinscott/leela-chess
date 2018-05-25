@@ -19,6 +19,7 @@
 
 #include "network_blas_cl.h" // factory.h, network.h, optionsdict.h
 #include "utils/random.h"
+#include <cstdio>
 
 namespace lczero {
 
@@ -26,7 +27,7 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
   : BlasNetwork(weights, options) {
   // ^ nontrivial: all cpu initialization is shared by OpenCL initialization
   // this function corresponds to Network.cpp:418-496
-  //myprintf("Initializing OpenCL.\n");
+  printf("Initializing OpenCL.\n");
   auto channels = weights_.input.biases.size();
   opencl_.initialize(channels);
 
@@ -69,6 +70,7 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
                             weights_.ip1_val_w, weights_.ip1_val_b);
 
   }
+  printf("OpenCL init complete\n");
 }
 
 std::vector<float> OpenCLNetwork::zeropad_U(const std::vector<float>& U, const int outputs, const int channels, const int outputs_pad, const int channels_pad) {
@@ -99,12 +101,13 @@ std::vector<float> OpenCLNetwork::zeropad_U(const std::vector<float>& U, const i
 inline void OpenCLNetwork::forwardPass(const std::vector<float>& input_data,
                                        std::vector<float>& policy_data,
                                        std::vector<float>& value_data) {
+  printf("evaluating network...\n");
   opencl_.forward(input_data, policy_data, value_data);
 
 #ifdef USE_OPENCL_SELFCHECK
-  if (Random::Get().GetInt(1, SELFCHECK_PROBABILITY) == 1) {
-    doSelfCheck(input_data, policy_data, value_data);
-  }
+  //if (Random::Get().GetInt(1, SELFCHECK_PROBABILITY) == 1) {
+  //  doSelfCheck(input_data, policy_data, value_data);
+  //}
 #endif
 }
 
@@ -155,12 +158,12 @@ bool OpenCLNetwork::compare_net_outputs(const std::vector<float>& data,
     for (auto idx = size_t{0}; idx < data.size(); ++idx) {
         auto err = relative_difference(data[idx], ref[idx]);
         if (display_only) {
-            //myprintf("compare_net_outputs %s idx %d data %f ref %f err=%f\n",
-            //    info.c_str(), idx, data[idx], ref[idx], err);
+            printf("compare_net_outputs %s idx %d data %f ref %f err=%f\n",
+                info.c_str(), idx, data[idx], ref[idx], err);
         } else if (err > relative_error) {
             almost_equal = false;
-            //myprintf("Error in OpenCL calculation: expected %f got %f (%lli"
-            //           "(error=%f%%)\n", ref[idx], data[idx], num_expansions.load(), err * 100.0);
+            printf("Error in OpenCL calculation: expected %f got %f (%lli"
+                       "(error=%f%%)\n", ref[idx], data[idx], num_expansions.load(), err * 100.0);
             if (num_expansions < min_correct_expansions) {
                 fatal = true;
             }
@@ -182,7 +185,7 @@ void OpenCLNetwork::doSelfCheck(const std::vector<float>& input_data,
   bool almost_equal = compare_net_outputs(policy_data, cpu_policy_data, fatal);
   almost_equal &= compare_net_outputs(value_data, cpu_value_data, fatal);
   if (!almost_equal) {
-    // myprintf("PGN\n%s\nEND\n", pos.pgn().c_str());
+    //printf("PGN\n%s\nEND\n", pos.pgn().c_str());
     // Compare again but with debug info
     compare_net_outputs(policy_data, cpu_policy_data, fatal, true, "orig policy");
     compare_net_outputs(value_data, cpu_value_data, fatal, true, "orig value");
@@ -195,10 +198,10 @@ void OpenCLNetwork::doSelfCheck(const std::vector<float>& input_data,
     if (!almost_equal_retry) {
       throw std::runtime_error("OpenCL retry self-check mismatch.");
     } else {
-      //myprintf("compare_net_outputs retry was ok\n");
+      printf("compare_net_outputs retry was ok\n");
     }
     if (fatal) {
-      //myprintf_so("Update your GPU drivers or reduce the amount of games played simultaneously.\n");
+      printf("Update your GPU drivers or reduce the amount of games played simultaneously.\n");
       throw std::runtime_error("OpenCL self-check mismatch.");
     }
   }

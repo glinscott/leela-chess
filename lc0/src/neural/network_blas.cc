@@ -43,6 +43,7 @@ BlasNetwork::BlasNetwork(const Weights& weights, const OptionsDict& options)
   }
   initOneBlock(weights_.policy);
   initOneBlock(weights_.value);
+  printf("blas init complete\n");
 }
 
 void BlasNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer) {
@@ -93,6 +94,7 @@ std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputpla
   auto policy_data = std::vector<float>(weights_.ip_pol_b.size()); // get_num_output_policy()
   auto  value_data = std::vector<float>(weights_.value.bn_means.size()*64); //NUM_VALUE_INPUT_PLANES*64
 
+  printf("Network::evaluate: input parsed, calling network...\n");
   forwardPass(input_data, policy_data, value_data);
 
   // Get the moves
@@ -104,7 +106,7 @@ std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputpla
   auto value = output[0];
 
   value = std::tanh(value);
-
+  printf("returning network evaluation\n");
   return std::pair<float, std::vector<float>>(value, policy);
 }
 
