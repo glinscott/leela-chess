@@ -124,14 +124,50 @@ if get_option('build_backends')
 
 
   ## ~~~~~
+  ## Blas
+  ## ~~~~~
+
+  has_blas = false
+
+  accelerate_lib = dependency('Accelerate', required: false)
+  openblas_lib = cc.find_library('libopenblas', required: false)
+
+  if accelerate_lib.found()
+  	includes += include_directories('/System/Library/Frameworks/Accelerate.framework/Frameworks/vecLib.framework/Headers')
+    deps += [ accelerate_lib ]
+  	has_blas = true
+
+  elif openblas_lib.found() 
+    add_project_arguments('-DUSE_OPENBLAS', language : 'cpp')
+    deps += [ openblas_lib ]
+  	has_blas = true
+
+  endif
+
+
+  ## ~~~~~
   ## OpenCL
   ## ~~~~~
 
+  has_opencl = false
+
   opencl_libdirs = get_option('opencl_libdirs')
   opencl_lib=cc.find_library('OpenCL', dirs: opencl_libdirs, required: false)
-  openblas_lib = cc.find_library('libopenblas', required: false)
 
-  if opencl_lib.found() and openblas_lib.found()
+  opencl_framework=dependency('OpenCL', required: false)
+  if opencl_framework.found()
+  	deps += [ opencl_framework ]
+  	has_opencl = true
+
+  elif opencl_lib.found()
+
+  	deps += [ opencl_lib ]
+  	has_opencl = true
+
+  endif
+  
+
+  if has_opencl and has_blas
 
     opencl_files = [
       'src/neural/network_opencl.cc',
@@ -142,12 +178,7 @@ if get_option('build_backends')
       'src/neural/opencl/OpenCLTuner.cpp'
     ]
 
-    add_project_arguments('-DUSE_BLAS', '-DUSE_OPENCL', '-DUSE_OPENCL_SELFCHECK', language : 'cpp')
-    # TODO: USE_TUNER, USE_OPENBLAS, USE_MKL
-
     files += opencl_files
-    deps += [ opencl_lib, openblas_lib ]
-
     has_backends = true
 
   endif
