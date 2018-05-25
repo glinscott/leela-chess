@@ -21,7 +21,7 @@
 #include "utils/bititer.h"
 #include <cblas.h>
 #include <cassert>
-#include <complex>
+#include <cmath>
 #include <algorithm>
 
 namespace lczero {
