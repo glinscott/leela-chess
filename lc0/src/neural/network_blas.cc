@@ -44,19 +44,21 @@ BlasNetwork::BlasNetwork(const Weights& weights, const OptionsDict& options)
     initOneBlock(resblock.conv1);
     initOneBlock(resblock.conv2);
   }
-  initOneBlock(weights_.policy);
-  initOneBlock(weights_.value);
+  initOneBlock(weights_.policy, false, true);
+  initOneBlock(weights_.value, false, true);
   printf("blas init complete\n");
 }
 
-void BlasNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer) {
+void BlasNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer, bool headlayer) {
 
-  size_t channels;
-  if (inputlayer)
-    channels = kInputPlanes;
-  else
-    channels = block.biases.size();
-  block.weights = winograd_transform_f(block.weights, block.biases.size(), channels);
+  if (!headlayer) {
+    size_t channels;
+    if (inputlayer)
+      channels = kInputPlanes;
+    else
+      channels = block.biases.size();
+    block.weights = winograd_transform_f(block.weights, block.biases.size(), channels);
+  }
 
   // the weights stored are actually variances, not stddivs, and also all the
   // code downstream assumes that they're inverse stddivs for efficiency

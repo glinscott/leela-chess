@@ -124,7 +124,7 @@ class BlasNetwork : public Network {
   its last output scalar?
   */
 
-  void initOneBlock(Weights::ConvBlock& block, bool inputlayer=false);
+  void initOneBlock(Weights::ConvBlock& block, bool inputlayer=false, bool headlayer=false);
   static std::vector<float> winograd_transform_f(const std::vector<float>& f, const int outputs, const int channels);
   static std::vector<float> softmax(const std::vector<float>& input, float temperature=1.0f);
   // TODO: softmaxtemp hardcoded from lczero
