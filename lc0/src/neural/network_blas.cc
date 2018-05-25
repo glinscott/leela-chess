@@ -27,10 +27,13 @@
 namespace lczero {
 
 void BlasNetworkComputation::ComputeBlocking() {
+  printf("evaluating batch of %d nodes\n", inputs.size());
   output_values = std::vector<float>(inputs.size());
   output_policies = std::vector<std::vector<float>>(inputs.size());
   for (size_t i = 0; i < inputs.size(); i++)
     std::tie(output_values[i], output_policies[i]) = network->evaluate(inputs[i]);
+  for (size_t i = 0; i < output_values.size(); i++)
+    printf("node %d: evaluation %g\n", i, output_values[i]);
 }
 
 BlasNetwork::BlasNetwork(const Weights& weights, const OptionsDict& options)
