@@ -99,6 +99,13 @@ std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputpla
 
   printf("Network::evaluate: input parsed, calling network...\n");
   forwardPass(input_data, policy_data, value_data);
+  printf("Network forward pass complete, raw output:\n");
+  for (size_t i = 0; i < value_data.size(); i++)
+    printf("%g ", value_data[i]);
+  printf("\n");
+  for (size_t i = 0; i < policy_data.size(); i++)
+    printf("%g ", policy_data[i]);
+
 
   // Get the moves
   auto policy = softmax(policy_data);
