@@ -128,8 +128,8 @@ if get_option('build_backends')
   ## ~~~~~
 
   opencl_libdirs = get_option('opencl_libdirs')
-  opencl_lib=cc.find_library('OpenCL', dirs: opencl_libdirs, required: true)
-  openblas_lib = cc.find_library('libopenblas', required: true)
+  opencl_lib=cc.find_library('OpenCL', dirs: opencl_libdirs, required: false)
+  openblas_lib = cc.find_library('libopenblas', required: false)
 
   if opencl_lib.found() and openblas_lib.found()
 
@@ -139,8 +139,7 @@ if get_option('build_backends')
       'src/neural/opencl/OpenCL.cpp',
       'src/neural/opencl/OpenCLRandom.cpp',
       'src/neural/opencl/OpenCLScheduler.cpp',
-      'src/neural/opencl/OpenCLTuner.cpp',
-      'src/neural/opencl/OpenCLUtils.cpp'
+      'src/neural/opencl/OpenCLTuner.cpp'
     ]
 
     add_project_arguments('-DUSE_BLAS', '-DUSE_OPENCL', '-DUSE_OPENCL_SELFCHECK', language : 'cpp')
