@@ -84,20 +84,19 @@ void BlasNetwork::forwardPass(const std::vector<float>& input_data,
 }
 
 std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputplanes) {
-  // thanks to Francois and crem for verifying
   auto input_data = std::vector<float>(kInputPlanes*64, 0.0); // get_input_channels()*w*h
-  // the loop below requires that input_data[i] is initialized to 0 ^
   size_t index = 0;
   for (auto& plane : inputplanes) {
-    for (auto i : IterateBits(plane.mask)) {
-      input_data[index+i] = plane.value;
+    uint64_t shift = 1;
+    for (int i = 0; i < 64; i++) {
+      input_data[index++] = (plane.mask & shift) ? plane.value : 0;
+      shift <<= 1;
     }
-    index += 64;
   }
   assert(index == input_data.size());
 
   auto policy_data = std::vector<float>(weights_.ip_pol_b.size()); // get_num_output_policy()
-  auto  value_data = std::vector<float>(weights_.value.bn_means.size()*64); //NUM_VALUE_INPUT_PLANES*64
+  auto  value_data = std::vector<float>(weights_.ip1_val_b.size()); //NUM_VALUE_CHANNELS
 
   printf("Network::evaluate: input parsed, calling network...\n");
   forwardPass(input_data, policy_data, value_data);
