@@ -113,10 +113,11 @@ class BlasNetwork : public Network {
                                  std::vector<float>& policy_data,
                                  std::vector<float>& value_data) /*const*/;
 
-  static std::vector<float> innerproduct(const std::vector<float>& inputs,
-                                         const std::vector<float>& weights,
-                                         const std::vector<float>& biases,
-                                         bool apply_relu=false);
+  static void innerproduct(const std::vector<float>& inputs,
+                           const std::vector<float>& weights,
+                           const std::vector<float>& biases,
+                           std::vector<float>& outputs,
+                           bool apply_relu=false);
   /* TODO: understand why gcp left the final value head computation out of OpenCL,
   leaving it to be done on the cpu. This is why forwardPass() doesn't simply return
   the evaluation, rather than the value_data array which needs to be processed by
@@ -135,12 +136,33 @@ class BlasNetwork : public Network {
   const OptionsDict& options_;
 
  private: // functions specific to cpu-blas implementation
-  void winograd_transform_in();
-  void winograd_sgemm();
-  void winograd_transform_out();
-  void winograd_convolve3();
-  template<unsigned int filter_size> void convolve();
-  template<size_t spatial_size> void batchnorm();
+  static void winograd_transform_in(const std::vector<float>& in,
+                                    std::vector<float>& V,
+                                    const int C);
+  static void winograd_sgemm(const std::vector<float>& U,
+                             std::vector<float>& V,
+                             std::vector<float>& M,
+                             const int C, const int K);
+  static void winograd_transform_out(const std::vector<float>& U,
+                                     std::vector<float>& V,
+                                     std::vector<float>& M,
+                                     const int C, const int K);
+  static void winograd_convolve3(const int outputs,
+                                 const std::vector<float>& input,
+                                 const std::vector<float>& U,
+                                 std::vector<float>& V,
+                                 std::vector<float>& M,
+                                 std::vector<float>& output);
+  static void convolve(size_t outputs,
+                       const std::vector<float>& input,
+                       const std::vector<float>& weights,
+                       const std::vector<float>& biases,
+                       std::vector<float>& output);
+  static void batchnorm(size_t channels,
+                        std::vector<float>& data,
+                        const std::vector<float>& means,
+                        const std::vector<float>& stddivs,
+                        const float* eltwise = nullptr);
 };
 
 
