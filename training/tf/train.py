@@ -28,7 +28,7 @@ import tensorflow as tf
 from tfprocess import TFProcess
 from chunkparser import ChunkParser
 
-SKIP = 16
+SKIP = 32
 
 def get_checkpoint(root_dir):
     checkpoint = os.path.join(root_dir, 'checkpoint')
@@ -99,7 +99,7 @@ def main(cmd):
         os.makedirs(root_dir)
 
     train_parser = ChunkParser(FileDataSrc(chunks[:num_train]),
-            shuffle_size=shuffle_size, sample=SKIP, batch_size=ChunkParser.BATCH_SIZE)
+            shuffle_size=shuffle_size, sample=SKIP, batch_size=ChunkParser.BATCH_SIZE, workers=8)
     dataset = tf.data.Dataset.from_generator(
         train_parser.parse, output_types=(tf.string, tf.string, tf.string))
     dataset = dataset.map(ChunkParser.parse_function)
@@ -108,7 +108,7 @@ def main(cmd):
 
     shuffle_size = int(shuffle_size*(1.0-train_ratio))
     test_parser = ChunkParser(FileDataSrc(chunks[num_train:]), 
-            shuffle_size=shuffle_size, sample=SKIP, batch_size=ChunkParser.BATCH_SIZE)
+            shuffle_size=shuffle_size, sample=SKIP, batch_size=ChunkParser.BATCH_SIZE, workers=8)
     dataset = tf.data.Dataset.from_generator(
         test_parser.parse, output_types=(tf.string, tf.string, tf.string))
     dataset = dataset.map(ChunkParser.parse_function)
