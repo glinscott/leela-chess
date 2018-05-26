@@ -105,16 +105,16 @@ func UploadMatchResult(httpClient *http.Client, hostname string, match_game_id u
 func DownloadNetwork(httpClient *http.Client, hostname string, networkPath string, sha string) error {
 	uri := hostname + fmt.Sprintf("/get_network?sha=%s", sha)
 	r, err := httpClient.Get(uri)
-	defer r.Body.Close()
 	if err != nil {
 		return err
 	}
+	defer r.Body.Close()
 
 	out, err := os.Create(networkPath)
-	defer out.Close()
 	if err != nil {
 		return err
 	}
+	defer out.Close()
 
 	_, err = io.Copy(out, r.Body)
 	return err
