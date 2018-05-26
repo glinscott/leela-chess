@@ -47,7 +47,6 @@ static std::string cl_args =
 "-cl-mad-enable -cl-fast-relaxed-math -cl-no-signed-zeros -cl-denorms-are-zero";
 
 static std::string sourceCode_config = R"(
-typedef float net_t;
 #define vload_net_t(offset,p) ((p)[(offset)])
 #define vstore_net_t(data,offset,p) (((p)[(offset)])=(data))
 )";

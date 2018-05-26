@@ -1,6 +1,5 @@
 /*
     This file is part of Leela Chess Zero.
-    Copyright (C) 2017 Gian-Carlo Pascutto
     Copyright (C) 2018 The LCZero Authors
 
     Leela Zero is free software: you can redistribute it and/or modify
@@ -17,19 +16,74 @@
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "network_blas_cl.h" // factory.h, network.h, optionsdict.h
+#include "factory.h" // network.h, optionsdict.h
+#include "blas_transforms.h"
+#include "opencl/OpenCLParams.h"
+#include "opencl/OpenCL.h"
 
-#include "utils/random.h"
-#include <cstdio>
+// Note that OpenCLNetworkComputation and OpenCLNetwork::evaluate are identical
+// to their Blas counterpart, and the constructors are nearly so
 
 namespace lczero {
 
+// literally copy and pasted from network_blas.cc
+class OpenCLNetworkComputation : public NetworkComputation {
+
+ public:
+  OpenCLNetworkComputation(OpenCLNetwork* network) : network_(network) {}
+
+  void AddInput(InputPlanes&& input) override {
+    inputs_.emplace_back(input);
+  }
+
+  int GetBatchSize() const override {
+    return inputs_.size();
+  }
+
+  float GetQVal(int sample) const override {
+    return output_values_[sample];
+  }
+
+  float GetPVal(int sample, int move_id) const override {
+    return output_policies_[sample][move_id];
+  }
+
+  void ComputeBlocking() override {
+    //printf("evaluating batch of %lu nodes\n", inputs_.size());
+    output_values_.resize(inputs_.size());
+    output_policies_.resize(inputs_.size());
+    for (size_t i = 0; i < inputs_.size(); i++)
+      std::tie(output_values_[i], output_policies_[i]) = network_->evaluate(inputs_[i]);
+};
+
+ private:
+  std::vector<InputPlanes> inputs_;
+  std::vector<float>   output_values_;
+  std::vector<std::vector<float>> output_policies_;
+  OpenCLNetwork* network_;
+};
+
+class OpenCLNetwork : public Network {
+
+ public:
+  OpenCLNetwork(const Weights& weights, const OptionsDict& options);
+
+  std::pair<float, std::vector<float>> evaluate(InputPlanes& input) /*const*/;
+
+  OpenCLParams params_;
+  OpenCL opencl_;
+  OpenCL_Network opencl_net_;
+  Weights::Vec ip2_val_w_; // final value head matmul is on cpu
+  Weights::Vec ip2_val_b_;
+};
+
+using BlasTransforms;
+
 OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
-  : BlasNetwork(weights, options),
-    params_(),
-    opencl_(),
-    opencl_net_(opencl_) {
-  // ^ nontrivial: all cpu initialization is shared by OpenCL initialization
+    params_(), opencl_(), opencl_net_(opencl_),
+    ip2_val_w_(weights.ip2_val_w), ip2_val_b_(weights.ip2_val_b) {
+
+  Weights weights_ = weights; // scratch weights, to be discarded
 
   params_.gpuId=options.GetOrDefault<int>("gpu", -1);
   params_.verbose=options.GetOrDefault<bool>("verbose", false);
@@ -50,12 +104,14 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
     size_t m_ceil = ceilMultiple(ceilMultiple(channels, mwg), vwm);
     size_t k_ceil = ceilMultiple(ceilMultiple(kInputPlanes, kwg), vwm);
 
+    initOneBlock(weights_.input, true);
     auto Upad = zeropad_U(weights_.input.weights, channels, kInputPlanes, m_ceil, k_ceil);
-
     opencl_net_.push_input_convolution(WINOGRAD_ALPHA, kInputPlanes, channels,
                                        Upad, weights_.input.bn_means, weights_.input.bn_stddivs);
 
     for (auto& resblock : weights_.residual) {
+      initOneBlock(resblock.conv1);
+      initOneBlock(resblock.conv2);
       auto Upad1 = zeropad_U(resblock.conv1.weights, channels, channels, m_ceil, m_ceil);
       auto Upad2 = zeropad_U(resblock.conv2.weights, channels, channels, m_ceil, m_ceil);
       opencl_net_.push_residual(WINOGRAD_ALPHA, channels, channels,
@@ -63,6 +119,8 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
                                 Upad2, resblock.conv2.bn_means, resblock.conv2.bn_stddivs);
     }
 
+    initOneBlock(weights_.policy, false, true);
+    initOneBlock(weights_.value, false, true);
     constexpr unsigned int width = 8;
     constexpr unsigned int height = 8;
     const auto num_p_inputs  = weights_.policy.bn_means.size(); // NUM_POLICY_INPUT_PLANES
@@ -81,39 +139,45 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
                             weights_.ip1_val_w, weights_.ip1_val_b);
 
   }
+  // weights_ should be deleted now
   printf("OpenCL init complete\n");
 }
 
-std::vector<float> OpenCLNetwork::zeropad_U(const std::vector<float>& U, const int outputs, const int channels, const int outputs_pad, const int channels_pad) {
-  // Fill with zeroes
-  auto Upad = std::vector<float>(WINOGRAD_TILE * outputs_pad * channels_pad);
-
-  for(auto o = 0; o < outputs; o++) {
-      for(auto c = 0; c < channels; c++) {
-          for(auto xi = 0; xi < WINOGRAD_ALPHA; xi++){
-              for(auto nu = 0; nu < WINOGRAD_ALPHA; nu++) {
-                  Upad[xi * (WINOGRAD_ALPHA * outputs_pad * channels_pad)
-                     + nu * (outputs_pad * channels_pad)
-                     + c * outputs_pad +
-                       o]
-                  =
-                  U  [xi * (WINOGRAD_ALPHA * outputs * channels)
-                    + nu * (outputs * channels)
-                    + c * outputs
-                    + o];
-              }
-          }
-      }
+// literally Ctrl+C -> Ctrl+V from network_blas.cc
+std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputplanes) /*const*/ {
+  auto input_data = std::vector<float>(kInputPlanes*64, 0.0); // get_input_channels()*w*h
+  size_t index = 0;
+  for (auto& plane : inputplanes) {
+    uint64_t shift = 1;
+    for (int i = 0; i < 64; i++) {
+      input_data[index++] = (plane.mask & shift) ? plane.value : 0;
+      shift <<= 1;
+    }
   }
+  assert(index == input_data.size());
 
-  return Upad;
-}
+  auto policy_data = std::vector<float>(weights_.ip_pol_b.size()); // get_num_output_policy()
+  auto value_data = std::vector<float>(weights_.ip1_val_b.size()); // NUM_VALUE_CHANNELS
 
-inline void OpenCLNetwork::forwardPass(const std::vector<float>& input_data,
-                                       std::vector<float>& policy_data,
-                                       std::vector<float>& value_data) {
-  //printf("evaluating network...\n");
+  //printf("Network::evaluate: input parsed, calling network...\n");
   opencl_net_.forward(input_data, policy_data, value_data);
+  //printf("Network forward pass complete, raw output:\n");
+  //for (size_t i = 0; i < value_data.size(); i++)
+  //  printf("%g ", value_data[i]);
+  //printf("\n");
+  //for (size_t i = 0; i < policy_data.size(); i++)
+  //  printf("%g ", policy_data[i]);
+
+  std::vector<float> output(ip2_val_b_.size());
+  innerproduct(value_data, ip2_val_w_, ip2_val_b_, output);
+  assert(output.size() == 1);
+  auto value = output[0];
+
+  // normalize outputs
+  auto policy = softmax(policy_data);
+  value = std::tanh(value);
+  //printf("returning network evaluation %g\n", value);
+  return std::pair<float, std::vector<float>>(value, policy);
 }
 
 REGISTER_NETWORK("opencl", OpenCLNetwork, 100)
