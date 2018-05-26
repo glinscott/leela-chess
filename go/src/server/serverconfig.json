@@ -16,5 +16,8 @@
   "matches": {
     "games": 400,
     "parameters": ["--tempdecay=10"]
+  },
+  "webserver": {
+    "address": ":8080"
   }
 }

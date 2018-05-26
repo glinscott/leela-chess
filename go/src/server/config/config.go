@@ -25,6 +25,9 @@ var Config struct {
     Games      int
     Parameters []interface{}
   }
+  WebServer struct {
+    Address string
+  }
 }
 
 func init() {

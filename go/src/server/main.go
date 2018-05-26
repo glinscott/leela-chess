@@ -1086,5 +1086,5 @@ func main() {
 	defer db.Close()
 
 	router := setupRouter()
-	router.Run(":8080")
+	router.Run(config.Config.WebServer.Address)
 }
