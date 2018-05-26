@@ -716,13 +716,6 @@ func frontPage(c *gin.Context) {
 }
 
 func user(c *gin.Context) {
-	// TODO(gary): Optimize this!
-	c.HTML(http.StatusOK, "user", gin.H{
-		"user":  c.Param("name"),
-		"games": []gin.H{},
-	})
-	return
-
 	name := c.Param("name")
 	user := db.User{
 		Username: name,
@@ -758,11 +751,6 @@ func user(c *gin.Context) {
 }
 
 func game(c *gin.Context) {
-	c.HTML(http.StatusOK, "game", gin.H{
-		"pgn": "Disabled for now -- server load too high from scaping",
-	})
-	return
-
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		log.Println(err)
@@ -780,7 +768,15 @@ func game(c *gin.Context) {
 		return
 	}
 
+	pgn, err := ioutil.ReadFile(fmt.Sprintf("pgns/run%d/%d.pgn", game.TrainingRunID, id))
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
 	c.HTML(http.StatusOK, "game", gin.H{
+		"pgn": string(pgn),
 	})
 }
 
@@ -1011,8 +1007,18 @@ func viewTrainingData(c *gin.Context) {
 		game_id += 10000
 	}
 
+	pgnFiles := []gin.H{}
+	pgnId := 9000000
+	for pgnId < int(id) {
+		pgnFiles = append([]gin.H{
+			gin.H{"url": fmt.Sprintf("https://s3.amazonaws.com/lczero/training/run1/pgn%d.tar.gz", pgnId)},
+		}, pgnFiles...)
+		pgnId += 100000
+	}
+
 	c.HTML(http.StatusOK, "training_data", gin.H{
 		"files": files,
+		"pgn_files": pgnFiles,
 	})
 }
 
