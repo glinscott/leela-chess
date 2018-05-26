@@ -30,7 +30,6 @@
 #include "OpenCLParams.h"
 #include "OpenCL.h"
 #include "OpenCLTuner.h"
-#include "OpenCLUtils.h"
 
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>

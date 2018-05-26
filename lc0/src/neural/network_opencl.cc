@@ -43,7 +43,7 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
   opencl_.initialize(channels, params_);
 
   {
-    auto tuners = opencl_net_->getOpenCL().get_sgemm_tuners();
+    auto tuners = opencl_net_.getOpenCL().get_sgemm_tuners();
     auto mwg = tuners[0];
     auto kwg = tuners[2];
     auto vwm = tuners[3];
@@ -52,13 +52,13 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
 
     auto Upad = zeropad_U(weights_.input.weights, channels, kInputPlanes, m_ceil, k_ceil);
 
-    opencl_net_->push_input_convolution(WINOGRAD_ALPHA, kInputPlanes, channels,
+    opencl_net_.push_input_convolution(WINOGRAD_ALPHA, kInputPlanes, channels,
                                        Upad, weights_.input.bn_means, weights_.input.bn_stddivs);
 
     for (auto& resblock : weights_.residual) {
       auto Upad1 = zeropad_U(resblock.conv1.weights, channels, channels, m_ceil, m_ceil);
       auto Upad2 = zeropad_U(resblock.conv2.weights, channels, channels, m_ceil, m_ceil);
-      opencl_net_->push_residual(WINOGRAD_ALPHA, channels, channels,
+      opencl_net_.push_residual(WINOGRAD_ALPHA, channels, channels,
                                 Upad1, resblock.conv1.bn_means, resblock.conv1.bn_stddivs,
                                 Upad2, resblock.conv2.bn_means, resblock.conv2.bn_stddivs);
     }
@@ -70,12 +70,12 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
     const auto num_v_inputs  = weights_.value.bn_means.size();  // NUM_VALUE_INPUT_PLANES
     const auto num_v_outputs = weights_.ip1_val_b.size();       // NUM_VALUE_CHANNELS
 
-    opencl_net_->push_policy(channels, num_p_inputs, num_p_inputs*width*height, num_p_outputs,
+    opencl_net_.push_policy(channels, num_p_inputs, num_p_inputs*width*height, num_p_outputs,
                             weights_.policy.weights,
                             weights_.policy.bn_means, weights_.policy.bn_stddivs,
                             weights_.ip_pol_w, weights_.ip_pol_b);
 
-    opencl_net_->push_value (channels, num_v_inputs, num_v_inputs*width*height, num_v_outputs,
+    opencl_net_.push_value (channels, num_v_inputs, num_v_inputs*width*height, num_v_outputs,
                             weights_.value.weights,
                             weights_.value.bn_means, weights_.value.bn_stddivs,
                             weights_.ip1_val_w, weights_.ip1_val_b);
@@ -113,13 +113,7 @@ inline void OpenCLNetwork::forwardPass(const std::vector<float>& input_data,
                                        std::vector<float>& policy_data,
                                        std::vector<float>& value_data) {
   //printf("evaluating network...\n");
-  opencl_.forward(input_data, policy_data, value_data);
-
-#ifdef USE_OPENCL_SELFCHECK
-  //if (Random::Get().GetInt(1, SELFCHECK_PROBABILITY) == 1) {
-  //  doSelfCheck(input_data, policy_data, value_data);
-  //}
-#endif
+  opencl_net_.forward(input_data, policy_data, value_data);
 }
 
 // silly helper function
@@ -203,7 +197,7 @@ void OpenCLNetwork::doSelfCheck(const std::vector<float>& input_data,
     // Call opencl.forward again to see if the error is reproducible.
     std::vector<float> value_data_retry(value_data.size());
     std::vector<float> policy_data_retry(policy_data.size());
-    opencl_.forward(input_data, policy_data_retry, value_data_retry);
+    opencl_net_.forward(input_data, policy_data_retry, value_data_retry);
     bool almost_equal_retry = compare_net_outputs(policy_data_retry, policy_data, fatal, true, "retry policy");
     almost_equal_retry &= compare_net_outputs(value_data_retry, value_data, fatal, true, "retry value");
     if (!almost_equal_retry) {
