@@ -22,6 +22,7 @@
 #include <cassert>
 #include <cmath>
 #include <algorithm>
+#include <array>
 
 namespace lczero {
 
