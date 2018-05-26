@@ -40,7 +40,7 @@
 #define MAX_CPUS 128
 #endif
 
-using net_t = float; // TODO: move this to network.h, use Vec everywhere
+typedef float net_t; // TODO: move this to network.h, use Vec everywhere
 
 size_t ceilMultiple(size_t a, size_t b);
 
