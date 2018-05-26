@@ -3,6 +3,7 @@ package main
 import (
 	"compress/gzip"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"server/config"
 	"server/db"
 	"strconv"
 	"strings"
@@ -49,9 +51,9 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 	if err != nil {
 		return nil, 0, errors.New("Invalid version")
 	}
-	if version < 8 {
+	if version < config.Config.Clients.MinClientVersion {
 		log.Printf("Rejecting old game from %s, version %d\n", user.Username, version)
-		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
+		return nil, 0, errors.New("you must upgrade to a newer version")
 	}
 
 	return user, version, nil
@@ -65,11 +67,11 @@ func nextGame(c *gin.Context) {
 		return
 	}
 
-	training_run := db.TrainingRun{
+	trainingRun := db.TrainingRun{
 		Active: true,
 	}
 	// TODO(gary): Only really supports one training run right now...
-	err = db.GetDB().Where(&training_run).First(&training_run).Error
+	err = db.GetDB().Where(&trainingRun).First(&trainingRun).Error
 	if err != nil {
 		log.Println(err)
 		c.String(http.StatusBadRequest, "Invalid training run")
@@ -77,10 +79,10 @@ func nextGame(c *gin.Context) {
 	}
 
 	network := db.Network{}
-	err = db.GetDB().Where("id = ?", training_run.BestNetworkID).First(&network).Error
+	err = db.GetDB().Where("id = ?", trainingRun.BestNetworkID).First(&network).Error
 	if err != nil {
 		log.Println(err)
-		c.String(500, "Internal error")
+		c.String(500, "Internal error 1")
 		return
 	}
 
@@ -89,31 +91,37 @@ func nextGame(c *gin.Context) {
 		err = db.GetDB().Preload("Candidate").Where("done=false").Limit(1).Find(&match).Error
 		if err != nil {
 			log.Println(err)
-			c.String(500, "Internal error")
+			c.String(500, "Internal error 2")
 			return
 		}
 		if len(match) > 0 {
 			// Return this match
-			match_game := db.MatchGame{
+			matchGame := db.MatchGame{
 				UserID:  user.ID,
 				MatchID: match[0].ID,
 			}
-			err = db.GetDB().Create(&match_game).Error
+			err = db.GetDB().Create(&matchGame).Error
 			// Note, this could cause an imbalance of white/black games for a particular match,
 			// but it's good enough for now.
-			flip := (match_game.ID & 1) == 1
-			db.GetDB().Model(&match_game).Update("flip", flip)
+			flip := (matchGame.ID & 1) == 1
+			db.GetDB().Model(&matchGame).Update("flip", flip)
 			if err != nil {
 				log.Println(err)
-				c.String(500, "Internal error")
+				c.String(500, "Internal error 3")
+				return
+			}
+			params, err := json.Marshal(match[0].Parameters)
+			if err != nil {
+				log.Println(err)
+				c.String(500, "Internal error 4")
 				return
 			}
 			result := gin.H{
 				"type":         "match",
-				"matchGameId":  match_game.ID,
+				"matchGameId":  matchGame.ID,
 				"sha":          network.Sha,
 				"candidateSha": match[0].Candidate.Sha,
-				"params":       match[0].Parameters,
+				"params":       params,
 				"flip":         flip,
 			}
 			c.JSON(http.StatusOK, result)
@@ -123,18 +131,18 @@ func nextGame(c *gin.Context) {
 
 	result := gin.H{
 		"type":       "train",
-		"trainingId": training_run.ID,
-		"networkId":  training_run.BestNetworkID,
+		"trainingId": trainingRun.ID,
+		"networkId":  trainingRun.BestNetworkID,
 		"sha":        network.Sha,
-		"params":     training_run.TrainParameters,
+		"params":     trainingRun.TrainParameters,
 	}
 	c.JSON(http.StatusOK, result)
 }
 
 // Computes SHA256 of gzip compressed file
-func computeSha(http_file *multipart.FileHeader) (string, error) {
+func computeSha(httpFile *multipart.FileHeader) (string, error) {
 	h := sha256.New()
-	file, err := http_file.Open()
+	file, err := httpFile.Open()
 	if err != nil {
 		return "", err
 	}
@@ -155,13 +163,13 @@ func computeSha(http_file *multipart.FileHeader) (string, error) {
 	return sha, nil
 }
 
-func getTrainingRun(training_id uint) (*db.TrainingRun, error) {
-	var training_run db.TrainingRun
-	err := db.GetDB().Where("id = ?", training_id).First(&training_run).Error
+func getTrainingRun(trainingID uint) (*db.TrainingRun, error) {
+	var trainingRun db.TrainingRun
+	err := db.GetDB().Where("id = ?", trainingID).First(&trainingRun).Error
 	if err != nil {
 		return nil, err
 	}
-	return &training_run, nil
+	return &trainingRun, nil
 }
 
 func uploadNetwork(c *gin.Context) {
@@ -198,8 +206,8 @@ func uploadNetwork(c *gin.Context) {
 
 	// Create new network
 	// TODO(gary): Just hardcoding this for now.
-	var training_run_id uint = 1
-	network.TrainingRunID = training_run_id
+	var trainingRunID uint = 1
+	network.TrainingRunID = trainingRunID
 	layers, err := strconv.ParseInt(c.PostForm("layers"), 10, 32)
 	network.Layers = int(layers)
 	filters, err := strconv.ParseInt(c.PostForm("filters"), 10, 32)
@@ -227,16 +235,32 @@ func uploadNetwork(c *gin.Context) {
 	}
 
 	// TODO(gary): Make this more generic - upload to s3 for now
-	cmd := exec.Command("aws", "s3", "cp", network.Path, "s3://lczero/networks/")
-	err = cmd.Run()
-	if err != nil {
-		log.Println(err.Error())
-		c.String(500, "Uploading to s3")
-		return
+	cmdParams := config.Config.URLs.OnNewNetwork
+	if len(cmdParams) > 0 {
+		for i := range cmdParams {
+			if cmdParams[i] == "%NETWORK_PATH%" {
+				cmdParams[i] = network.Path
+			}
+		}
+
+		cmd := exec.Command(cmdParams[0], cmdParams[1:]...)
+		err = cmd.Run()
+		if err != nil {
+			log.Println(err.Error())
+			c.String(500, "Uploading to s3")
+			return
+		}
 	}
 
 	// Create a match to see if this network is better
-	training_run, err := getTrainingRun(training_run_id)
+	trainingRun, err := getTrainingRun(trainingRunID)
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	params, err := json.Marshal(config.Config.Matches.Parameters)
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -244,12 +268,12 @@ func uploadNetwork(c *gin.Context) {
 	}
 
 	match := db.Match{
-		TrainingRunID: training_run_id,
+		TrainingRunID: trainingRunID,
 		CandidateID:   network.ID,
-		CurrentBestID: training_run.BestNetworkID,
+		CurrentBestID: trainingRun.BestNetworkID,
 		Done:          false,
-		GameCap:       400,
-		Parameters:    `["--tempdecay=10"]`,
+		GameCap:       config.Config.Matches.Games,
+		Parameters:    string(params[:]),
 	}
 	if c.DefaultPostForm("testonly", "0") == "1" {
 		match.TestOnly = true
@@ -264,12 +288,12 @@ func uploadNetwork(c *gin.Context) {
 	c.String(http.StatusOK, fmt.Sprintf("Network %s uploaded successfully.", network.Sha))
 }
 
-func checkEngineVersion(engineVersion string) (bool) {
+func checkEngineVersion(engineVersion string) bool {
 	v, err := version.NewVersion(engineVersion)
 	if err != nil {
 		return false
 	}
-	target, err := version.NewVersion("0.10")
+	target, err := version.NewVersion(config.Config.Clients.MinEngineVersion)
 	if err != nil {
 		log.Println("Invalid comparison version, rejecting all clients!!!")
 		return false
@@ -380,7 +404,7 @@ func uploadGame(c *gin.Context) {
 func getNetwork(c *gin.Context) {
 	// lczero.org/cached/ is behind the cloudflare CDN.  Redirect to there to ensure
 	// we hit the CDN.
-	c.Redirect(http.StatusMovedPermanently, "http://lczero.org/cached/network/sha/" + c.Query("sha"))
+	c.Redirect(http.StatusMovedPermanently, config.Config.URLs.NetworkLocation+c.Query("sha"))
 }
 
 func cachedGetNetwork(c *gin.Context) {
@@ -700,12 +724,12 @@ func frontPage(c *gin.Context) {
 	}
 
 	/*
-	c.HTML(http.StatusOK, "index", gin.H{
-		"active_users": 0,
-		"games_played": 0,
-		"Users":        []gin.H{},
-		"progress":     progress,
-	})
+		c.HTML(http.StatusOK, "index", gin.H{
+			"active_users": 0,
+			"games_played": 0,
+			"Users":        []gin.H{},
+			"progress":     progress,
+		})
 	*/
 	c.HTML(http.StatusOK, "index", gin.H{
 		"active_users": users["active_users"],
@@ -780,8 +804,7 @@ func game(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "game", gin.H{
-	})
+	c.HTML(http.StatusOK, "game", gin.H{})
 }
 
 func viewMatchGame(c *gin.Context) {
@@ -1006,7 +1029,7 @@ func viewTrainingData(c *gin.Context) {
 	}
 	for game_id < int(id) {
 		files = append([]gin.H{
-			gin.H{"url": fmt.Sprintf("https://s3.amazonaws.com/lczero/training/games%d.tar.gz", game_id)},
+			{"url": fmt.Sprintf("https://s3.amazonaws.com/lczero/training/games%d.tar.gz", game_id)},
 		}, files...)
 		game_id += 10000
 	}
@@ -1058,7 +1081,7 @@ func setupRouter() *gin.Engine {
 }
 
 func main() {
-	db.Init(true)
+	db.Init()
 	db.SetupDB()
 	defer db.Close()
 
