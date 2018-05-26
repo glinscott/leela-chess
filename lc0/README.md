@@ -1,7 +1,5 @@
 # Building and running Lc0
 
-Building right now may be a bit rough, we are improving and finding ways to simplifying the build process.
-
 ## Linux (generic)
 
 1. (if you want version with tensorflow) Install `tensorflow_cc` by following steps described [here](https://github.com/FloopCZ/tensorflow_cc).
