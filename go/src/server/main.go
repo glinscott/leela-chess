@@ -110,18 +110,12 @@ func nextGame(c *gin.Context) {
 				c.String(500, "Internal error 3")
 				return
 			}
-			params, err := json.Marshal(match[0].Parameters)
-			if err != nil {
-				log.Println(err)
-				c.String(500, "Internal error 4")
-				return
-			}
 			result := gin.H{
 				"type":         "match",
 				"matchGameId":  matchGame.ID,
 				"sha":          network.Sha,
 				"candidateSha": match[0].Candidate.Sha,
-				"params":       params,
+				"params":       match[0].Parameters,
 				"flip":         flip,
 			}
 			c.JSON(http.StatusOK, result)
@@ -461,7 +455,7 @@ func checkMatchFinished(match_id uint) error {
 		}
 		// Update to our new best network
 		// TODO(SPRT)
-		passed := calcElo(match.Wins, match.Losses, match.Draws) > -150.0
+		passed := calcElo(match.Wins, match.Losses, match.Draws) > config.Config.Matches.Threshold
 		err = db.GetDB().Model(&match).Update("passed", passed).Error
 		if err != nil {
 			return err

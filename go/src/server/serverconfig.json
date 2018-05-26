@@ -15,7 +15,8 @@
   }, 
   "matches": {
     "games": 400,
-    "parameters": ["--tempdecay=10"]
+    "parameters": ["--tempdecay=10"],
+    "threshold": -150.0
   },
   "webserver": {
     "address": ":8080"

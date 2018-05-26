@@ -24,6 +24,7 @@ var Config struct {
   Matches struct {
     Games      int
     Parameters []interface{}
+    Threshold  float
   }
   WebServer struct {
     Address string
