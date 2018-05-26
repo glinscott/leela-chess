@@ -19,6 +19,8 @@
 
 #include "factory.h" // network.h, optionsdict.h
 #include "blas_transforms.h"
+#include <cassert>
+#include <cmath>
 
 /* A table of variable conversions from lczero/Network.cpp to lc0/network.h
 
@@ -73,13 +75,7 @@ class BlasNetworkComputation : public NetworkComputation {
     return output_policies_[sample][move_id];
   }
 
-  void ComputeBlocking() override {
-    //printf("evaluating batch of %lu nodes\n", inputs_.size());
-    output_values_.resize(inputs_.size());
-    output_policies_.resize(inputs_.size());
-    for (size_t i = 0; i < inputs_.size(); i++)
-      std::tie(output_values_[i], output_policies_[i]) = network_->evaluate(inputs_[i]);
-};
+  void ComputeBlocking() override;
 
  private:
   std::vector<InputPlanes> inputs_;
@@ -89,7 +85,7 @@ class BlasNetworkComputation : public NetworkComputation {
 };
 
 class BlasNetwork : public Network {
-
+ public:
   BlasNetwork(const Weights& weights, const OptionsDict& options);
 
   std::unique_ptr<NetworkComputation> NewComputation() override {
@@ -99,31 +95,38 @@ class BlasNetwork : public Network {
   // this is the main function used by outside code
   std::pair<float, std::vector<float>> evaluate(InputPlanes& input) const;
 
+ private:
   // forwardPass is the actual network computation; evaluate() wraps this.
-  virtual void forwardPass(const std::vector<float>& input,
-                                 std::vector<float>& policy_data,
-                                 std::vector<float>& value_data) /*const*/; 
+  void forwardPass(const std::vector<float>& input,
+                         std::vector<float>& policy_data,
+                         std::vector<float>& value_data) const;
 
   Weights weights_;
   const OptionsDict& options_;
 };
 
-using BlasTransforms;
+void BlasNetworkComputation::ComputeBlocking() {
+  //printf("evaluating batch of %lu nodes\n", inputs_.size());
+  output_values_.resize(inputs_.size());
+  output_policies_.resize(inputs_.size());
+  for (size_t i = 0; i < inputs_.size(); i++)
+   std::tie(output_values_[i], output_policies_[i]) = network_->evaluate(inputs_[i]);
+}
 
 BlasNetwork::BlasNetwork(const Weights& weights, const OptionsDict& options)
   : weights_(weights), options_(options) {
   // this matches old Network::initialize, in Network.cpp:375-416
-  initOneBlock(weights_.input, true);
+  BlasTransforms::initOneBlock(weights_.input, true);
   for (auto& resblock : weights_.residual) {
-    initOneBlock(resblock.conv1);
-    initOneBlock(resblock.conv2);
+    BlasTransforms::initOneBlock(resblock.conv1);
+    BlasTransforms::initOneBlock(resblock.conv2);
   }
-  initOneBlock(weights_.policy, false, true);
-  initOneBlock(weights_.value, false, true);
+  BlasTransforms::initOneBlock(weights_.policy, false, true);
+  BlasTransforms::initOneBlock(weights_.value, false, true);
   printf("blas init complete\n");
 }
 
-std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputplanes) /*const*/ {
+std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputplanes) const {
   auto input_data = std::vector<float>(kInputPlanes*64, 0.0); // get_input_channels()*w*h
   size_t index = 0;
   for (auto& plane : inputplanes) {
@@ -148,12 +151,12 @@ std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputpla
   //  printf("%g ", policy_data[i]);
 
   std::vector<float> output(weights_.ip2_val_b.size());
-  innerproduct(value_data, weights_.ip2_val_w, weights_.ip2_val_b, output);
+  BlasTransforms::innerproduct(value_data, weights_.ip2_val_w, weights_.ip2_val_b, output);
   assert(output.size() == 1);
   auto value = output[0];
 
   // normalize outputs
-  auto policy = softmax(policy_data);
+  auto policy = BlasTransforms::softmax(policy_data);
   value = std::tanh(value);
   //printf("returning network evaluation %g\n", value);
   return std::pair<float, std::vector<float>>(value, policy);
@@ -161,7 +164,7 @@ std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputpla
 
 void BlasNetwork::forwardPass(const std::vector<float>& input,
                               std::vector<float>& output_pol,
-                              std::vector<float>& output_val) {
+                              std::vector<float>& output_val) const {
     // Input convolution
     constexpr int width = 8;
     constexpr int height = 8;
@@ -182,10 +185,10 @@ void BlasNetwork::forwardPass(const std::vector<float>& input,
     std::vector<float> policy_data(weights_.policy.bn_means.size() * width * height); // NUM_POLICY_INPUT_PLANES*w*h
     std::vector<float> value_data(weights_.value.bn_means.size() * width * height); // NUM_VALUE_INPUT_PLANES*w*h
 
-    winograd_convolve3(output_channels, input, weights_.input.weights, V, M, conv_out);
-    batchnorm(output_channels, conv_out,
-              weights_.input.bn_means,
-              weights_.input.bn_stddivs);
+    BlasTransforms::winograd_convolve3(output_channels, input, weights_.input.weights, V, M, conv_out);
+    BlasTransforms::batchnorm(output_channels, conv_out,
+                              weights_.input.bn_means,
+                              weights_.input.bn_stddivs);
 
     // Residual tower
     auto conv_in = std::vector<float>(output_channels * width * height);
@@ -194,28 +197,32 @@ void BlasNetwork::forwardPass(const std::vector<float>& input,
       auto output_channels = resblock.conv1.biases.size(); // really confusing overload of variable names.... gcp pls...
       std::swap(conv_out, conv_in);
       std::copy(begin(conv_in), end(conv_in), begin(res));
-      winograd_convolve3(output_channels, conv_in,
-                         resblock.conv1.weights, V, M, conv_out);
-      batchnorm(output_channels, conv_out,
-                resblock.conv1.bn_means,
-                resblock.conv1.bn_stddivs);
+      BlasTransforms::winograd_convolve3(output_channels, conv_in,
+                                         resblock.conv1.weights, V, M, conv_out);
+      BlasTransforms::batchnorm(output_channels, conv_out,
+                                resblock.conv1.bn_means,
+                                resblock.conv1.bn_stddivs);
 
       output_channels = resblock.conv2.biases.size();
       std::swap(conv_out, conv_in);
-      winograd_convolve3(output_channels, conv_in,
-                         resblock.conv2.weights, V, M, conv_out);
-      batchnorm(output_channels, conv_out,
-                resblock.conv2.bn_means,
-                resblock.conv2.bn_stddivs,
-                res.data());
+      BlasTransforms::winograd_convolve3(output_channels, conv_in,
+                                         resblock.conv2.weights, V, M, conv_out);
+      BlasTransforms::batchnorm(output_channels, conv_out,
+                                resblock.conv2.bn_means,
+                                resblock.conv2.bn_stddivs,
+                                res.data());
     }
-    convolve(weights_.policy.bn_means.size(), conv_out, weights_.policy.weights, weights_.policy.biases, policy_data); // NUM_POLICY_INPUT_PLANES
-    batchnorm(weights_.policy.bn_means.size(), policy_data, weights_.policy.bn_means, weights_.policy.bn_stddivs); // NUM_POLICY_INPUT_PLANES
-    innerproduct(policy_data, weights_.ip_pol_w, weights_.ip_pol_b, output_pol);
+    BlasTransforms::convolve(weights_.policy.bn_means.size(), conv_out, // NUM_POLICY_INPUT_PLANES
+                             weights_.policy.weights, weights_.policy.biases, policy_data);
+    BlasTransforms::batchnorm(weights_.policy.bn_means.size(), policy_data, // NUM_POLICY_INPUT_PLANES
+                              weights_.policy.bn_means, weights_.policy.bn_stddivs);
+    BlasTransforms::innerproduct(policy_data, weights_.ip_pol_w, weights_.ip_pol_b, output_pol);
 
-    convolve(weights_.value.bn_means.size(), conv_out, weights_.value.weights, weights_.value.biases, value_data); // NUM_VALUE_INPUT_PLANES
-    batchnorm(weights_.value.bn_means.size(), value_data, weights_.value.bn_means, weights_.value.bn_stddivs); // NUM_VALUE_INPUT_PLANES
-    innerproduct(value_data, weights_.ip1_val_w, weights_.ip1_val_b, output_val, true); // value head gets relu applied
+    BlasTransforms::convolve(weights_.value.bn_means.size(), conv_out, // NUM_VALUE_INPUT_PLANES
+                             weights_.value.weights, weights_.value.biases, value_data);
+    BlasTransforms::batchnorm(weights_.value.bn_means.size(), value_data, // NUM_VALUE_INPUT_PLANES
+                              weights_.value.bn_means, weights_.value.bn_stddivs);
+    BlasTransforms::innerproduct(value_data, weights_.ip1_val_w, weights_.ip1_val_b, output_val, true); // value head gets relu applied
 }
 
 REGISTER_NETWORK("blas", BlasNetwork, 80)

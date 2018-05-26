@@ -20,11 +20,15 @@
 #include "blas_transforms.h"
 #include "opencl/OpenCLParams.h"
 #include "opencl/OpenCL.h"
+#include <cassert>
+#include <cmath>
 
 // Note that OpenCLNetworkComputation and OpenCLNetwork::evaluate are identical
 // to their Blas counterpart, and the constructors are nearly so
 
 namespace lczero {
+
+class OpenCLNetwork;
 
 // literally copy and pasted from network_blas.cc
 class OpenCLNetworkComputation : public NetworkComputation {
@@ -48,13 +52,7 @@ class OpenCLNetworkComputation : public NetworkComputation {
     return output_policies_[sample][move_id];
   }
 
-  void ComputeBlocking() override {
-    //printf("evaluating batch of %lu nodes\n", inputs_.size());
-    output_values_.resize(inputs_.size());
-    output_policies_.resize(inputs_.size());
-    for (size_t i = 0; i < inputs_.size(); i++)
-      std::tie(output_values_[i], output_policies_[i]) = network_->evaluate(inputs_[i]);
-};
+  void ComputeBlocking() override;
 
  private:
   std::vector<InputPlanes> inputs_;
@@ -68,20 +66,34 @@ class OpenCLNetwork : public Network {
  public:
   OpenCLNetwork(const Weights& weights, const OptionsDict& options);
 
+  std::unique_ptr<NetworkComputation> NewComputation() override {
+    return std::make_unique<OpenCLNetworkComputation>(this);
+  }
+
   std::pair<float, std::vector<float>> evaluate(InputPlanes& input) /*const*/;
 
+ private:
   OpenCLParams params_;
   OpenCL opencl_;
   OpenCL_Network opencl_net_;
   Weights::Vec ip2_val_w_; // final value head matmul is on cpu
   Weights::Vec ip2_val_b_;
+  size_t policy_data_size_, value_data_size_;
 };
 
-using BlasTransforms;
+void OpenCLNetworkComputation::ComputeBlocking() {
+    //printf("evaluating batch of %lu nodes\n", inputs_.size());
+    output_values_.resize(inputs_.size());
+    output_policies_.resize(inputs_.size());
+    for (size_t i = 0; i < inputs_.size(); i++)
+      std::tie(output_values_[i], output_policies_[i]) = network_->evaluate(inputs_[i]);
+  }
 
 OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
-    params_(), opencl_(), opencl_net_(opencl_),
-    ip2_val_w_(weights.ip2_val_w), ip2_val_b_(weights.ip2_val_b) {
+    : params_(), opencl_(), opencl_net_(opencl_),
+      ip2_val_w_(weights.ip2_val_w), ip2_val_b_(weights.ip2_val_b),
+      policy_data_size_(weights.ip_pol_b.size()),
+      value_data_size_(weights.ip1_val_b.size()) {
 
   Weights weights_ = weights; // scratch weights, to be discarded
 
@@ -104,23 +116,24 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
     size_t m_ceil = ceilMultiple(ceilMultiple(channels, mwg), vwm);
     size_t k_ceil = ceilMultiple(ceilMultiple(kInputPlanes, kwg), vwm);
 
-    initOneBlock(weights_.input, true);
-    auto Upad = zeropad_U(weights_.input.weights, channels, kInputPlanes, m_ceil, k_ceil);
+    BlasTransforms::initOneBlock(weights_.input, true);
+    auto Upad = BlasTransforms::zeropad_U(weights_.input.weights, channels, kInputPlanes, m_ceil, k_ceil);
     opencl_net_.push_input_convolution(WINOGRAD_ALPHA, kInputPlanes, channels,
                                        Upad, weights_.input.bn_means, weights_.input.bn_stddivs);
 
     for (auto& resblock : weights_.residual) {
-      initOneBlock(resblock.conv1);
-      initOneBlock(resblock.conv2);
-      auto Upad1 = zeropad_U(resblock.conv1.weights, channels, channels, m_ceil, m_ceil);
-      auto Upad2 = zeropad_U(resblock.conv2.weights, channels, channels, m_ceil, m_ceil);
+      BlasTransforms::initOneBlock(resblock.conv1);
+      BlasTransforms::initOneBlock(resblock.conv2);
+      auto Upad1 = BlasTransforms::zeropad_U(resblock.conv1.weights, channels, channels, m_ceil, m_ceil);
+      auto Upad2 = BlasTransforms::zeropad_U(resblock.conv2.weights, channels, channels, m_ceil, m_ceil);
       opencl_net_.push_residual(WINOGRAD_ALPHA, channels, channels,
                                 Upad1, resblock.conv1.bn_means, resblock.conv1.bn_stddivs,
                                 Upad2, resblock.conv2.bn_means, resblock.conv2.bn_stddivs);
     }
 
-    initOneBlock(weights_.policy, false, true);
-    initOneBlock(weights_.value, false, true);
+    BlasTransforms::initOneBlock(weights_.policy, false, true);
+    BlasTransforms::initOneBlock(weights_.value, false, true);
+
     constexpr unsigned int width = 8;
     constexpr unsigned int height = 8;
     const auto num_p_inputs  = weights_.policy.bn_means.size(); // NUM_POLICY_INPUT_PLANES
@@ -144,7 +157,7 @@ OpenCLNetwork::OpenCLNetwork(const Weights& weights, const OptionsDict& options)
 }
 
 // literally Ctrl+C -> Ctrl+V from network_blas.cc
-std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputplanes) /*const*/ {
+std::pair<float, std::vector<float>> OpenCLNetwork::evaluate(InputPlanes& inputplanes) /*const*/ {
   auto input_data = std::vector<float>(kInputPlanes*64, 0.0); // get_input_channels()*w*h
   size_t index = 0;
   for (auto& plane : inputplanes) {
@@ -156,8 +169,8 @@ std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputpla
   }
   assert(index == input_data.size());
 
-  auto policy_data = std::vector<float>(weights_.ip_pol_b.size()); // get_num_output_policy()
-  auto value_data = std::vector<float>(weights_.ip1_val_b.size()); // NUM_VALUE_CHANNELS
+  auto policy_data = std::vector<float>(policy_data_size_); // get_num_output_policy()
+  auto value_data = std::vector<float>(value_data_size_); // NUM_VALUE_CHANNELS
 
   //printf("Network::evaluate: input parsed, calling network...\n");
   opencl_net_.forward(input_data, policy_data, value_data);
@@ -169,12 +182,12 @@ std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputpla
   //  printf("%g ", policy_data[i]);
 
   std::vector<float> output(ip2_val_b_.size());
-  innerproduct(value_data, ip2_val_w_, ip2_val_b_, output);
+  BlasTransforms::innerproduct(value_data, ip2_val_w_, ip2_val_b_, output);
   assert(output.size() == 1);
   auto value = output[0];
 
   // normalize outputs
-  auto policy = softmax(policy_data);
+  auto policy = BlasTransforms::softmax(policy_data);
   value = std::tanh(value);
   //printf("returning network evaluation %g\n", value);
   return std::pair<float, std::vector<float>>(value, policy);

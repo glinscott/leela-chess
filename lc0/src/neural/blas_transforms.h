@@ -104,6 +104,6 @@ namespace lczero { // TODO: The stuff above is used by OpenCL
                                         const int outputs, const int channels,
                                         const int outputs_pad,
                                         const int channels_pad);
-  }
+  };
 
 } // namespace lczero
