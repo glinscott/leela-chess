@@ -181,16 +181,6 @@ class OpenCLNetwork : public BlasNetwork {
                                       const int outputs_pad,
                                       const int channels_pad);
 
-  bool compare_net_outputs(const std::vector<float>& data,
-                           const std::vector<float>& ref,
-                           bool& fatal,
-                           bool display_only = false,
-                           std::string info = "") const;
-
-  void doSelfCheck(const std::vector<float>& input_data,
-                   const std::vector<float>& policy_data,
-                   const std::vector<float>& value_data) /*const*/;
-
   static constexpr int SELFCHECK_PROBABILITY = 2000; // 1/2000
   static constexpr int SELFCHECK_MIN_EXPANSIONS = 2'000'000;
 
