@@ -27,19 +27,17 @@ import (
 	"github.com/Tilps/chess"
 )
 
-var hostname = flag.String("hostname", "http://api.lczero.org", "Address of the server")
+var hostname = flag.String("hostname", "http://testserver.lczero.org", "Address of the server")
 var user = flag.String("user", "", "Username")
 var password = flag.String("password", "", "Password")
 var gpu = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
 var debug = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
+var lc0Args = flag.String("lc0args", "", `Extra args to pass to the backend.  example: --lc0args="--parallelism=10 --threads=2"`)
 
 type Settings struct {
 	User string
 	Pass string
 }
-
-//var lc0_args = []string{"--temperature=1", "--noise", "--no-smart-pruning", "--minibatch-size=1"}
-var lc0_args = []string{"--temperature=1", "--noise"}
 
 /*
 	Reads the user and password from a config file and returns empty strings if anything went wrong.
@@ -189,13 +187,17 @@ func CreateCmdWrapper() *CmdWrapper {
 func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 	weights := fmt.Sprintf("--weights=%s", networkPath)
 	dir, _ := os.Getwd()
-	lcargs := []string{"selfplay", weights, "--training=true", "--visits=800"}
-	lcargs = append(lcargs, lc0_args...)
+	lcargs := []string{"selfplay", weights, "--training=true"}
 	c.Cmd = exec.Command(path.Join(dir, "lc0"), lcargs...)
-	// TODO: server args are hosed right now.
-	//	c.Cmd.Args = append(c.Cmd.Args, args...)
-	if *gpu != -1 {
-		c.Cmd.Args = append(c.Cmd.Args, fmt.Sprintf("--gpu=%v", *gpu))
+	c.Cmd.Args = append(c.Cmd.Args, args...)
+	if *lc0Args != "" {
+		// TODO: We might want to inspect these to prevent someone
+		// from passing a different visits or batch size for example.
+		// Possibly just exposts exact args we want to passthrough like
+		// backend.  For testing right now this is probably useful to not
+		// need to rebuild the client to change lc0 args.
+		parts := strings.Split(*lc0Args, " ")
+		c.Cmd.Args = append(c.Cmd.Args, parts...)
 	}
 	if !*debug {
 		//		c.Cmd.Args = append(c.Cmd.Args, "--quiet")
@@ -242,7 +244,7 @@ func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 			case strings.HasPrefix(line, "id name lczero "):
 				c.Version = strings.Split(line, " ")[3]
 			case strings.HasPrefix(line, "info"):
-				// just swallow this line.
+				fallthrough
 			default:
 				fmt.Println(line)
 			}
@@ -407,6 +409,7 @@ func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, err
 	// Otherwise, let's download it
 	err := client.DownloadNetwork(httpClient, *hostname, path, sha)
 	if err != nil {
+		log.Print("Network download failed: %v", err)
 		return "", err
 	}
 	return path, nil
@@ -424,6 +427,9 @@ func nextGame(httpClient *http.Client, count int) error {
 	}
 
 	if nextGame.Type == "match" {
+		// TODO: fix match play
+		log.Fatal("Match doesn't work yet.")
+		
 		networkPath, err := getNetwork(httpClient, nextGame.Sha, false)
 		if err != nil {
 			return err
