@@ -27,7 +27,7 @@
 namespace lczero {
 
 void BlasNetworkComputation::ComputeBlocking() {
-  printf("evaluating batch of %d nodes\n", inputs_.size());
+  //printf("evaluating batch of %lu nodes\n", inputs_.size());
   output_values_.resize(inputs_.size());
   output_policies_.resize(inputs_.size());
   for (size_t i = 0; i < inputs_.size(); i++)
@@ -44,7 +44,7 @@ BlasNetwork::BlasNetwork(const Weights& weights, const OptionsDict& options)
   }
   initOneBlock(weights_.policy, false, true);
   initOneBlock(weights_.value, false, true);
-  printf("blas init complete\n");
+  //printf("blas init complete\n");
 }
 
 void BlasNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer, bool headlayer) {
@@ -75,12 +75,6 @@ void BlasNetwork::initOneBlock(Weights::ConvBlock& block, bool inputlayer, bool 
   }
 }
 
-void BlasNetwork::forwardPass(const std::vector<float>& input_data,
-                              std::vector<float>& policy_data,
-                              std::vector<float>& value_data) {
-
-}
-
 std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputplanes) /*const*/ {
   auto input_data = std::vector<float>(kInputPlanes*64, 0.0); // get_input_channels()*w*h
   size_t index = 0;
@@ -96,25 +90,25 @@ std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputpla
   auto policy_data = std::vector<float>(weights_.ip_pol_b.size()); // get_num_output_policy()
   auto value_data = std::vector<float>(weights_.ip1_val_b.size()); // NUM_VALUE_CHANNELS
 
-  printf("Network::evaluate: input parsed, calling network...\n");
+  //printf("Network::evaluate: input parsed, calling network...\n");
   forwardPass(input_data, policy_data, value_data);
-  printf("Network forward pass complete, raw output:\n");
-  for (size_t i = 0; i < value_data.size(); i++)
-    printf("%g ", value_data[i]);
-  printf("\n");
-  for (size_t i = 0; i < policy_data.size(); i++)
-    printf("%g ", policy_data[i]);
+  //printf("Network forward pass complete, raw output:\n");
+  //for (size_t i = 0; i < value_data.size(); i++)
+  //  printf("%g ", value_data[i]);
+  //printf("\n");
+  //for (size_t i = 0; i < policy_data.size(); i++)
+  //  printf("%g ", policy_data[i]);
 
 
   std::vector<float> output(weights_.ip2_val_b.size());
-  innerproduct(value_data, weights_.ip2_val_w, weights_.ip2_val_b, output)
+  innerproduct(value_data, weights_.ip2_val_w, weights_.ip2_val_b, output);
   assert(output.size() == 1);
   auto value = output[0];
 
   // normalize outputs
   auto policy = softmax(policy_data);
   value = std::tanh(value);
-  printf("returning network evaluation %g\n", value);
+  //printf("returning network evaluation %g\n", value);
   return std::pair<float, std::vector<float>>(value, policy);
 }
 
@@ -207,7 +201,6 @@ void BlasNetwork::innerproduct(const std::vector<float>& inputs,
 void BlasNetwork::winograd_transform_in(const std::vector<float>& in,
                                         std::vector<float>& V,
                                         const int C) {
-    std::vector<float> V;
     constexpr auto W = 8;
     constexpr auto H = 8;
     constexpr auto wtiles = (W + 1) / 2;
@@ -414,7 +407,6 @@ void BlasNetwork::convolve(size_t outputs,
     // lczero only has filter_size, and filter_size=1 was specialized to merely this memcpy:
     std::copy(begin(input), begin(input)+col.size(), begin(col));
     // TODO: wtf?
-    
 
     // Weight shape (output, input, filter_size, filter_size)
     // 96 22 3 3
@@ -449,7 +441,7 @@ void BlasNetwork::batchnorm(size_t channels,
                             std::vector<float>& data,
                             const std::vector<float>& means,
                             const std::vector<float>& stddivs,
-                            const float* eltwise = nullptr)
+                            const float* eltwise)
 {
     constexpr size_t spatial_size = 64; // either literal or width*height in forward_cpu
     auto lambda_ReLU = [](float val) { return (val > 0.0f) ?
@@ -480,7 +472,7 @@ void BlasNetwork::batchnorm(size_t channels,
 
 void BlasNetwork::forwardPass(const std::vector<float>& input,
                               std::vector<float>& output_pol,
-                              std::vector<float>& output_val) const {
+                              std::vector<float>& output_val) {
     // Input convolution
     constexpr int width = 8;
     constexpr int height = 8;
@@ -509,8 +501,8 @@ void BlasNetwork::forwardPass(const std::vector<float>& input,
     // Residual tower
     auto conv_in = std::vector<float>(output_channels * width * height);
     auto res = std::vector<float>(output_channels * width * height);
-    for (auto& resblock : weights.residual) {
-      auto output_chahnels = resblock.conv1.biases.size();
+    for (auto& resblock : weights_.residual) {
+      auto output_channels = resblock.conv1.biases.size(); // really confusing overload of variable names.... gcp pls...
       std::swap(conv_out, conv_in);
       std::copy(begin(conv_in), end(conv_in), begin(res));
       winograd_convolve3(output_channels, conv_in,

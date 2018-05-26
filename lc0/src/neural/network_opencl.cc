@@ -101,7 +101,7 @@ std::vector<float> OpenCLNetwork::zeropad_U(const std::vector<float>& U, const i
 inline void OpenCLNetwork::forwardPass(const std::vector<float>& input_data,
                                        std::vector<float>& policy_data,
                                        std::vector<float>& value_data) {
-  printf("evaluating network...\n");
+  //printf("evaluating network...\n");
   opencl_.forward(input_data, policy_data, value_data);
 
 #ifdef USE_OPENCL_SELFCHECK

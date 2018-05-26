@@ -143,10 +143,9 @@ class BlasNetwork : public Network {
                              std::vector<float>& V,
                              std::vector<float>& M,
                              const int C, const int K);
-  static void winograd_transform_out(const std::vector<float>& U,
-                                     std::vector<float>& V,
-                                     std::vector<float>& M,
-                                     const int C, const int K);
+  static void winograd_transform_out(const std::vector<float>& M,
+                                     std::vector<float>& Y,
+                                     const int K);
   static void winograd_convolve3(const int outputs,
                                  const std::vector<float>& input,
                                  const std::vector<float>& U,
