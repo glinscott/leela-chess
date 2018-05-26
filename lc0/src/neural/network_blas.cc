@@ -27,13 +27,13 @@
 namespace lczero {
 
 void BlasNetworkComputation::ComputeBlocking() {
-  printf("evaluating batch of %d nodes\n", inputs.size());
-  output_values = std::vector<float>(inputs.size());
-  output_policies = std::vector<std::vector<float>>(inputs.size());
-  for (size_t i = 0; i < inputs.size(); i++)
-    std::tie(output_values[i], output_policies[i]) = network->evaluate(inputs[i]);
-  for (size_t i = 0; i < output_values.size(); i++)
-    printf("node %d: evaluation %g\n", i, output_values[i]);
+  printf("evaluating batch of %d nodes\n", inputs_.size());
+  output_values_.resize(inputs_.size());
+  output_policies_.resize(inputs_.size());
+  for (size_t i = 0; i < inputs_.size(); i++)
+    std::tie(output_values_[i], output_policies_[i]) = network_->evaluate(inputs_[i]);
+  for (size_t i = 0; i < output_values_.size(); i++)
+    printf("node %d: evaluation %g\n", i, output_values_[i]);
 }
 
 BlasNetwork::BlasNetwork(const Weights& weights, const OptionsDict& options)
@@ -83,7 +83,7 @@ void BlasNetwork::forwardPass(const std::vector<float>& input_data,
 
 }
 
-std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputplanes) {
+std::pair<float, std::vector<float>> BlasNetwork::evaluate(InputPlanes& inputplanes) /*const*/ {
   auto input_data = std::vector<float>(kInputPlanes*64, 0.0); // get_input_channels()*w*h
   size_t index = 0;
   for (auto& plane : inputplanes) {
@@ -164,7 +164,7 @@ std::vector<float> BlasNetwork::winograd_transform_f(const std::vector<float>& f
 
 std::vector<float> BlasNetwork::softmax(const std::vector<float>& inputs, float temperature) {
   auto outputs = std::vector<float>(inputs.size());
-  auto alpha = *std::max_element(begin(inputs), begin(inputs) + outputs.size());
+  auto alpha = *std::max_element(begin(inputs), end(inputs));
   alpha /= temperature;
   auto denom = 0.0f;
   for (size_t i = 0; i < inputs.size(); i++) {

@@ -141,7 +141,7 @@ bool OpenCLNetwork::compare_net_outputs(const std::vector<float>& data,
                                         const std::vector<float>& ref,
                                         bool& fatal,
                                         bool display_only,
-                                        std::string info) {
+                                        std::string info) const {
     bool almost_equal = true;
     // The idea is to allow an OpenCL error > 10% every SELFCHECK_MIN_EXPANSIONS
     // correct expansions. As the num_expansions increases between errors > 10%,
@@ -177,7 +177,7 @@ bool OpenCLNetwork::compare_net_outputs(const std::vector<float>& data,
 
 void OpenCLNetwork::doSelfCheck(const std::vector<float>& input_data,
                                 const std::vector<float>& policy_data,
-                                const std::vector<float>& value_data) {
+                                const std::vector<float>& value_data) /*const*/ {
   std::vector<float> cpu_policy_data(policy_data.size());
   std::vector<float> cpu_value_data(value_data.size());
   bool fatal = false;

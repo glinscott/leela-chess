@@ -67,31 +67,31 @@ class BlasNetwork;
 class BlasNetworkComputation : public NetworkComputation {
 
  public:
-  BlasNetworkComputation(BlasNetwork* network) : network(network) {}
+  BlasNetworkComputation(BlasNetwork* network) : network_(network) {}
 
   void AddInput(InputPlanes&& input) override {
-    inputs.emplace_back(input);
+    inputs_.emplace_back(input);
   }
 
   int GetBatchSize() const override {
-    return inputs.size();
+    return inputs_.size();
   }
 
   float GetQVal(int sample) const override {
-    return output_values[sample];
+    return output_values_[sample];
   }
 
   float GetPVal(int sample, int move_id) const override {
-    return output_policies[sample][move_id];
+    return output_policies_[sample][move_id];
   }
 
   void ComputeBlocking() override;
 
  private:
-  std::vector<InputPlanes> inputs;
-  std::vector<float>   output_values;
-  std::vector<std::vector<float>> output_policies;
-  BlasNetwork* network;
+  std::vector<InputPlanes> inputs_;
+  std::vector<float>   output_values_;
+  std::vector<std::vector<float>> output_policies_;
+  BlasNetwork* network_;
 };
 
 class BlasNetwork : public Network {
@@ -103,14 +103,16 @@ class BlasNetwork : public Network {
     return std::make_unique<BlasNetworkComputation>(this);
   }
 
-  std::pair<float, std::vector<float>> evaluate(InputPlanes& input);
   // this is the main function used by outside code
+  std::pair<float, std::vector<float>> evaluate(InputPlanes& input) /*const*/;
 
  protected: // shared functions between blas and OpenCL implementations
+
+  // forwardPass is the actual network computation; evaluate() wraps this.
   virtual void forwardPass(const std::vector<float>& input,
                                  std::vector<float>& policy_data,
-                                 std::vector<float>& value_data);
-  // forwardPass is the actual network computation; evaluate() wraps this.
+                                 std::vector<float>& value_data) /*const*/;
+
   static std::vector<float> innerproduct(const std::vector<float>& inputs,
                                          const std::vector<float>& weights,
                                          const std::vector<float>& biases,
@@ -149,8 +151,8 @@ class OpenCLNetwork : public BlasNetwork {
 
  private:
   void forwardPass(const std::vector<float>& input_data,
-                                std::vector<float>& policy_data,
-                                std::vector<float>& value_data) override;
+                   std::vector<float>& policy_data,
+                   std::vector<float>& value_data) /*const*/ override;
 
   static std::vector<float> zeropad_U(const std::vector<float>& U,
                                       const int outputs, const int channels,
@@ -161,11 +163,11 @@ class OpenCLNetwork : public BlasNetwork {
                            const std::vector<float>& ref,
                            bool& fatal,
                            bool display_only = false,
-                           std::string info = "");
+                           std::string info = "") const;
 
   void doSelfCheck(const std::vector<float>& input_data,
                    const std::vector<float>& policy_data,
-                   const std::vector<float>& value_data);
+                   const std::vector<float>& value_data) /*const*/;
 
   static constexpr int SELFCHECK_PROBABILITY = 2000; // 1/2000
   static constexpr int SELFCHECK_MIN_EXPANSIONS = 2'000'000;
