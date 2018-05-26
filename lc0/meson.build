@@ -132,7 +132,7 @@ if get_option('build_backends')
   accelerate_lib = dependency('Accelerate', required: false)
 
   mkl_libdirs = get_option('mkl_libdirs')
-  mkl_lib = cc.find_library('mkl', dirs: mkl_libdirs, required: false)
+  mkl_lib = cc.find_library('mkl_rt', dirs: mkl_libdirs, required: false)
 
   openblas_lib = cc.find_library('openblas', required: false)
 
@@ -145,11 +145,6 @@ if get_option('build_backends')
     includes += include_directories('/System/Library/Frameworks/Accelerate.framework/Frameworks/vecLib.framework/Headers')
     deps += [ accelerate_lib ]
     has_blas = true
-
-  elif accelerate_lib.found()
-  	includes += include_directories('/System/Library/Frameworks/Accelerate.framework/Frameworks/vecLib.framework/Headers')
-    deps += [ accelerate_lib ]
-  	has_blas = true
 
   elif openblas_lib.found() 
     add_project_arguments('-DUSE_OPENBLAS', language : 'cpp')
