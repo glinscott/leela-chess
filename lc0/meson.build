@@ -163,6 +163,23 @@ if get_option('build_backends')
     has_backends = true
   endif
 
+
+  ## ~~~~~~
+  ## OpenCL
+  ## ~~~~~~
+  # TODO: Add conditional compile
+  files += 'src/neural/network_opencl.cc'
+  files += 'src/neural/network_old.cpp'
+  deps += cc.find_library('openblas')
+  deps += cc.find_library('OpenCL')
+  # TODO: My system doesn't have this dir.
+  #includes += include_directories('/usr/include/openblas')
+  # TODO: Probably the real neural/loader.cc could be modified
+  # to use zlib. For now I'm adding this temporarily for my OpenCL hacks.
+  deps += dependency('zlib')
+
+  has_backends = true
+
 endif # if get_option('build_backends')
 
 if not has_backends and get_option('build_backends')
