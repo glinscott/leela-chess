@@ -134,6 +134,9 @@ bool UciLoop::DispatchCommand(
     GoParams go_params;
     if (ContainsKey(params, "infinite")) {
       go_params.infinite = true;
+      if (!GetOrEmpty(params, "infinite").empty()) {
+        throw Exception("Unexpected token " + GetOrEmpty(params, "infinite"));
+      }
     }
     if (ContainsKey(params, "searchmoves")) {
       go_params.searchmoves =
