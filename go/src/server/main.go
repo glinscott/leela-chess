@@ -1061,7 +1061,7 @@ func viewTrainingData(c *gin.Context) {
 
 	pgnFiles := []gin.H{}
 	pgnId := 9000000
-	for pgnId < int(id) {
+	for pgnId < int(id - 500000) {
 		pgnFiles = append([]gin.H{
 			gin.H{"url": fmt.Sprintf("https://s3.amazonaws.com/lczero/training/run1/pgn%d.tar.gz", pgnId)},
 		}, pgnFiles...)
