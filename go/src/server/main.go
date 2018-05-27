@@ -744,19 +744,22 @@ func frontPage(c *gin.Context) {
 		progress = filterProgress(progress)
 	}
 
-	/*
-	c.HTML(http.StatusOK, "index", gin.H{
-		"active_users": 0,
-		"games_played": 0,
-		"Users":        []gin.H{},
-		"progress":     progress,
-	})
-	*/
+	network := db.Network{}
+	err = db.GetDB().Last(&network).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+	trainPercent := int(math.Min(100.0, float64(network.GamesPlayed) / 40000.0 * 100.0))
+
 	c.HTML(http.StatusOK, "index", gin.H{
 		"active_users": users["active_users"],
 		"games_played": users["games_played"],
 		"Users":        users["users"],
 		"progress":     progress,
+		"train_percent": trainPercent,
+		"progress_info": fmt.Sprintf("%d/40000", network.GamesPlayed),
 	})
 }
 
@@ -952,9 +955,9 @@ func viewMatches(c *gin.Context) {
 	for _, match := range matches {
 		elo := calcElo(match.Wins, match.Losses, match.Draws)
 		elo_error := calcEloError(match.Wins, match.Losses, match.Draws)
-		elo_error_str := ""
+		elo_error_str := "Nan"
 		if !math.IsNaN(elo_error) {
-			elo_error_str = fmt.Sprintf("±%.2f", elo_error)
+			elo_error_str = fmt.Sprintf("±%.1f", elo_error)
 		}
 		table_class := "active"
 		if match.Done {
@@ -977,7 +980,7 @@ func viewMatches(c *gin.Context) {
 			"current_id":   match.CurrentBestID,
 			"candidate_id": match.CandidateID,
 			"score":        fmt.Sprintf("+%d -%d =%d", match.Wins, match.Losses, match.Draws),
-			"elo":          fmt.Sprintf("%.2f", elo),
+			"elo":          fmt.Sprintf("%.1f", elo),
 			"error":        elo_error_str,
 			"done":         match.Done,
 			"table_class":  table_class,

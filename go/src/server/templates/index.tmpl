@@ -19,6 +19,19 @@
   </div>
 </div>
 
+<div class="container">
+  <div class="row">
+    <div class="col-auto">
+      Next network:
+    </div>
+    <div class="col-12">
+      <div class="progress">
+        <div id="train-progress" class="progress-bar progress-bar-striped" role="progressbar" style="width: {{.train_percent}}%">{{.progress_info}}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="eloChart"></div>
 
 <h2>Active Users</h2>
@@ -152,5 +165,21 @@ var vlSpec = {
 }
 vegaEmbed("#eloChart", vlSpec, { actions: false })
 .catch(console.error);
+</script>
+
+<script>
+$(function() {
+  var interval = setInterval(function() {
+      var chunks = $("#train-progress").text().split('/');
+      var played = parseInt(chunks[0]);
+      var target = parseInt(chunks[1]);
+      played += 2;
+      if (played > target) played = target;
+      var current_progress = (played * 100.0) / target;
+      $("#train-progress")
+      .css("width", current_progress + "%")
+      .text(played + "/" + target);
+  }, 1000);
+});
 </script>
 {{end}}
