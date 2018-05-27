@@ -36,8 +36,11 @@ std::vector<std::string> GetFileList(const std::string& directory) {
   DIR* dir = opendir(directory.c_str());
   if (!dir) return result;
   while (auto* entry = readdir(dir)) {
-    if (entry->d_type == DT_REG) {
+    switch (entry->d_type) {
+      case DT_REG:
+      case DT_LNK:
       result.push_back(entry->d_name);
+      break;
     }
   }
   closedir(dir);
