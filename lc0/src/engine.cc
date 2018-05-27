@@ -75,6 +75,12 @@ SearchLimits EngineController::PopulateSearchLimits(int /*ply*/, bool is_black,
   limits.visits = params.nodes;
   limits.time_ms = params.movetime;
   int64_t time = (is_black ? params.btime : params.wtime);
+  if (!params.searchmoves.empty()) {
+    limits.searchmoves.reserve(params.searchmoves.size());
+    for (const auto& move : params.searchmoves) {
+      limits.searchmoves.emplace_back(move);
+    }
+  }
   limits.infinite = params.infinite;
   if (params.infinite || time < 0) return limits;
   int increment = std::max(int64_t(0), is_black ? params.binc : params.winc);
