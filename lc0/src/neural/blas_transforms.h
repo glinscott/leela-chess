@@ -21,22 +21,20 @@
 #include <cstddef>
 #include "network.h"
 
-/* Features */
-#if defined(USE_BLAS) && !defined(__APPLE__) && !defined(__MACOSX)
-#define USE_OPENBLAS // TODO: move this to meson
+#define MAX_CPUS 128 // TODO: fix lc0 options maximum to this
+
+#ifdef __APPLE__
+#include <Accelerate/Accelerate.h>
 #endif
-//#define USE_MKL
 
-//#ifndef FEATURE_USE_CPU_ONLY
-//#define USE_OPENCL
-//#define USE_OPENCL_SELFCHECK
-//#endif
-//#define USE_TUNER
+#ifdef USE_MKL
+#include <mkl.h>
+#endif
 
+#ifdef USE_OPENBLAS
+#include <cblas.h>
 // OpenBLAS limitation
-#if defined(USE_BLAS) && defined(USE_OPENBLAS)
-#define MAX_CPUS 64
-#else
+#undef  MAX_CPUS
 #define MAX_CPUS 128
 #endif
 
