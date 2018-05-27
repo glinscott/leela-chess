@@ -965,6 +965,13 @@ func viewMatches(c *gin.Context) {
 			}
 		}
 
+		passed := "true"
+		if !match.Passed {
+			passed = "false"
+		}
+		if match.TestOnly {
+			passed = "test"
+		}
 		json = append(json, gin.H{
 			"id":           match.ID,
 			"current_id":   match.CurrentBestID,
@@ -974,7 +981,7 @@ func viewMatches(c *gin.Context) {
 			"error":        elo_error_str,
 			"done":         match.Done,
 			"table_class":  table_class,
-			"passed":       match.Passed,
+			"passed":       passed,
 			"created_at":   match.CreatedAt,
 		})
 	}
