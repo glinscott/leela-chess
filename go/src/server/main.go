@@ -577,10 +577,55 @@ ORDER BY count DESC`).Rows()
 	return result, nil
 }
 
-func calcElo(wins int, losses int, draws int) float64 {
-	score := float64(wins) + float64(draws)*0.5
-	total := float64(wins + losses + draws)
-	return -400 * math.Log10(1.0/(score/total)-1.0)
+func calcEloAndError(wins, losses, draws int) (elo, errorMargin float64) {
+	n := wins + losses + draws
+	w := float64(wins) / float64(n)
+	l := float64(losses) / float64(n)
+	d := float64(draws) / float64(n)
+	mu := w + d / 2
+
+	devW := w * math.Pow(1. - mu, 2.)
+	devL := l * math.Pow(0. - mu, 2.)
+	devD := d * math.Pow(0.5 - mu, 2.)
+	stdev := math.Sqrt(devD + devL + devW) / math.Sqrt(float64(n))
+
+	delta := func(p float64) float64 {
+		return -400. * math.Log10(1 / p - 1)
+	}
+
+	erfInv := func(x float64) float64 {
+		a := 8. * (math.Pi - 3.) / (3. * math.Pi * (4. - math.Pi))
+		y := math.Log(1. - x * x)
+		z := 2. / (math.Pi * a) + y / 2.
+
+		ret := math.Sqrt(math.Sqrt(z * z - y / a) - z)
+		if x < 0. {
+			return -ret
+		}
+		return ret
+	}
+
+	phiInv := func(p float64) float64 {
+		return math.Sqrt(2) * erfInv(2. * p - 1.)
+	}
+
+	muMin := mu + phiInv(0.025) * stdev
+	muMax := mu + phiInv(0.975) * stdev
+
+	elo = delta(mu)
+	errorMargin = (delta(muMax) - delta(muMin)) / 2.
+
+	return
+}
+
+func calcElo(wins, losses, draws int) float64 {
+	elo, _ := calcEloAndError(wins, losses, draws)
+	return elo
+}
+
+func calcEloError(wins, losses, draws int) float64 {
+	_, error := calcEloAndError(wins, losses, draws)
+	return error
 }
 
 func getProgress() ([]gin.H, map[uint]float64, error) {
@@ -906,6 +951,11 @@ func viewMatches(c *gin.Context) {
 	json := []gin.H{}
 	for _, match := range matches {
 		elo := calcElo(match.Wins, match.Losses, match.Draws)
+		elo_error := calcEloError(match.Wins, match.Losses, match.Draws)
+		elo_error_str := ""
+		if !math.IsNaN(elo_error) {
+			elo_error_str = fmt.Sprintf("±%.2f", elo_error)
+		}
 		table_class := "active"
 		if match.Done {
 			if match.Passed {
@@ -914,12 +964,14 @@ func viewMatches(c *gin.Context) {
 				table_class = "danger"
 			}
 		}
+
 		json = append(json, gin.H{
 			"id":           match.ID,
 			"current_id":   match.CurrentBestID,
 			"candidate_id": match.CandidateID,
 			"score":        fmt.Sprintf("+%d -%d =%d", match.Wins, match.Losses, match.Draws),
 			"elo":          fmt.Sprintf("%.2f", elo),
+			"error":        elo_error_str,
 			"done":         match.Done,
 			"table_class":  table_class,
 			"passed":       match.Passed,
