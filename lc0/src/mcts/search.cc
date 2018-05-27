@@ -658,7 +658,7 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
         if (!limits_.searchmoves.empty() &&
             std::find(limits_.searchmoves.begin(),
                       limits_.searchmoves.end(),
-                      iter->GetMove(root_color).as_string()) ==
+                      iter->GetMove(root_color)) ==
             limits_.searchmoves.end()) {
           continue;
         }
