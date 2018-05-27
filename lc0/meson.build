@@ -149,6 +149,7 @@ if get_option('build_backends')
 
   elif openblas_lib.found() 
     add_project_arguments('-DUSE_OPENBLAS', language : 'cpp')
+    includes += include_directories('/usr/include/openblas')
     deps += [ openblas_lib ]
     has_blas = true
 
