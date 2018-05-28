@@ -49,7 +49,7 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 	if err != nil {
 		return nil, 0, errors.New("Invalid version")
 	}
-	if version < 8 {
+	if version < 10 {
 		log.Printf("Rejecting old game from %s, version %d\n", user.Username, version)
 		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 	}
@@ -458,6 +458,11 @@ func matchResult(c *gin.Context) {
 	if err != nil {
 		log.Println(strings.TrimSpace(err.Error()))
 		c.String(http.StatusBadRequest, err.Error())
+		return
+	}
+	if !checkEngineVersion(c.PostForm("engineVersion")) {
+		log.Printf("Rejecting game with old lczero version %s", c.PostForm("engineVersion"))
+		c.String(http.StatusBadRequest, "\n\n\n\n\nYou must upgrade to a newer lczero version!!\n\n\n\n\n")
 		return
 	}
 
