@@ -2037,7 +2037,8 @@ class TrainingStep:
         sum = 0.0
         top_moves = {}
         for idx, prob in enumerate(self.probs):
-            if prob > 0.01:
+            # Include all moves with at least 1 visit.
+            if prob > 0.0:
                 top_moves[idx] = prob
             sum += prob
         for idx, prob in sorted(top_moves.items(), key=lambda x:-x[1]):
