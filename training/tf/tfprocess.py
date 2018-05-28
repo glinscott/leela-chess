@@ -190,9 +190,14 @@ class TFProcess:
         if not self.time_start:
             self.time_start = time.time()
 
+		# Get the initial steps value before we do a training step.
+        steps = tf.train.global_step(self.session, self.global_step)
+
 		# Run test before first step to see delta since end of last run.
-        if steps % self.cfg['training']['total_steps'] == 1:
-		    self.calculate_test_summaries(test_batches)
+        if steps % self.cfg['training']['total_steps'] == 0:
+			# Steps is given as one higher than current in order to avoid it
+			# being equal to the value the end of a run is stored against.
+		    self.calculate_test_summaries(test_batches, steps + 1)
 
         # Run training for this batch
         policy_loss, mse_loss, reg_term, _, _ = self.session.run(
@@ -200,6 +205,7 @@ class TFProcess:
                 self.next_batch],
             feed_dict={self.training: True, self.learning_rate: self.lr, self.handle: self.train_handle})
 
+		# Update steps since training should have incremented it.
         steps = tf.train.global_step(self.session, self.global_step)
 
         # Determine learning rate
@@ -245,7 +251,7 @@ class TFProcess:
 		# Calculate test values every 'test_steps', but also ensure there is
 		# one at the final step so the delta to the first step can be calculted.
         if steps % self.cfg['training']['test_steps'] == 0 or steps % self.cfg['training']['total_steps'] == 0:
-		    self.calculate_test_summaries(test_batches)
+		    self.calculate_test_summaries(test_batches, steps)
 
         if steps % self.cfg['training']['total_steps'] == 0:
             path = os.path.join(self.root_dir, self.cfg['name'])
@@ -255,7 +261,7 @@ class TFProcess:
             self.save_leelaz_weights(leela_path) 
             print("Weights saved in file: {}".format(leela_path))
 
-	def calculate_test_summaries(self, test_batches):
+	def calculate_test_summaries(self, test_batches, steps):
         sum_accuracy = 0
         sum_mse = 0
         sum_policy = 0
