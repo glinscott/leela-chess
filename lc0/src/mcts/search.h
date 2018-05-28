@@ -36,6 +36,7 @@ struct SearchLimits {
   std::int64_t visits = -1;
   std::int64_t playouts = -1;
   std::int64_t time_ms = -1;
+  bool infinite = false;
 };
 
 class Search {
@@ -82,6 +83,8 @@ class Search {
   static const char* kVirtualLossBugStr;
   static const char* kFpuReductionStr;
   static const char* kCacheHistoryLengthStr;
+  static const char* kExtraVirtualLossStr;
+  static const char* KPolicySoftmaxTempStr;
 
  private:
   // Can run several copies of it in separate threads.
@@ -152,6 +155,8 @@ class Search {
   const float kVirtualLossBug;
   const float kFpuReduction;
   const bool kCacheHistoryLength;
+  const float kExtraVirtualLoss;
+  const float KPolicySoftmaxTemp;
 };
 
 }  // namespace lczero
