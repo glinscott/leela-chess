@@ -34,9 +34,9 @@ var gpu = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, o
 var debug = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
 var lc0Args = flag.String("lc0args", "", `Extra args to pass to the backend.  example: --lc0args="--parallelism=10 --threads=2"`)
 
-type Settings struct {
-	User string
-	Pass string
+type settings struct {
+	user string
+	pass string
 }
 
 /*
@@ -44,7 +44,7 @@ type Settings struct {
 	If the config file does not exists, it prompts the user for a username and password and creates the config file.
 */
 func readSettings(path string) (string, string) {
-	settings := Settings{}
+	settings := settings{}
 	file, err := os.Open(path)
 	if err != nil {
 		// File was not found
@@ -52,9 +52,9 @@ func readSettings(path string) (string, string) {
 		fmt.Printf("Note that this password will be stored in plain text, so avoid a password that is\n")
 		fmt.Printf("also used for sensitive applications. It also cannot be recovered.\n")
 		fmt.Printf("Enter username : ")
-		fmt.Scanf("%s\n", &settings.User)
+		fmt.Scanf("%s\n", &settings.user)
 		fmt.Printf("Enter password : ")
-		fmt.Scanf("%s\n", &settings.Pass)
+		fmt.Scanf("%s\n", &settings.pass)
 		jsonSettings, err := json.Marshal(settings)
 		if err != nil {
 			log.Fatal("Cannot encode settings to JSON ", err)
@@ -66,7 +66,7 @@ func readSettings(path string) (string, string) {
 			return "", ""
 		}
 		fmt.Fprintf(settingsFile, "%s", jsonSettings)
-		return settings.User, settings.Pass
+		return settings.user, settings.pass
 	}
 	defer file.Close()
 	decoder := json.NewDecoder(file)
@@ -75,7 +75,7 @@ func readSettings(path string) (string, string) {
 		log.Fatal("Error decoding JSON ", err)
 		return "", ""
 	}
-	return settings.User, settings.Pass
+	return settings.user, settings.pass
 }
 
 func getExtraParams() map[string]string {
@@ -118,17 +118,17 @@ func uploadGame(httpClient *http.Client, path string, pgn string, nextGame clien
 	fmt.Println(resp.Header)
 	fmt.Println(body)
 
-	train_dir := filepath.Dir(path)
-	if _, err := os.Stat(train_dir); err == nil {
-		files, err := ioutil.ReadDir(train_dir)
+	trainDir := filepath.Dir(path)
+	if _, err := os.Stat(trainDir); err == nil {
+		files, err := ioutil.ReadDir(trainDir)
 		if err != nil {
 			log.Fatal(err)
 		}
 		fmt.Printf("Cleanup training files:\n")
 		for _, f := range files {
-			fmt.Printf("%s/%s\n", train_dir, f.Name())
+			fmt.Printf("%s/%s\n", trainDir, f.Name())
 		}
-		err = os.RemoveAll(train_dir)
+		err = os.RemoveAll(trainDir)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -142,7 +142,7 @@ type gameInfo struct {
 	fname string
 }
 
-type CmdWrapper struct {
+type cmdWrapper struct {
 	Cmd      *exec.Cmd
 	Pgn      string
 	Input    io.WriteCloser
@@ -151,7 +151,7 @@ type CmdWrapper struct {
 	Version  string
 }
 
-func (c *CmdWrapper) openInput() {
+func (c *cmdWrapper) openInput() {
 	var err error
 	c.Input, err = c.Cmd.StdinPipe()
 	if err != nil {
@@ -176,15 +176,15 @@ func convertMovesToPGN(moves []string) string {
 	return game2.String()
 }
 
-func CreateCmdWrapper() *CmdWrapper {
-	c := &CmdWrapper{
+func createCmdWrapper() *cmdWrapper {
+	c := &cmdWrapper{
 		gi:       make(chan gameInfo),
 		BestMove: make(chan string),
 	}
 	return c
 }
 
-func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
+func (c *cmdWrapper) launch(networkPath string, args []string, input bool) {
 	weights := fmt.Sprintf("--weights=%s", networkPath)
 	dir, _ := os.Getwd()
 	lcargs := []string{"selfplay", weights, "--training=true"}
@@ -269,11 +269,11 @@ func (c *CmdWrapper) launch(networkPath string, args []string, input bool) {
 }
 
 func playMatch(baselinePath string, candidatePath string, params []string, flip bool) (int, string, string, error) {
-	baseline := CmdWrapper{}
+	baseline := cmdWrapper{}
 	baseline.launch(baselinePath, params, true)
 	defer baseline.Input.Close()
 
-	candidate := CmdWrapper{}
+	candidate := cmdWrapper{}
 	candidate.launch(candidatePath, params, true)
 	defer candidate.Input.Close()
 
@@ -290,7 +290,7 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	// Play a game using UCI
 	var result int
 	game := chess.NewGame(chess.UseNotation(chess.LongAlgebraicNotation{}))
-	move_history := ""
+	moveHistory := ""
 	turn := 0
 	for {
 		if turn >= 450 || game.Outcome() != chess.NoOutcome || len(game.EligibleDraws()) > 1 {
@@ -309,31 +309,31 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 			break
 		}
 
-		var p *CmdWrapper
+		var p *cmdWrapper
 		if game.Position().Turn() == chess.White {
 			p = p1
 		} else {
 			p = p2
 		}
-		io.WriteString(p.Input, "position startpos"+move_history+"\n")
+		io.WriteString(p.Input, "position startpos"+moveHistory+"\n")
 		io.WriteString(p.Input, "go\n")
 
 		select {
-		case best_move, ok := <-p.BestMove:
+		case bestMove, ok := <-p.BestMove:
 			if !ok {
 				p.BestMove = nil
 				break
 			}
-			err := game.MoveStr(best_move)
+			err := game.MoveStr(bestMove)
 			if err != nil {
-				log.Println("Error decoding: " + best_move + " for game:\n" + game.String())
+				log.Println("Error decoding: " + bestMove + " for game:\n" + game.String())
 				return 0, "", "", err
 			}
-			if len(move_history) == 0 {
-				move_history = " moves"
+			if len(moveHistory) == 0 {
+				moveHistory = " moves"
 			}
-			move_history += " " + best_move
-			turn += 1
+			moveHistory += " " + bestMove
+			turn++
 		case <-time.After(60 * time.Second):
 			log.Println("Bestmove has timed out, aborting match")
 			return 0, "", "", errors.New("timeout")
@@ -352,17 +352,17 @@ func train(httpClient *http.Client, ngr client.NextGameResponse,
 	dir, _ := os.Getwd()
 	//	train_dir := path.Join(dir, fmt.Sprintf("data-%v-%v", pid, count))
 	if *debug {
-		logs_dir := path.Join(dir, fmt.Sprintf("logs-%v", pid))
-		os.MkdirAll(logs_dir, os.ModePerm)
-		logfile := path.Join(logs_dir, fmt.Sprintf("%s.log", time.Now().Format("20060102150405")))
+		logsDir := path.Join(dir, fmt.Sprintf("logs-%v", pid))
+		os.MkdirAll(logsDir, os.ModePerm)
+		logfile := path.Join(logsDir, fmt.Sprintf("%s.log", time.Now().Format("20060102150405")))
 		params = append(params, "-l"+logfile)
 	}
 
-	num_games := 1
-	train_cmd := fmt.Sprintf("--start=train %v-%v %v", pid, count, num_games)
-	params = append(params, train_cmd)
+	numGames := 1
+	trainCmd := fmt.Sprintf("--start=train %v-%v %v", pid, count, numGames)
+	params = append(params, trainCmd)
 
-	c := CreateCmdWrapper()
+	c := createCmdWrapper()
 	c.Version = "v0.10"
 	c.launch(networkPath, params, false)
 	for done := false; !done; {
@@ -376,8 +376,8 @@ func train(httpClient *http.Client, ngr client.NextGameResponse,
 				done = true
 				break
 			}
-			fmt.Printf("Uploading game: %d\n", num_games)
-			num_games++
+			fmt.Printf("Uploading game: %d\n", numGames)
+			numGames++
 			go uploadGame(httpClient, gi.fname, gi.pgn, ngr, c.Version, 0)
 		}
 	}
@@ -409,7 +409,7 @@ func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, err
 	// Otherwise, let's download it
 	err := client.DownloadNetwork(httpClient, *hostname, path, sha)
 	if err != nil {
-		log.Print("Network download failed: %v", err)
+		log.Printf("Network download failed: %v", err)
 		return "", err
 	}
 	return path, nil
