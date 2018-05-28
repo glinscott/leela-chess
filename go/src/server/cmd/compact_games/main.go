@@ -52,7 +52,7 @@ func tarGame(game *db.TrainingGame, dir string, tw *tar.Writer) error {
 
 	gzFile, err := os.Open(source)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer gzFile.Close()
 	gzr, err := gzip.NewReader(gzFile)

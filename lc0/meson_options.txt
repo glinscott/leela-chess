@@ -3,17 +3,37 @@ option('tensorflow_include',
        value: ['/usr/local/include/tensorflow/'],
        description: 'Paths to tensorflow include directories')
 
+option('openblas_include',
+       type: 'array',
+       value: ['/usr/include/openblas/'],
+       description: 'Paths to openblas include directories')
+
 option('tensorflow_libdir',
        type: 'array',
        value: ['/usr/local/lib/tensorflow_cc/'],
        description: 'Paths to tensorflow libraries')
+
+option('opencl_libdirs',
+       type: 'array',
+       value: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'],
+       description: 'Paths to OpenCL libraries')
 
 option('cudnn_libdirs',
        type: 'array',
        value: ['/opt/cuda/lib64/', '/usr/local/cuda/lib64/'],
        description: 'Paths to Cuda/cudnn libraries')
 
+option('mkl_libdirs',
+       type: 'array',
+       value: ['/opt/intel/lib/intel64', '/opt/intel/mkl/lib/intel64'],
+       description: 'Paths to MKL libraries')
+
 option('cudnn_include', 
        type: 'array',
        value: [],
        description: 'Paths to cudnn include directory')
+
+option('build_backends',
+       type: 'boolean',
+       value: true,
+       description: 'Build backends for NN computation')

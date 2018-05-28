@@ -97,7 +97,14 @@ def main(cfg):
         for j in range(cur2.rowcount):
             row = cur2.fetchone()
             board = chess.Board()
-            moves = row[4].split('.')
+            filename = '/home/web/leela-chess/go/src/server/pgns/run1/' + str(row[0]) + '.pgn'
+            try:
+              with open(filename) as f:
+                moves = f.read().split('.')
+            except:
+              print('Unable to find', filename)
+              continue
+
             fail = False
             for move in moves[1:]:
                 san = move.split()
