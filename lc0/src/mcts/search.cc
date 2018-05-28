@@ -642,7 +642,6 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
             : -node->GetQ(0, kExtraVirtualLoss) -
                   kFpuReduction * std::sqrt(node->GetVisitedPolicy());
 
-    bool root_color = played_history_.IsBlackToMove();
     for (Node* iter : node->Children()) {
       if (is_root_node) {
         // If there's no chance to catch up the currently best node with
@@ -658,7 +657,7 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
         if (!limits_.searchmoves.empty() &&
             std::find(limits_.searchmoves.begin(),
                       limits_.searchmoves.end(),
-                      iter->GetMove(root_color)) ==
+                      iter->GetMove()) ==
             limits_.searchmoves.end()) {
           continue;
         }
