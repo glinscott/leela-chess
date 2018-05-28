@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
 	"log"
 	"server/db"
 )
@@ -53,8 +51,8 @@ func makeRunActive() {
 func newMatch() {
 	match := db.Match{
 		TrainingRunID: 1,
-		CandidateID:   168,
-		CurrentBestID: 162,
+		CandidateID:   237,
+		CurrentBestID: 316,
 		Done:          false,
 		GameCap:       400,
 		Parameters:    `["--tempdecay=10"]`,
@@ -95,6 +93,7 @@ func updateMatchPassed() {
 	}
 }
 
+/*
 func dumpPgns() {
 	start := 9168243
 	end := 10014931
@@ -116,6 +115,7 @@ func dumpPgns() {
 	}
 	fmt.Printf("\n")
 }
+*/
 
 func main() {
 	db.Init(true)
@@ -127,7 +127,7 @@ func main() {
 	// setTestOnly()
 	// updateNetworkCounts()
 	// updateMatchPassed()
-	dumpPgns()
+	// dumpPgns()
 
 	defer db.Close()
 }

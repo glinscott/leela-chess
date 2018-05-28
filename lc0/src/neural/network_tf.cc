@@ -36,7 +36,8 @@ Output MakeConst(const Scope& scope, TensorShape shape,
                  const std::vector<float>& values,
                  const std::vector<int>& order = {}) {
   auto tensor = Tensor(DataType::DT_FLOAT, shape);
-  CHECK_EQ(tensor.NumElements(), values.size()) << shape.DebugString();
+  CHECK_EQ(tensor.NumElements(), static_cast<int>(values.size()))
+      << shape.DebugString();
 
   std::vector<int> dims;
   for (const auto& x : shape) {
@@ -75,7 +76,7 @@ Output MakeConvBlock(const Scope& scope, Input input, int channels,
 
   // auto b_conv = MakeConst(scope, {output_channels}, weights.biases);
   auto conv2d = Conv2D(scope, input, w_conv, {1, 1, 1, 1}, "SAME",
-                       Conv2D::DataFormat(kDataFormat));
+                       Conv2D::DataFormat(kDataFormat).Dilations({1, 1, 1, 1}));
 
   auto batch_norm =
       FusedBatchNorm(scope, conv2d, Ones(scope, {output_channels}),
@@ -235,7 +236,7 @@ void TFNetworkComputation<true>::PrepareInput() {
   auto flat = input_.flat<float>();
   memset(flat.data(), 0, flat.size() * sizeof(*flat.data()));
   auto* data = flat.data();
-  for (int input_idx = 0; input_idx < raw_input_.size(); ++input_idx) {
+  for (size_t input_idx = 0; input_idx < raw_input_.size(); ++input_idx) {
     const auto& sample = raw_input_[input_idx];
     int base = kInputPlanes * 8 * 8 * input_idx;
 
@@ -250,7 +251,8 @@ void TFNetworkComputation<true>::PrepareInput() {
 }  // namespace
 
 template <bool CPU>
-TFNetwork<CPU>::TFNetwork(const Weights& weights, const OptionsDict& options)
+TFNetwork<CPU>::TFNetwork(const Weights& weights,
+                          const OptionsDict& /*options*/)
     : scope_(Scope::NewRootScope()) {
   tensorflow::SessionOptions session_options;
   if (CPU) (*session_options.config.mutable_device_count())["GPU"] = 0;
@@ -294,7 +296,7 @@ std::unique_ptr<NetworkComputation> TFNetwork<CPU>::NewComputation() {
 
 }  // namespace
 
-REGISTER_NETWORK("tensorflow", TFNetwork<false>, 100);
-REGISTER_NETWORK("tensorflow-cpu", TFNetwork<true>, 10);
+REGISTER_NETWORK("tensorflow-cpu", TFNetwork<true>, 90)
+REGISTER_NETWORK("tensorflow", TFNetwork<false>, 80)
 
 }  // namespace lczero

@@ -260,7 +260,7 @@ const Move kIdxToMove[] = {
 
 std::vector<unsigned short> BuildMoveIndices() {
   std::vector<unsigned short> res(4 * 64 * 64);
-  for (int i = 0; i < sizeof(kIdxToMove) / sizeof(kIdxToMove[0]); ++i) {
+  for (size_t i = 0; i < sizeof(kIdxToMove) / sizeof(kIdxToMove[0]); ++i) {
     res[kIdxToMove[i].as_packed_int()] = i;
   }
   return res;
@@ -277,15 +277,19 @@ Move::Move(const std::string& str, bool black) {
     if (str.size() != 5) throw Exception("Bad move: " + str);
     switch (str[4]) {
       case 'q':
+      case 'Q':
         promotion_ = Promotion::Queen;
         break;
       case 'r':
+      case 'R':
         promotion_ = Promotion::Rook;
         break;
       case 'b':
+      case 'B':
         promotion_ = Promotion::Bishop;
         break;
       case 'n':
+      case 'N':
         promotion_ = Promotion::Knight;
         break;
       default:

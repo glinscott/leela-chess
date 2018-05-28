@@ -45,6 +45,7 @@ const char* Search::kVirtualLossBugStr = "Virtual loss bug";
 const char* Search::kFpuReductionStr = "First Play Urgency Reduction";
 const char* Search::kCacheHistoryLengthStr =
     "Length of history to include in cache";
+const char* Search::kExtraVirtualLossStr = "Extra virtual loss";
 
 namespace {
 const int kSmartPruningToleranceNodes = 100;
@@ -66,6 +67,8 @@ void Search::PopulateUciParams(OptionsParser* options) {
       0.2f;
   options->Add<IntOption>(kCacheHistoryLengthStr, 0, 7,
                           "cache-history-length") = 7;
+  options->Add<FloatOption>(kExtraVirtualLossStr, 0.0, 100.0,
+                            "extra-virtual-loss") = 0.0f;
 }
 
 Search::Search(const NodeTree& tree, Network* network,
@@ -91,7 +94,8 @@ Search::Search(const NodeTree& tree, Network* network,
       kSmartPruning(options.Get<bool>(kSmartPruningStr)),
       kVirtualLossBug(options.Get<float>(kVirtualLossBugStr)),
       kFpuReduction(options.Get<float>(kFpuReductionStr)),
-      kCacheHistoryLength(options.Get<int>(kCacheHistoryLengthStr)) {}
+      kCacheHistoryLength(options.Get<int>(kCacheHistoryLengthStr)),
+      kExtraVirtualLoss(options.Get<float>(kExtraVirtualLossStr)) {}
 
 // Returns whether node was already in cache.
 bool Search::AddNodeToCompute(Node* node, CachingComputation* computation,
@@ -304,26 +308,27 @@ int Search::PrefetchIntoCache(Node* node, int budget,
   std::vector<ScoredNode> scores;
   float factor = kCpuct * std::sqrt(std::max(node->GetChildrenVisits(), 1u));
   // FPU reduction is not taken into account.
-  const float parent_q = -node->GetQ(0);
+  const float parent_q = -node->GetQ(0, kExtraVirtualLoss);
   for (Node* iter : node->Children()) {
     if (iter->GetP() == 0.0f) continue;
     // Flipping sign of a score to be able to easily sort.
-    scores.emplace_back(-factor * iter->GetU() - iter->GetQ(parent_q), iter);
+    scores.emplace_back(
+        -factor * iter->GetU() - iter->GetQ(parent_q, kExtraVirtualLoss), iter);
   }
 
-  int first_unsorted_index = 0;
+  size_t first_unsorted_index = 0;
   int total_budget_spent = 0;
   int budget_to_spend = budget;  // Initializing for the case there's only
                                  // on child.
-  for (int i = 0; i < scores.size(); ++i) {
+  for (size_t i = 0; i < scores.size(); ++i) {
     if (budget <= 0) break;
 
     // Sort next chunk of a vector. 3 of a time. Most of the times it's fine.
     if (first_unsorted_index != scores.size() &&
         i + 2 >= first_unsorted_index) {
-      const int new_unsorted_index = std::min(
-          static_cast<int>(scores.size()),
-          budget < 2 ? first_unsorted_index + 2 : first_unsorted_index + 3);
+      const int new_unsorted_index =
+          std::min(scores.size(), budget < 2 ? first_unsorted_index + 2
+                                             : first_unsorted_index + 3);
       std::partial_sort(scores.begin() + first_unsorted_index,
                         scores.begin() + new_unsorted_index, scores.end());
       first_unsorted_index = new_unsorted_index;
@@ -334,7 +339,7 @@ int Search::PrefetchIntoCache(Node* node, int budget,
     if (i != scores.size() - 1) {
       // Sign of the score was flipped for sorting, flipping back.
       const float next_score = -scores[i + 1].first;
-      const float q = n->GetQ(-parent_q);
+      const float q = n->GetQ(-parent_q, kExtraVirtualLoss);
       if (next_score > q) {
         budget_to_spend = std::min(
             budget,
@@ -364,8 +369,8 @@ Node* GetBestChild(Node* parent) {
   //   * If that number is larger than 0, the one wil larger eval wins.
   std::tuple<int, float, float> best(-1, 0.0, 0.0);
   for (Node* node : parent->Children()) {
-    std::tuple<int, float, float> val(node->GetNStarted(), node->GetQ(-10.0),
-                                      node->GetP());
+    std::tuple<int, float, float> val(node->GetNStarted(),
+                                      node->GetQ(-10.0, 0.0), node->GetP());
     if (val > best) {
       best = val;
       best_node = node;
@@ -393,6 +398,7 @@ Node* GetBestChildWithTemperature(Node* parent, float temperature) {
     if (idx-- == 0) return node;
   }
   assert(false);
+  return nullptr;
 }
 }  // namespace
 
@@ -407,7 +413,8 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) {
       cache_->GetSize() * 1000LL / std::max(cache_->GetCapacity(), 1);
   uci_info_.nps =
       uci_info_.time ? (total_playouts_ * 1000 / uci_info_.time) : 0;
-  uci_info_.score = 290.680623072 * tan(1.548090806 * best_move_node_->GetQ(0));
+  uci_info_.score =
+      290.680623072 * tan(1.548090806 * best_move_node_->GetQ(0, 0));
   uci_info_.pv.clear();
 
   bool flip = played_history_.IsBlackToMove();
@@ -432,7 +439,7 @@ void Search::MaybeOutputInfo() {
   }
 }
 
-uint64_t Search::GetTimeSinceStart() const {
+int64_t Search::GetTimeSinceStart() const {
   return std::chrono::duration_cast<std::chrono::milliseconds>(
              std::chrono::steady_clock::now() - start_time_)
       .count();
@@ -441,7 +448,7 @@ uint64_t Search::GetTimeSinceStart() const {
 void Search::SendMovesStats() const {
   std::vector<const Node*> nodes;
   const float parent_q =
-      -root_node_->GetQ(0) -
+      -root_node_->GetQ(0, 0) -
       kFpuReduction * std::sqrt(root_node_->GetVisitedPolicy());
   for (Node* iter : root_node_->Children()) {
     nodes.emplace_back(iter);
@@ -466,14 +473,14 @@ void Search::SendMovesStats() const {
     oss << "(P: " << std::setw(5) << std::setprecision(2) << node->GetP() * 100
         << "%) ";
     oss << "(Q: " << std::setw(8) << std::setprecision(5)
-        << node->GetQ(parent_q) << ") ";
+        << node->GetQ(parent_q, 0) << ") ";
     oss << "(U: " << std::setw(6) << std::setprecision(5)
         << node->GetU() * kCpuct *
                std::sqrt(std::max(node->GetParent()->GetChildrenVisits(), 1u))
         << ") ";
 
     oss << "(Q+U: " << std::setw(8) << std::setprecision(5)
-        << node->GetQ(parent_q) +
+        << node->GetQ(parent_q, 0) +
                node->GetU() * kCpuct *
                    std::sqrt(
                        std::max(node->GetParent()->GetChildrenVisits(), 1u))
@@ -575,19 +582,22 @@ void Search::ExtendNode(Node* node, const PositionHistory& history) {
     return;
   }
 
-  if (!board.HasMatingMaterial()) {
-    node->MakeTerminal(GameResult::DRAW);
-    return;
-  }
+  // If it's root node and we're asked to think, pretend there's no draw.
+  if (node != root_node_) {
+    if (!board.HasMatingMaterial()) {
+      node->MakeTerminal(GameResult::DRAW);
+      return;
+    }
 
-  if (history.Last().GetNoCapturePly() >= 100) {
-    node->MakeTerminal(GameResult::DRAW);
-    return;
-  }
+    if (history.Last().GetNoCapturePly() >= 100) {
+      node->MakeTerminal(GameResult::DRAW);
+      return;
+    }
 
-  if (history.Last().GetRepetitions() >= 2) {
-    node->MakeTerminal(GameResult::DRAW);
-    return;
+    if (history.Last().GetRepetitions() >= 2) {
+      node->MakeTerminal(GameResult::DRAW);
+      return;
+    }
   }
 
   // Add legal moves as children to this node.
@@ -628,8 +638,8 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
     int possible_moves = 0;
     float parent_q =
         (is_root_node && kNoise)
-            ? -node->GetQ(0)
-            : -node->GetQ(0) -
+            ? -node->GetQ(0, kExtraVirtualLoss)
+            : -node->GetQ(0, kExtraVirtualLoss) -
                   kFpuReduction * std::sqrt(node->GetVisitedPolicy());
     for (Node* iter : node->Children()) {
       if (is_root_node) {
@@ -644,7 +654,7 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
         }
         ++possible_moves;
       }
-      float Q = iter->GetQ(parent_q);
+      float Q = iter->GetQ(parent_q, kExtraVirtualLoss);
       if (kVirtualLossBug && iter->GetN() == 0) {
         Q = (Q * iter->GetParent()->GetN() - kVirtualLossBug) /
             (iter->GetParent()->GetN() + std::fabs(kVirtualLossBug));
@@ -656,7 +666,7 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
       }
     }
     history->Append(node->GetMove());
-    if (is_root_node && possible_moves <= 1) {
+    if (is_root_node && possible_moves <= 1 && !limits_.infinite) {
       // If there is only one move theoretically possible within remaining time,
       // output it.
       Mutex::Lock counters_lock(counters_mutex_);
@@ -688,7 +698,7 @@ std::pair<Move, Move> Search::GetBestMoveInternal() const
     }
   }
 
-  Node* best_node = temperature
+  Node* best_node = temperature && root_node_->GetN() > 1
                         ? GetBestChildWithTemperature(root_node_, temperature)
                         : GetBestChild(root_node_);
 
@@ -700,7 +710,7 @@ std::pair<Move, Move> Search::GetBestMoveInternal() const
   return {best_node->GetMove(played_history_.IsBlackToMove()), ponder_move};
 }
 
-void Search::StartThreads(int how_many) {
+void Search::StartThreads(size_t how_many) {
   Mutex::Lock lock(threads_mutex_);
   while (threads_.size() < how_many) {
     threads_.emplace_back([&]() { Worker(); });
@@ -709,7 +719,7 @@ void Search::StartThreads(int how_many) {
 
 void Search::RunSingleThreaded() { Worker(); }
 
-void Search::RunBlocking(int threads) {
+void Search::RunBlocking(size_t threads) {
   if (threads == 1) {
     Worker();
   } else {
