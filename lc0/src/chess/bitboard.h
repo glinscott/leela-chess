@@ -209,7 +209,9 @@ class Move {
   uint16_t as_nn_index() const;
 
   bool operator==(const Move& other) const {
-    return from_ == other.from_ && to_ == other.to_ &&
+    const auto to = uci_to();
+    const auto other_to = other.uci_to();
+    return from_ == other.from_ && to == other_to &&
            promotion_ == other.promotion_;
   }
 
@@ -222,10 +224,7 @@ class Move {
   }
 
   std::string as_string() const {
-    BoardSquare to = to_;
-    if (castling_) {
-      to = BoardSquare(to.row(), (to.col() == 7) ? 6 : 2);
-    }
+    BoardSquare to = uci_to();
     std::string res = from_.as_string() + to.as_string();
     switch (promotion_) {
       case Promotion::None:
@@ -244,6 +243,14 @@ class Move {
   }
 
  private:
+  // If castling, e1h1 -> e1g1, e1a1 -> e1b1
+  BoardSquare uci_to() const {
+    if (castling_) {
+      return BoardSquare(to_.row(), (to_.col() == 7) ? 6 : 2);
+    } else {
+      return to_;
+    }
+  }
   BoardSquare from_;
   BoardSquare to_;
   Promotion promotion_ = Promotion::None;
