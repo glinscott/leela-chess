@@ -90,10 +90,10 @@ def main(cmd):
     train_ratio = cfg['dataset']['train_ratio']
     num_train = int(num_chunks*train_ratio)
     num_test = num_chunks - num_train
-    if cfg['dataset'].has_key('input_test'):
+    if 'input_test' in cfg['dataset']:
         train_chunks = get_latest_chunks(cfg['dataset']['input_train'], num_train)
         test_chunks = get_latest_chunks(cfg['dataset']['input_test'], num_test)
-    else
+    else:
         chunks = get_latest_chunks(cfg['dataset']['input'], num_chunks)
         train_chunks = chunks[:num_train]
         test_chunks = chunks[num_train:]
