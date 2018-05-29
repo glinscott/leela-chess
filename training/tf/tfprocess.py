@@ -156,8 +156,8 @@ class TFProcess:
                 new_weight = tf.constant(new_weights[e])
                 self.session.run(tf.assign(work_weights, new_weight))
             elif weights.shape.ndims == 4:
-			    # Rescale rule50 related weights as clients do not normalize the input.
-			    if e == 0:
+                # Rescale rule50 related weights as clients do not normalize the input.
+                if e == 0:
                     num_inputs = 112
                     rule50_input = 110
                     for i in range(len(new_weights[e])):
