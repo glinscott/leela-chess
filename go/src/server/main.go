@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"math/rand"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -127,6 +128,9 @@ func nextGame(c *gin.Context) {
 		"networkId":  training_run.BestNetworkID,
 		"sha":        network.Sha,
 		"params":     training_run.TrainParameters,
+	}
+	if (rand.Intn(100) < 90) {
+		result.params = result.params[0:len(result.Params)-1] + ", --resign=4" + ']'
 	}
 	c.JSON(http.StatusOK, result)
 }
@@ -249,7 +253,7 @@ func uploadNetwork(c *gin.Context) {
 		CurrentBestID: training_run.BestNetworkID,
 		Done:          false,
 		GameCap:       400,
-		Parameters:    `["--tempdecay=10"]`,
+		Parameters:    `["--tempdecay=10", --resign=0]`,
 	}
 	if c.DefaultPostForm("testonly", "0") == "1" {
 		match.TestOnly = true
