@@ -369,6 +369,7 @@ func train(httpClient *http.Client, ngr client.NextGameResponse,
 		select {
 		case <-doneCh:
 			done = true
+			log.Println("Received message to end training, killing lc0")
 			c.Cmd.Process.Kill()
 			break
 		case gi, ok := <-c.gi:
@@ -382,10 +383,12 @@ func train(httpClient *http.Client, ngr client.NextGameResponse,
 		}
 	}
 
+	log.Println("Waiting for lc0 to stop")
 	err := c.Cmd.Wait()
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("lc0 stopped")
 
 	return
 }
@@ -453,7 +456,7 @@ func nextGame(httpClient *http.Client, count int) error {
 		if err != nil {
 			return err
 		}
-		ch := make(chan bool)
+		doneCh := make(chan bool)
 		go func() {
 			errCount := 0
 			for {
@@ -467,14 +470,14 @@ func nextGame(httpClient *http.Client, count int) error {
 					}
 				}
 				if err != nil || ng.Type != nextGame.Type || ng.Sha != nextGame.Sha {
-					ch <- true
-					close(ch)
+					doneCh <- true
+					close(doneCh)
 					return
 				}
 				errCount = 0
 			}
 		}()
-		train(httpClient, nextGame, networkPath, count, params, ch)
+		train(httpClient, nextGame, networkPath, count, params, doneCh)
 		return nil
 	}
 
