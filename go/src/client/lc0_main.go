@@ -34,9 +34,10 @@ var gpu = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, o
 var debug = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
 var lc0Args = flag.String("lc0args", "", `Extra args to pass to the backend.  example: --lc0args="--parallelism=10 --threads=2"`)
 
-type settings struct {
-	user string
-	pass string
+// Settings holds username and password.
+type Settings struct {
+	User string
+	Pass string
 }
 
 /*
@@ -44,7 +45,7 @@ type settings struct {
 	If the config file does not exists, it prompts the user for a username and password and creates the config file.
 */
 func readSettings(path string) (string, string) {
-	settings := settings{}
+	settings := Settings{}
 	file, err := os.Open(path)
 	if err != nil {
 		// File was not found
@@ -52,21 +53,22 @@ func readSettings(path string) (string, string) {
 		fmt.Printf("Note that this password will be stored in plain text, so avoid a password that is\n")
 		fmt.Printf("also used for sensitive applications. It also cannot be recovered.\n")
 		fmt.Printf("Enter username : ")
-		fmt.Scanf("%s\n", &settings.user)
+		fmt.Scanf("%s\n", &settings.User)
 		fmt.Printf("Enter password : ")
-		fmt.Scanf("%s\n", &settings.pass)
+		fmt.Scanf("%s\n", &settings.Pass)
 		jsonSettings, err := json.Marshal(settings)
 		if err != nil {
 			log.Fatal("Cannot encode settings to JSON ", err)
 			return "", ""
 		}
 		settingsFile, err := os.Create(path)
+		defer settingsFile.Close()
 		if err != nil {
 			log.Fatal("Could not create output file ", err)
 			return "", ""
 		}
-		fmt.Fprintf(settingsFile, "%s", jsonSettings)
-		return settings.user, settings.pass
+		settingsFile.Write(jsonSettings)
+		return settings.User, settings.Pass
 	}
 	defer file.Close()
 	decoder := json.NewDecoder(file)
@@ -75,7 +77,7 @@ func readSettings(path string) (string, string) {
 		log.Fatal("Error decoding JSON ", err)
 		return "", ""
 	}
-	return settings.user, settings.pass
+	return settings.User, settings.Pass
 }
 
 func getExtraParams() map[string]string {
@@ -86,9 +88,8 @@ func getExtraParams() map[string]string {
 	}
 }
 
-func uploadGame(httpClient *http.Client, path string, pgn string, nextGame client.NextGameResponse, version string, retryCount uint) error {
-	//	return nil
-
+func uploadGame(httpClient *http.Client, path string, pgn string,
+	nextGame client.NextGameResponse, version string, retryCount uint) error {
 	extraParams := getExtraParams()
 	extraParams["training_id"] = strconv.Itoa(int(nextGame.TrainingId))
 	extraParams["network_id"] = strconv.Itoa(int(nextGame.NetworkId))
@@ -185,11 +186,10 @@ func createCmdWrapper() *cmdWrapper {
 }
 
 func (c *cmdWrapper) launch(networkPath string, args []string, input bool) {
-	weights := fmt.Sprintf("--weights=%s", networkPath)
 	dir, _ := os.Getwd()
-	lcargs := []string{"selfplay", weights, "--training=true"}
-	c.Cmd = exec.Command(path.Join(dir, "lc0"), lcargs...)
+	c.Cmd = exec.Command(path.Join(dir, "lc0"))
 	c.Cmd.Args = append(c.Cmd.Args, args...)
+	c.Cmd.Args = append(c.Cmd.Args, fmt.Sprintf("--weights=%s", networkPath))
 	if *lc0Args != "" {
 		// TODO: We might want to inspect these to prevent someone
 		// from passing a different visits or batch size for example.
@@ -240,10 +240,12 @@ func (c *cmdWrapper) launch(networkPath string, args []string, input bool) {
 				fmt.Printf("PGN: %s\n", pgn)
 				c.gi <- gameInfo{pgn: pgn, fname: file}
 			case strings.HasPrefix(line, "bestmove "):
-				//				c.BestMove <- strings.Split(line, " ")[1]
+				fmt.Println(line)
+				c.BestMove <- strings.Split(line, " ")[1]
 			case strings.HasPrefix(line, "id name lczero "):
 				c.Version = strings.Split(line, " ")[3]
 			case strings.HasPrefix(line, "info"):
+				break
 				fallthrough
 			default:
 				fmt.Println(line)
@@ -269,21 +271,25 @@ func (c *cmdWrapper) launch(networkPath string, args []string, input bool) {
 }
 
 func playMatch(baselinePath string, candidatePath string, params []string, flip bool) (int, string, string, error) {
-	baseline := cmdWrapper{}
+	baseline := createCmdWrapper()
+	params = append([]string{"uci"}, params...)
+	log.Println("launching 1")
 	baseline.launch(baselinePath, params, true)
 	defer baseline.Input.Close()
 
-	candidate := cmdWrapper{}
+	candidate := createCmdWrapper()
+	log.Println("launching 2")
 	candidate.launch(candidatePath, params, true)
 	defer candidate.Input.Close()
 
-	p1 := &candidate
-	p2 := &baseline
+	p1 := candidate
+	p2 := baseline
 
 	if flip {
 		p2, p1 = p1, p2
 	}
 
+	log.Println("writign uci")
 	io.WriteString(baseline.Input, "uci\n")
 	io.WriteString(candidate.Input, "uci\n")
 
@@ -302,10 +308,12 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 				result = 0
 			}
 
-			// Always report the result relative to the candidate engine (which defaults to white, unless flip = true)
+			// Always report the result relative to the candidate engine
+			// (which defaults to white, unless flip = true)
 			if flip {
 				result = -result
 			}
+			log.Printf("result: %d\n", result)
 			break
 		}
 
@@ -316,11 +324,13 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 			p = p2
 		}
 		io.WriteString(p.Input, "position startpos"+moveHistory+"\n")
-		io.WriteString(p.Input, "go\n")
+		io.WriteString(p.Input, "go nodes 800\n")
+		log.Println("sent go")
 
 		select {
 		case bestMove, ok := <-p.BestMove:
 			if !ok {
+				log.Println("engine failed")
 				p.BestMove = nil
 				break
 			}
@@ -341,6 +351,7 @@ func playMatch(baselinePath string, candidatePath string, params []string, flip 
 	}
 
 	chess.UseNotation(chess.AlgebraicNotation{})(game)
+	fmt.Printf("PGN: %s\n", game.String())
 	return result, game.String(), candidate.Version, nil
 }
 
@@ -350,7 +361,6 @@ func train(httpClient *http.Client, ngr client.NextGameResponse,
 	pid := os.Getpid()
 
 	dir, _ := os.Getwd()
-	//	train_dir := path.Join(dir, fmt.Sprintf("data-%v-%v", pid, count))
 	if *debug {
 		logsDir := path.Join(dir, fmt.Sprintf("logs-%v", pid))
 		os.MkdirAll(logsDir, os.ModePerm)
@@ -358,22 +368,28 @@ func train(httpClient *http.Client, ngr client.NextGameResponse,
 		params = append(params, "-l"+logfile)
 	}
 
-	numGames := 1
-	trainCmd := fmt.Sprintf("--start=train %v-%v %v", pid, count, numGames)
-	params = append(params, trainCmd)
-
+	// lc0 needs selfplay first in the argument list.
+	params = append([]string{"selfplay"}, params...)
+	params = append(params, "--training=true")
 	c := createCmdWrapper()
 	c.Version = "v0.10"
-	c.launch(networkPath, params, false)
+	c.launch(networkPath, params /* input= */, false)
 	for done := false; !done; {
+		numGames := 1
 		select {
 		case <-doneCh:
 			done = true
 			log.Println("Received message to end training, killing lc0")
 			c.Cmd.Process.Kill()
-			break
+		case _, ok := <-c.BestMove:
+			// Just swallow the best moves, only needed for match play.
+			if !ok {
+				log.Printf("BestMove channel closed unexpectedly, exiting train loop")
+				break
+			}
 		case gi, ok := <-c.gi:
 			if !ok {
+				log.Printf("GameInfo channel closed, exiting train loop")
 				done = true
 				break
 			}
@@ -389,8 +405,6 @@ func train(httpClient *http.Client, ngr client.NextGameResponse,
 		log.Fatal(err)
 	}
 	log.Println("lc0 stopped")
-
-	return
 }
 
 func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, error) {
@@ -418,21 +432,32 @@ func getNetwork(httpClient *http.Client, sha string, clearOld bool) (string, err
 	return path, nil
 }
 
+func validateParams(args []string) []string {
+	validArgs := []string{}
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--tempdecay") {
+			continue
+		}
+		validArgs = append(validArgs, arg)
+	}
+	return validArgs
+}
+
 func nextGame(httpClient *http.Client, count int) error {
 	nextGame, err := client.NextGame(httpClient, *hostname, getExtraParams())
 	if err != nil {
 		return err
 	}
-	var params []string
-	err = json.Unmarshal([]byte(nextGame.Params), &params)
+	var serverParams []string
+	err = json.Unmarshal([]byte(nextGame.Params), &serverParams)
 	if err != nil {
 		return err
 	}
+	log.Printf("serverParams: %s", serverParams)
+	serverParams = validateParams(serverParams)
 
 	if nextGame.Type == "match" {
-		// TODO: fix match play
-		log.Fatal("Match doesn't work yet.")
-		
+		log.Println("Starting match")
 		networkPath, err := getNetwork(httpClient, nextGame.Sha, false)
 		if err != nil {
 			return err
@@ -441,12 +466,15 @@ func nextGame(httpClient *http.Client, count int) error {
 		if err != nil {
 			return err
 		}
-		result, pgn, version, err := playMatch(networkPath, candidatePath, params, nextGame.Flip)
+		log.Println("Starting match")
+		result, pgn, version, err := playMatch(networkPath, candidatePath, serverParams, nextGame.Flip)
 		if err != nil {
+			log.Fatalf("playMatch: %v", err)
 			return err
 		}
 		extraParams := getExtraParams()
 		extraParams["engineVersion"] = version
+		log.Println("uploading match result")
 		go client.UploadMatchResult(httpClient, *hostname, nextGame.MatchGameId, result, pgn, extraParams)
 		return nil
 	}
@@ -477,7 +505,7 @@ func nextGame(httpClient *http.Client, count int) error {
 				errCount = 0
 			}
 		}()
-		train(httpClient, nextGame, networkPath, count, params, doneCh)
+		train(httpClient, nextGame, networkPath, count, serverParams, doneCh)
 		return nil
 	}
 
@@ -499,7 +527,7 @@ func main() {
 	}
 
 	httpClient := &http.Client{}
-	start := time.Now()
+//	start := time.Now()
 	for i := 0; ; i++ {
 		err := nextGame(httpClient, i)
 		if err != nil {
@@ -508,7 +536,7 @@ func main() {
 			time.Sleep(30 * time.Second)
 			continue
 		}
-		elapsed := time.Since(start)
-		log.Printf("Completed %d games in %s time", i+1, elapsed)
+//		elapsed := time.Since(start)
+//		log.Printf("Completed %d games in %s time", i+1, elapsed)
 	}
 }
