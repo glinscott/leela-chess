@@ -1,6 +1,8 @@
 {{define "content"}}
 <div class="alert alert-primary" role="alert">
-  Smooth sailing since the recent bugfixes.  Download latest client <a href="https://github.com/glinscott/leela-chess/releases/tag/v0.10rc1">here</a>.
+  Training intensity has been relaxed in a different way now:<br>
+  One network is trained per 40000 generated games, but each training session is 5 times shorter than before.<br>
+  Thank you for your contribution of training games. Download latest client <a href="https://github.com/glinscott/leela-chess/releases/tag/v0.10rc1">here</a>.
 </div>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
@@ -17,7 +19,43 @@
   </div>
 </div>
 
-<div id="eloChart"></div>
+<div class="container">
+  <div class="row">
+    <div class="col-auto">
+      Next network:
+    </div>
+    <div class="col-12">
+      <div class="progress">
+        <div id="train-progress" class="progress-bar progress-bar-striped" role="progressbar" style="width: {{.train_percent}}%">{{.progress_info}}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container mt-1">
+<div class="row">
+<div class="col-2">
+<ul class="nav nav-pills flex-column" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" data-toggle="pill" href="#tab-self-elo" role="tab">Self-play Elo</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-toggle="pill" href="#tab-elo-estimates" role="tab">Elo Estimates</a>
+  </li>
+</ul>
+</div>
+<div class="col-10">
+<div class="tab-content">
+  <div class="tab-pane active show" id="tab-self-elo" role="tabpanel">
+    <div id="eloChart"></div>
+  </div>
+  <div class="tab-pane" id="tab-elo-estimates" role="tabpanel">
+    <iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSwX4iqK3zxus6GFPkifWU70is7PCelQH3Hl2YK7wIBeL9FmARyo0lEemUvS_dEpnarOPJAYjuWNLYb/pubchart?oid=1153355782&format=interactive" width="600" height="400"></iframe>
+  </div>
+</div>
+</div>
+</div>
+</div>
 
 <h2>Active Users</h2>
 <h6>{{.active_users}} users in the last day have played {{.games_played}} games</h6>
@@ -150,5 +188,21 @@ var vlSpec = {
 }
 vegaEmbed("#eloChart", vlSpec, { actions: false })
 .catch(console.error);
+</script>
+
+<script>
+$(function() {
+  var interval = setInterval(function() {
+      var chunks = $("#train-progress").text().split('/');
+      var played = parseInt(chunks[0]);
+      var target = parseInt(chunks[1]);
+      played += 2;
+      if (played > target) played = target;
+      var current_progress = (played * 100.0) / target;
+      $("#train-progress")
+      .css("width", current_progress + "%")
+      .text(played + "/" + target);
+  }, 1000);
+});
 </script>
 {{end}}

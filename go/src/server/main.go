@@ -49,7 +49,7 @@ func checkUser(c *gin.Context) (*db.User, uint64, error) {
 	if err != nil {
 		return nil, 0, errors.New("Invalid version")
 	}
-	if version < 8 {
+	if version < 10 {
 		log.Printf("Rejecting old game from %s, version %d\n", user.Username, version)
 		return nil, 0, errors.New("\n\n\n\n\nYou must upgrade to a newer version!!\n\n\n\n\n")
 	}
@@ -460,6 +460,11 @@ func matchResult(c *gin.Context) {
 		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
+	if !checkEngineVersion(c.PostForm("engineVersion")) {
+		log.Printf("Rejecting game with old lczero version %s", c.PostForm("engineVersion"))
+		c.String(http.StatusBadRequest, "\n\n\n\n\nYou must upgrade to a newer lczero version!!\n\n\n\n\n")
+		return
+	}
 
 	match_game_id, err := strconv.ParseUint(c.PostForm("match_game_id"), 10, 32)
 	if err != nil {
@@ -577,10 +582,55 @@ ORDER BY count DESC`).Rows()
 	return result, nil
 }
 
-func calcElo(wins int, losses int, draws int) float64 {
-	score := float64(wins) + float64(draws)*0.5
-	total := float64(wins + losses + draws)
-	return -400 * math.Log10(1.0/(score/total)-1.0)
+func calcEloAndError(wins, losses, draws int) (elo, errorMargin float64) {
+	n := wins + losses + draws
+	w := float64(wins) / float64(n)
+	l := float64(losses) / float64(n)
+	d := float64(draws) / float64(n)
+	mu := w + d / 2
+
+	devW := w * math.Pow(1. - mu, 2.)
+	devL := l * math.Pow(0. - mu, 2.)
+	devD := d * math.Pow(0.5 - mu, 2.)
+	stdev := math.Sqrt(devD + devL + devW) / math.Sqrt(float64(n))
+
+	delta := func(p float64) float64 {
+		return -400. * math.Log10(1 / p - 1)
+	}
+
+	erfInv := func(x float64) float64 {
+		a := 8. * (math.Pi - 3.) / (3. * math.Pi * (4. - math.Pi))
+		y := math.Log(1. - x * x)
+		z := 2. / (math.Pi * a) + y / 2.
+
+		ret := math.Sqrt(math.Sqrt(z * z - y / a) - z)
+		if x < 0. {
+			return -ret
+		}
+		return ret
+	}
+
+	phiInv := func(p float64) float64 {
+		return math.Sqrt(2) * erfInv(2. * p - 1.)
+	}
+
+	muMin := mu + phiInv(0.025) * stdev
+	muMax := mu + phiInv(0.975) * stdev
+
+	elo = delta(mu)
+	errorMargin = (delta(muMax) - delta(muMin)) / 2.
+
+	return
+}
+
+func calcElo(wins, losses, draws int) float64 {
+	elo, _ := calcEloAndError(wins, losses, draws)
+	return elo
+}
+
+func calcEloError(wins, losses, draws int) float64 {
+	_, error := calcEloAndError(wins, losses, draws)
+	return error
 }
 
 func getProgress() ([]gin.H, map[uint]float64, error) {
@@ -699,19 +749,22 @@ func frontPage(c *gin.Context) {
 		progress = filterProgress(progress)
 	}
 
-	/*
-	c.HTML(http.StatusOK, "index", gin.H{
-		"active_users": 0,
-		"games_played": 0,
-		"Users":        []gin.H{},
-		"progress":     progress,
-	})
-	*/
+	network := db.Network{}
+	err = db.GetDB().Last(&network).Error
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+	trainPercent := int(math.Min(100.0, float64(network.GamesPlayed) / 40000.0 * 100.0))
+
 	c.HTML(http.StatusOK, "index", gin.H{
 		"active_users": users["active_users"],
 		"games_played": users["games_played"],
 		"Users":        users["users"],
 		"progress":     progress,
+		"train_percent": trainPercent,
+		"progress_info": fmt.Sprintf("%d/40000", network.GamesPlayed),
 	})
 }
 
@@ -906,6 +959,11 @@ func viewMatches(c *gin.Context) {
 	json := []gin.H{}
 	for _, match := range matches {
 		elo := calcElo(match.Wins, match.Losses, match.Draws)
+		elo_error := calcEloError(match.Wins, match.Losses, match.Draws)
+		elo_error_str := "Nan"
+		if !math.IsNaN(elo_error) {
+			elo_error_str = fmt.Sprintf("±%.1f", elo_error)
+		}
 		table_class := "active"
 		if match.Done {
 			if match.Passed {
@@ -914,15 +972,24 @@ func viewMatches(c *gin.Context) {
 				table_class = "danger"
 			}
 		}
+
+		passed := "true"
+		if !match.Passed {
+			passed = "false"
+		}
+		if match.TestOnly {
+			passed = "test"
+		}
 		json = append(json, gin.H{
 			"id":           match.ID,
 			"current_id":   match.CurrentBestID,
 			"candidate_id": match.CandidateID,
 			"score":        fmt.Sprintf("+%d -%d =%d", match.Wins, match.Losses, match.Draws),
-			"elo":          fmt.Sprintf("%.2f", elo),
+			"elo":          fmt.Sprintf("%.1f", elo),
+			"error":        elo_error_str,
 			"done":         match.Done,
 			"table_class":  table_class,
-			"passed":       match.Passed,
+			"passed":       passed,
 			"created_at":   match.CreatedAt,
 		})
 	}
@@ -1009,7 +1076,7 @@ func viewTrainingData(c *gin.Context) {
 
 	pgnFiles := []gin.H{}
 	pgnId := 9000000
-	for pgnId < int(id) {
+	for pgnId < int(id - 500000) {
 		pgnFiles = append([]gin.H{
 			gin.H{"url": fmt.Sprintf("https://s3.amazonaws.com/lczero/training/run1/pgn%d.tar.gz", pgnId)},
 		}, pgnFiles...)
