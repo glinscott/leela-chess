@@ -27,12 +27,17 @@ import (
 	"github.com/Tilps/chess"
 )
 
-var hostname = flag.String("hostname", "http://testserver.lczero.org", "Address of the server")
-var user = flag.String("user", "", "Username")
-var password = flag.String("password", "", "Password")
-var gpu = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
-var debug = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
-var lc0Args = flag.String("lc0args", "", `Extra args to pass to the backend.  example: --lc0args="--parallelism=10 --threads=2"`)
+var (
+	startTime  time.Time
+	totalGames int
+
+	hostname = flag.String("hostname", "http://testserver.lczero.org", "Address of the server")
+	user     = flag.String("user", "", "Username")
+	password = flag.String("password", "", "Password")
+	gpu      = flag.Int("gpu", -1, "ID of the OpenCL device to use (-1 for default, or no GPU)")
+	debug    = flag.Bool("debug", false, "Enable debug mode to see verbose output and save logs")
+	lc0Args  = flag.String("lc0args", "", `Extra args to pass to the backend.  example: --lc0args="--parallelism=10 --threads=2"`)
+)
 
 // Settings holds username and password.
 type Settings struct {
@@ -90,6 +95,11 @@ func getExtraParams() map[string]string {
 
 func uploadGame(httpClient *http.Client, path string, pgn string,
 	nextGame client.NextGameResponse, version string, retryCount uint) error {
+
+	elapsed := time.Since(startTime)
+	totalGames++
+	log.Printf("Completed %d games in %s time", totalGames, elapsed)
+
 	extraParams := getExtraParams()
 	extraParams["training_id"] = strconv.Itoa(int(nextGame.TrainingId))
 	extraParams["network_id"] = strconv.Itoa(int(nextGame.NetworkId))
@@ -505,7 +515,8 @@ func nextGame(httpClient *http.Client, count int) error {
 				errCount = 0
 			}
 		}()
-		train(httpClient, nextGame, networkPath, count, serverParams, doneCh)
+		//		train(httpClient, nextGame, networkPath, count, serverParams, doneCh)
+		train(httpClient, nextGame, networkPath, count, []string{"--visits=800"}, doneCh)
 		return nil
 	}
 
@@ -527,7 +538,7 @@ func main() {
 	}
 
 	httpClient := &http.Client{}
-//	start := time.Now()
+	startTime = time.Now()
 	for i := 0; ; i++ {
 		err := nextGame(httpClient, i)
 		if err != nil {
@@ -536,7 +547,5 @@ func main() {
 			time.Sleep(30 * time.Second)
 			continue
 		}
-//		elapsed := time.Since(start)
-//		log.Printf("Completed %d games in %s time", i+1, elapsed)
 	}
 }
