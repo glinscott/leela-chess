@@ -152,10 +152,10 @@ class OpenCLNetwork : public Network {
       : weights_(weights), params_(), opencl_(), opencl_net_(opencl_) {
     params_.gpuId = options.GetOrDefault<int>("gpu", -1);
     params_.verbose = options.GetOrDefault<bool>("verbose", false);
-    params_.force_tune = options.GetOrDefault<int>("force_tune", false);
-    params_.tune_only = options.GetOrDefault<int>("tune_only", false);
+    params_.force_tune = options.GetOrDefault<bool>("force_tune", false);
+    params_.tune_only = options.GetOrDefault<bool>("tune_only", false);
     params_.tune_exhaustive =
-        options.GetOrDefault<int>("tune_exhaustive", false);
+        options.GetOrDefault<bool>("tune_exhaustive", false);
 
     const int inputChannels = kInputPlanes;
     const int channels = weights.input.biases.size();
