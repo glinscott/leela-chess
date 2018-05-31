@@ -515,8 +515,8 @@ func nextGame(httpClient *http.Client, count int) error {
 				errCount = 0
 			}
 		}()
-		//		train(httpClient, nextGame, networkPath, count, serverParams, doneCh)
-		train(httpClient, nextGame, networkPath, count, []string{"--visits=800"}, doneCh)
+		train(httpClient, nextGame, networkPath, count, serverParams, doneCh)
+		//train(httpClient, nextGame, networkPath, count, []string{"--visits=800"}, doneCh)
 		return nil
 	}
 
