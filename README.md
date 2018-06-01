@@ -49,8 +49,8 @@ Of course, we also appreciate code reviews, pull requests and Windows testers!
     sudo apt install clinfo && clinfo
 
     # Clone git repo
-    git clone https://github.com/glinscott/leela-chess.git
-    cd leela-chess
+    git clone https://github.com/LeelaChessZero/lczero.git
+    cd lczero
     git submodule update --init --recursive
     mkdir build && cd build
     
