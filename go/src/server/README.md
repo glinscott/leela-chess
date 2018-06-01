@@ -46,6 +46,29 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 \q
 ```
 
+Setting up materialized views:
+```
+gorm=# CREATE MATERIALIZED VIEW games_month AS SELECT user_id, username, count(*) FROM training_games
+LEFT JOIN users
+ON users.id = training_games.user_id
+WHERE training_games.created_at >= now() - INTERVAL '1 month'
+GROUP BY user_id, username
+ORDER BY count DESC;
+SELECT 1606
+gorm=# CREATE MATERIALIZED VIEW games_all AS SELECT user_id, username, count(*) FROM training_games
+LEFT JOIN users
+ON users.id = training_games.user_id
+GROUP BY user_id, username
+ORDER BY count DESC;
+SELECT 3974
+```
+
+Then in crontab:
+```
+REFRESH MATERIALIZED VIEW games_month;
+REFRESH MATERIALIZED VIEW games_all;
+```
+
 ### Server prereqs
 
 ```

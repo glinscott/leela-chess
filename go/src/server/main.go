@@ -533,7 +533,7 @@ func matchResult(c *gin.Context) {
 	c.String(http.StatusOK, fmt.Sprintf("Match game %d successfuly uploaded from user=%s.", match_game.ID, user.Username))
 }
 
-func getActiveUsers() (gin.H, error) {
+func getActiveUsers(userLimit int) (gin.H, error) {
 	rows, err := db.GetDB().Raw(`SELECT user_id, username, MAX(version), MAX(SPLIT_PART(engine_version, '.', 2) :: INTEGER), MAX(training_games.created_at), count(*) FROM training_games
 LEFT JOIN users
 ON users.id = training_games.user_id
@@ -564,14 +564,16 @@ ORDER BY count DESC`).Rows()
 			username = username[0:32] + "..."
 		}
 
-		users_json = append(users_json, gin.H{
-			"user":         username,
-			"games_today":  count,
-			"system":       "",
-			"version":      version,
-			"engine":       engine_version,
-			"last_updated": created_at,
-		})
+		if userLimit == -1 || active_users < userLimit {
+			users_json = append(users_json, gin.H{
+				"user":         username,
+				"games_today":  count,
+				"system":       "",
+				"version":      version,
+				"engine":       engine_version,
+				"last_updated": created_at,
+			})
+		}
 	}
 
 	result := gin.H{
@@ -731,8 +733,23 @@ func filterProgress(result []gin.H) []gin.H {
 	return append(tmp, result...)
 }
 
+func viewActiveUsers(c *gin.Context) {
+	users, err := getActiveUsers(-1)
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+
+	c.HTML(http.StatusOK, "active_users", gin.H{
+		"active_users": users["active_users"],
+		"games_played": users["games_played"],
+		"Users":        users["users"],
+	})
+}
+
 func frontPage(c *gin.Context) {
-	users, err := getActiveUsers()
+	users, err := getActiveUsers(50)
 	if err != nil {
 		log.Println(err)
 		c.String(500, "Internal error")
@@ -1100,6 +1117,7 @@ func createTemplates() multitemplate.Render {
 	r.AddFromFiles("match", "templates/base.tmpl", "templates/match.tmpl")
 	r.AddFromFiles("matches", "templates/base.tmpl", "templates/matches.tmpl")
 	r.AddFromFiles("training_data", "templates/base.tmpl", "templates/training_data.tmpl")
+	r.AddFromFiles("active_users", "templates/base.tmpl", "templates/active_users.tmpl")
 	return r
 }
 
@@ -1121,6 +1139,7 @@ func setupRouter() *gin.Engine {
 	router.GET("/training_runs", viewTrainingRuns)
 	router.GET("/match/:id", viewMatch)
 	router.GET("/matches", viewMatches)
+	router.GET("/active_users", viewActiveUsers)
 	router.GET("/match_game/:id", viewMatchGame)
 	router.GET("/training_data", viewTrainingData)
 	router.POST("/next_game", nextGame)
