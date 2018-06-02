@@ -418,68 +418,32 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
         m_root->create_children(m_nodes, bh_, root_eval);
         m_root->update(root_eval);
     }
-    if (cfg_noise) {
-        m_root->dirichlet_noise(0.25f, 0.3f);
-    }
-    // Track which nodes were pruned by table base to ensure they don't get
-    // unpruned later.
-    m_tbpruned.clear();
-    if (bh_.cur().count<ALL_PIECES>() <= Tablebases::MaxCardinality && !bh_.cur().can_castle(ANY_CASTLING)) {
-        // This copy should not be required, just being paranoid since root_probe mutates the pos argument.
-        Position cur_pos = bh_.cur();
-        if (Tablebases::root_probe(cur_pos, m_root->get_children()) || Tablebases::root_probe_wdl(cur_pos, m_root->get_children())) {
-            for (const auto& node : m_root->get_children()) {
-                m_tbhits++;
-                if (!node->active()) {
-                    m_tbpruned.insert((int)node->get_move());
+    // Ensure each child has a single visit.
+    for (auto& child : m_root->get_children()) {
+        if (!child->has_children() && child->get_visits() == 0) {
+            bh_.do_move(child->get_move());
+            auto result = SearchResult{};
+            bool drawn = bh_.cur().is_draw();
+            if (drawn || !MoveList<LEGAL>(bh_.cur()).size()) {
+                float score = (drawn || !bh_.cur().checkers()) ? 0.0 : (bh_.cur().side_to_move() == Color::WHITE ? -1.0 : 1.0);
+                result = SearchResult::from_score(score);
+            } else {
+                float eval;
+                auto success = child->create_children(m_nodes, bh_, eval);
+                if (success) {
+                    result = SearchResult::from_eval(eval);
                 }
             }
+
+            if (result.valid()) {
+                child->update(result.eval());
+            }
+            bh_.undo_move();
         }
     }
 
-    m_run = true;
-    int cpus = cfg_num_threads;
-    ThreadGroup tg(thread_pool);
-    for (int i = 1; i < cpus; i++) {
-        tg.add_task(UCTWorker(bh_, this, m_root.get()));
-    }
-
-    bool keeprunning = true;
-    int last_update = 0;
-    do {
-        auto currstate = bh_.shallow_clone();
-        auto result = play_simulation(currstate, m_root.get(), 0);
-        if (result.valid()) {
-            increment_playouts();
-        }
-
-        int depth = m_maxdepth;
-        if (depth != last_update) {
-            last_update = depth;
-            dump_analysis(Time.elapsed(), false);
-        }
-
-        // check if we should still search
-        keeprunning = is_running();
-        keeprunning &= !should_halt_search();
-        if (!Limits.infinite) {
-            // have_alternate_moves has the side effect
-            // of pruning moves, so be careful to not even
-            // call it when running infinite.
-            keeprunning &= have_alternate_moves();
-        }
-    } while(keeprunning);
-
-    // stop the search
-    m_run = false;
-    tg.wait_all();
-    if (!m_root->has_children()) {
+     if (!m_root->has_children()) {
         return MOVE_NONE;
-    }
-
-    // reactivate all pruned root children
-    for (const auto& node : m_root->get_children()) {
-        node->set_active(true);
     }
 
     // display search info
