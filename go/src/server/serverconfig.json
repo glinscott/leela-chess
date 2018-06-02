@@ -1,0 +1,24 @@
+{
+  "database": {
+    "host": "localhost",
+    "user": "gorm",
+    "dbname": "gorm",
+    "password": "gorm"
+  },
+  "clients": {
+    "minClientVersion": 10,
+    "minEngineVersion": "v0.10"
+  },
+  "urls": {
+    "onNewNetwork": ["aws", "s3", "cp", "%NETWORK_PATH%", "s3://lczero/networks/"],
+    "networkLocation": "/cached/network/sha/"
+  },
+  "matches": {
+    "games": 400,
+    "parameters": ["--tempdecay=10"],
+    "threshold": -150.0
+  },
+  "webserver": {
+    "address": ":8080"
+  }
+}

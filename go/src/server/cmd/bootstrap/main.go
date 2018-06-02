@@ -5,8 +5,8 @@ import (
 )
 
 func main() {
-	db.Init(true)
-	db.SetupDB()
-	db.CreateTrainingRun()
+	db.Init()
 	defer db.Close()
+	db.SetupDB()
+	db.CreateTrainingRun("Initial run just for test")
 }
