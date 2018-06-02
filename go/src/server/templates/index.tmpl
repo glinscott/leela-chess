@@ -59,29 +59,72 @@
 
 <h2>Active Users</h2>
 <h6>{{.active_users}} users in the last day have played {{.games_played}} games</h6>
-<div class="table-responsive">
-  <table class="table table-striped table-sm">
-    <thead>
-      <tr>
-        <th>User</th>
-        <th>Games / Day</th>
-        <th>Version</th>
-        <th>Engine</th>
-        <th>Last Updated</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{range .Users}}
-      <tr>
-        <td><a href="/user/{{.user}}">{{.user}}</a></td>
-        <td>{{.games_today}}</td>
-        <td>{{.version}}</td>
-        <td>{{.engine}}</td>
-        <td>{{.last_updated}}</td>
-      </tr>
-      {{end}}
-    </tbody>
-  </table>
+<div class="container">
+  <div class="row">
+    <div class="col-4">
+      <h6>Daily Top 50</h6>
+      <div class="table-responsive">
+	<table class="table table-striped table-sm">
+	  <thead>
+	    <tr>
+	      <th>User</th>
+	      <th>Games / Day</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    {{range .top_users_day}}
+	    <tr>
+	      <td><a href="/user/{{.user}}">{{.user}}</a></td>
+	      <td>{{.games_today}}</td>
+	    </tr>
+	    {{end}}
+	  </tbody>
+	</table>
+      </div>
+    </div>
+    <div class="col-4">
+      <h6>Monthly Top 50</h6>
+      <div class="table-responsive">
+	<table class="table table-striped table-sm">
+	  <thead>
+	    <tr>
+	      <th>User</th>
+	      <th>Games / Month</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    {{range .top_users_month}}
+	    <tr>
+	      <td><a href="/user/{{.user}}">{{.user}}</a></td>
+	      <td>{{.games_today}}</td>
+	    </tr>
+	    {{end}}
+	  </tbody>
+	</table>
+      </div>
+    </div>
+    <div class="col-4">
+      <h6>Overall Top 50</h6>
+      <div class="table-responsive">
+	<table class="table table-striped table-sm">
+	  <thead>
+	    <tr>
+	      <th>User</th>
+	      <th>Games</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    {{range .top_users}}
+	    <tr>
+	      <td><a href="/user/{{.user}}">{{.user}}</a></td>
+	      <td>{{.games_today}}</td>
+	    </tr>
+	    {{end}}
+	  </tbody>
+	</table>
+      </div>
+    </div>
+  </div>
 </div>
 {{end}}
 

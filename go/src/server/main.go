@@ -264,7 +264,7 @@ func uploadNetwork(c *gin.Context) {
 	c.String(http.StatusOK, fmt.Sprintf("Network %s uploaded successfully.", network.Sha))
 }
 
-func checkEngineVersion(engineVersion string) (bool) {
+func checkEngineVersion(engineVersion string) bool {
 	v, err := version.NewVersion(engineVersion)
 	if err != nil {
 		return false
@@ -380,7 +380,7 @@ func uploadGame(c *gin.Context) {
 func getNetwork(c *gin.Context) {
 	// lczero.org/cached/ is behind the cloudflare CDN.  Redirect to there to ensure
 	// we hit the CDN.
-	c.Redirect(http.StatusMovedPermanently, "http://lczero.org/cached/network/sha/" + c.Query("sha"))
+	c.Redirect(http.StatusMovedPermanently, "http://lczero.org/cached/network/sha/"+c.Query("sha"))
 }
 
 func cachedGetNetwork(c *gin.Context) {
@@ -564,7 +564,7 @@ ORDER BY count DESC`).Rows()
 			username = username[0:32] + "..."
 		}
 
-		if userLimit == -1 || active_users < userLimit {
+		if userLimit == -1 || active_users <= userLimit {
 			users_json = append(users_json, gin.H{
 				"user":         username,
 				"games_today":  count,
@@ -589,23 +589,23 @@ func calcEloAndError(wins, losses, draws int) (elo, errorMargin float64) {
 	w := float64(wins) / float64(n)
 	l := float64(losses) / float64(n)
 	d := float64(draws) / float64(n)
-	mu := w + d / 2
+	mu := w + d/2
 
-	devW := w * math.Pow(1. - mu, 2.)
-	devL := l * math.Pow(0. - mu, 2.)
-	devD := d * math.Pow(0.5 - mu, 2.)
-	stdev := math.Sqrt(devD + devL + devW) / math.Sqrt(float64(n))
+	devW := w * math.Pow(1.-mu, 2.)
+	devL := l * math.Pow(0.-mu, 2.)
+	devD := d * math.Pow(0.5-mu, 2.)
+	stdev := math.Sqrt(devD+devL+devW) / math.Sqrt(float64(n))
 
 	delta := func(p float64) float64 {
-		return -400. * math.Log10(1 / p - 1)
+		return -400. * math.Log10(1/p-1)
 	}
 
 	erfInv := func(x float64) float64 {
 		a := 8. * (math.Pi - 3.) / (3. * math.Pi * (4. - math.Pi))
-		y := math.Log(1. - x * x)
-		z := 2. / (math.Pi * a) + y / 2.
+		y := math.Log(1. - x*x)
+		z := 2./(math.Pi*a) + y/2.
 
-		ret := math.Sqrt(math.Sqrt(z * z - y / a) - z)
+		ret := math.Sqrt(math.Sqrt(z*z-y/a) - z)
 		if x < 0. {
 			return -ret
 		}
@@ -613,11 +613,11 @@ func calcEloAndError(wins, losses, draws int) (elo, errorMargin float64) {
 	}
 
 	phiInv := func(p float64) float64 {
-		return math.Sqrt(2) * erfInv(2. * p - 1.)
+		return math.Sqrt(2) * erfInv(2.*p-1.)
 	}
 
-	muMin := mu + phiInv(0.025) * stdev
-	muMax := mu + phiInv(0.975) * stdev
+	muMin := mu + phiInv(0.025)*stdev
+	muMax := mu + phiInv(0.975)*stdev
 
 	elo = delta(mu)
 	errorMargin = (delta(muMax) - delta(muMin)) / 2.
@@ -748,6 +748,28 @@ func viewActiveUsers(c *gin.Context) {
 	})
 }
 
+func getTopUsers(table string) ([]gin.H, error) {
+	type Result struct {
+		Username string
+		Count    int
+	}
+
+	var result []Result
+	err := db.GetDB().Table(table).Select("username, count").Order("count desc").Limit(50).Scan(&result).Error
+	if err != nil {
+		return nil, err
+	}
+
+	users_json := []gin.H{}
+	for _, user := range result {
+		users_json = append(users_json, gin.H{
+			"user":        user.Username,
+			"games_today": user.Count,
+		})
+	}
+	return users_json, nil
+}
+
 func frontPage(c *gin.Context) {
 	users, err := getActiveUsers(50)
 	if err != nil {
@@ -773,15 +795,30 @@ func frontPage(c *gin.Context) {
 		c.String(500, "Internal error")
 		return
 	}
-	trainPercent := int(math.Min(100.0, float64(network.GamesPlayed) / 40000.0 * 100.0))
+	trainPercent := int(math.Min(100.0, float64(network.GamesPlayed)/40000.0*100.0))
+
+	topUsersMonth, err := getTopUsers("games_month")
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
+	topUsers, err := getTopUsers("games_all")
+	if err != nil {
+		log.Println(err)
+		c.String(500, "Internal error")
+		return
+	}
 
 	c.HTML(http.StatusOK, "index", gin.H{
-		"active_users": users["active_users"],
-		"games_played": users["games_played"],
-		"Users":        users["users"],
-		"progress":     progress,
-		"train_percent": trainPercent,
-		"progress_info": fmt.Sprintf("%d/40000", network.GamesPlayed),
+		"active_users":    users["active_users"],
+		"games_played":    users["games_played"],
+		"top_users_day":   users["users"],
+		"top_users_month": topUsersMonth,
+		"top_users":       topUsers,
+		"progress":        progress,
+		"train_percent":   trainPercent,
+		"progress_info":   fmt.Sprintf("%d/40000", network.GamesPlayed),
 	})
 }
 
@@ -1093,7 +1130,7 @@ func viewTrainingData(c *gin.Context) {
 
 	pgnFiles := []gin.H{}
 	pgnId := 9000000
-	for pgnId < int(id - 500000) {
+	for pgnId < int(id-500000) {
 		pgnFiles = append([]gin.H{
 			gin.H{"url": fmt.Sprintf("https://s3.amazonaws.com/lczero/training/run1/pgn%d.tar.gz", pgnId)},
 		}, pgnFiles...)
@@ -1101,7 +1138,7 @@ func viewTrainingData(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "training_data", gin.H{
-		"files": files,
+		"files":     files,
 		"pgn_files": pgnFiles,
 	})
 }
