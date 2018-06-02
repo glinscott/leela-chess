@@ -647,6 +647,7 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
             ? -node->GetQ(0, kExtraVirtualLoss)
             : -node->GetQ(0, kExtraVirtualLoss) -
                   kFpuReduction * std::sqrt(node->GetVisitedPolicy());
+
     for (Node* iter : node->Children()) {
       if (is_root_node) {
         // If there's no chance to catch up the currently best node with
@@ -656,6 +657,14 @@ Node* Search::PickNodeToExtend(Node* node, PositionHistory* history) {
         // current best node.
         if (iter != best_move_node_ &&
             remaining_playouts_ < best_node_n - iter->GetNStarted()) {
+          continue;
+        }
+        // If searchmoves was sent, restrict the search only in that moves
+        if (!limits_.searchmoves.empty() &&
+            std::find(limits_.searchmoves.begin(),
+                      limits_.searchmoves.end(),
+                      iter->GetMove()) ==
+            limits_.searchmoves.end()) {
           continue;
         }
         ++possible_moves;
