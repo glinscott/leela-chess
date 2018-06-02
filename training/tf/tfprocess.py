@@ -156,6 +156,14 @@ class TFProcess:
                 new_weight = tf.constant(new_weights[e])
                 self.session.run(tf.assign(work_weights, new_weight))
             elif weights.shape.ndims == 4:
+                # Rescale rule50 related weights as clients do not normalize the input.
+                if e == 0:
+                    num_inputs = 112
+                    rule50_input = 110
+                    for i in range(len(new_weights[e])):
+                        if (i%(num_inputs*9))//9 == rule50_input - 1:
+                            new_weights[e][i] = new_weights[e][i]*99
+
                 # Convolution weights need a transpose
                 #
                 # TF (kYXInputOutput)
@@ -277,7 +285,7 @@ class TFProcess:
         with open(filename, "w") as file:
             # Version tag
             file.write("{}".format(VERSION))
-            for weights in self.weights:
+            for e, weights in enumerate(self.weights):
                 # Newline unless last line (single bias)
                 file.write("\n")
                 work_weights = None
@@ -303,7 +311,18 @@ class TFProcess:
                     # Biases, batchnorm etc
                     work_weights = weights
                 nparray = work_weights.eval(session=self.session)
-                wt_str = [str(wt) for wt in np.ravel(nparray)]
+                # Rescale rule50 related weights as clients do not normalize the input.
+                if e == 0:
+                    num_inputs = 112
+                    rule50_input = 110
+                    wt_str = []
+                    for i, weight in enumerate(np.ravel(nparray)):
+                        if (i%(num_inputs*9))//9 == rule50_input - 1:
+                            wt_str.append(str(weight/99))
+                        else:
+                            wt_str.append(str(weight))
+                else:
+                    wt_str = [str(wt) for wt in np.ravel(nparray)]
                 file.write(" ".join(wt_str))
 
     def get_batchnorm_key(self):
