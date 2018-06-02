@@ -135,10 +135,10 @@ std::vector<float> Network::winograd_transform_f(const std::vector<float>& f,
     // transpose(G.dot(f).dot(G.transpose()))
     // U matrix is transposed for better memory layout in SGEMM
     auto U = std::vector<float>(WINOGRAD_TILE * outputs * channels);
-    auto G = std::array<float, WINOGRAD_TILE>{ 1.0,  0.0,  0.0,
+    auto G = std::array<float, WINOGRAD_TILE>{{ 1.0,  0.0,  0.0,
                                                0.5,  0.5,  0.5,
                                                0.5, -0.5,  0.5,
-                                               0.0,  0.0,  1.0};
+                                               0.0,  0.0,  1.0 }};
     auto temp = std::array<float, 12>{};
 
     for (auto o = 0; o < outputs; o++) {
@@ -1070,7 +1070,7 @@ Network::Netresult Network::get_scored_moves_internal(const BoardHistory& pos, N
     std::vector<float> winrate_out(1);
     // Data layout is input_data[(c * height + h) * width + w]
     input_data.reserve(get_input_channels() * width * height);
-    for (int c = 0; c < get_input_channels() - 3; ++c) {
+    for (unsigned int c = 0; c < get_input_channels() - 3; ++c) {
         for (int i = 0; i < 64; ++i) {
             input_data.emplace_back(net_t(planes.bit[c][i]));
         }
