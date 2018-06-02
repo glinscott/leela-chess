@@ -5,24 +5,30 @@ import (
 	"log"
 
 	"github.com/jinzhu/gorm"
+	// Importing to support postgre database.
 	_ "github.com/jinzhu/gorm/dialects/postgres"
+	"server/config"
 )
 
 var db *gorm.DB
 var err error
 
-func Init(prod bool) {
-	dbname := "gorm_test"
-	if prod {
-		dbname = "gorm"
-	}
-	conn := fmt.Sprintf("host=localhost user=gorm dbname=%s sslmode=disable password=gorm", dbname)
+// Init initializes database.
+func Init() {
+	conn := fmt.Sprintf(
+		"host=%s user=%s dbname=%s sslmode=disable password=%s",
+		config.Config.Database.Host,
+		config.Config.Database.User,
+		config.Config.Database.Dbname,
+		config.Config.Database.Password,
+	)
 	db, err = gorm.Open("postgres", conn)
 	if err != nil {
 		log.Fatal("Unable to connect to DB", err)
 	}
 }
 
+// SetupDB setups DB.
 func SetupDB() {
 	db.AutoMigrate(&User{})
 	db.AutoMigrate(&TrainingRun{})
@@ -32,19 +38,22 @@ func SetupDB() {
 	db.AutoMigrate(&TrainingGame{})
 }
 
+// CreateTrainingRun creates training run
 func CreateTrainingRun(description string) *TrainingRun {
-	training_run := TrainingRun{Description: description}
-	err := db.Create(&training_run).Error
+	trainingRun := TrainingRun{Description: description}
+	err := db.Create(&trainingRun).Error
 	if err != nil {
 		log.Fatal(err)
 	}
-	return &training_run
+	return &trainingRun
 }
 
+// GetDB returns current database object
 func GetDB() *gorm.DB {
 	return db
 }
 
+// Close closes database
 func Close() {
 	db.Close()
 }
