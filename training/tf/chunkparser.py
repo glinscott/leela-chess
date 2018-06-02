@@ -66,10 +66,10 @@ class ChunkParser:
         long.
         """
 
-        # Build a series of flat planes with values 0..255
+        # Build 2 flat float32 planes with values 0,1
         self.flat_planes = []
-        for i in range(256):
-            self.flat_planes.append(bytes([i]*64))
+        for i in range(2):
+            self.flat_planes.append(np.zeros(64, dtype=np.float32) + i)
 
         # set the down-sampling rate
         self.sample = sample
@@ -134,13 +134,11 @@ class ChunkParser:
         """
         Convert unpacked record batches to tensors for tensorflow training
         """
-        planes = tf.decode_raw(planes, tf.uint8)
+        planes = tf.decode_raw(planes, tf.float32)
         probs = tf.decode_raw(probs, tf.float32)
         winner = tf.decode_raw(winner, tf.float32)
 
-        planes = tf.to_float(planes)
         planes = tf.reshape(planes, (ChunkParser.BATCH_SIZE, 112, 8*8))
-
         probs = tf.reshape(probs, (ChunkParser.BATCH_SIZE, 1858))
         winner = tf.reshape(winner, (ChunkParser.BATCH_SIZE, 1))
 
@@ -168,14 +166,23 @@ class ChunkParser:
         # Enforce move_count to 0
         move_count = 0
 
-        # Unpack bit planes
-        planes = np.unpackbits(np.frombuffer(planes, dtype=np.uint8))
+        # Unpack bit planes and cast to 32 bit float
+        planes = np.unpackbits(np.frombuffer(planes, dtype=np.uint8)).astype(np.float32)
+        rule50_plane = (np.zeros(8*8, dtype=np.float32) + rule50_count) / 99
 
         # Concatenate all byteplanes. Make the last plane all 1's so the NN can
         # detect edges of the board more easily
-        planes = planes.tobytes() + self.flat_planes[us_ooo] + self.flat_planes[us_oo] + self.flat_planes[them_ooo] + self.flat_planes[them_oo] + self.flat_planes[stm] + self.flat_planes[rule50_count] + self.flat_planes[move_count] + self.flat_planes[1]
+        planes = planes.tobytes() + \
+                 self.flat_planes[us_ooo].tobytes() + \
+                 self.flat_planes[us_oo].tobytes() + \
+                 self.flat_planes[them_ooo].tobytes() + \
+                 self.flat_planes[them_oo].tobytes() + \
+                 self.flat_planes[stm].tobytes() + \
+                 rule50_plane.tobytes() + \
+                 self.flat_planes[move_count].tobytes() + \
+                 self.flat_planes[1].tobytes()
 
-        assert len(planes) == ((8*13*1 + 8*1*1) * 8 * 8)
+        assert len(planes) == ((8*13*1 + 8*1*1) * 8 * 8 * 4)
         winner = float(winner)
         assert winner == 1.0 or winner == -1.0 or winner == 0.0
         winner = struct.pack('f', winner)
@@ -336,14 +343,16 @@ class ChunkParserTest(unittest.TestCase):
         batchgen = parser.parse()
         data = next(batchgen)
         
-        batch = ( np.reshape(np.frombuffer(data[0], dtype=np.uint8), (batch_size, 112, 64)),
+        batch = ( np.reshape(np.frombuffer(data[0], dtype=np.float32), (batch_size, 112, 64)),
                   np.reshape(np.frombuffer(data[1], dtype=np.int32), (batch_size, 1858)),
                   np.reshape(np.frombuffer(data[2], dtype=np.float32), (batch_size, 1)) )
 
+        fltplanes = truth[1].astype(np.float32)
+        fltplanes[5] /= 99
         for i in range(batch_size):
             data = (batch[0][i][:104], np.array([batch[0][i][j][0] for j in range(104,111)]), batch[1][i], batch[2][i])
             self.assertTrue((data[0] == truth[0]).all())
-            self.assertTrue((data[1] == truth[1]).all())
+            self.assertTrue((data[1] == fltplanes).all())
             self.assertTrue((data[2] == truth[2]).all())
             self.assertEqual(data[3][0], truth[3])
             
@@ -368,9 +377,8 @@ class ChunkParserTest(unittest.TestCase):
         batchgen = parser.parse()
         data = next(batchgen)
 
-        planes = np.frombuffer(data[0], dtype=np.uint8, count=112*8*8*batch_size)
+        planes = np.frombuffer(data[0], dtype=np.float32, count=112*8*8*batch_size)
         planes = planes.reshape(batch_size, 112, 8*8)
-        planes = planes.astype(np.float32)
         probs = np.frombuffer(data[1], dtype=np.float32, count=1858*batch_size)
         probs = probs.reshape(batch_size, 1858)
         winner = np.frombuffer(data[2], dtype=np.float32, count=1*batch_size)
