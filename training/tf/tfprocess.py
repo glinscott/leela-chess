@@ -24,7 +24,6 @@ import time
 import bisect
 
 NUM_STEP_TRAIN = 200
-NUM_STEP_TEST = 2000
 VERSION = 2
 
 def weight_variable(shape):
@@ -191,12 +190,22 @@ class TFProcess:
         if not self.time_start:
             self.time_start = time.time()
 
+        # Get the initial steps value before we do a training step.
+        steps = tf.train.global_step(self.session, self.global_step)
+
+        # Run test before first step to see delta since end of last run.
+        if steps % self.cfg['training']['total_steps'] == 0:
+            # Steps is given as one higher than current in order to avoid it
+            # being equal to the value the end of a run is stored against.
+            self.calculate_test_summaries(test_batches, steps + 1)
+
         # Run training for this batch
         policy_loss, mse_loss, reg_term, _, _ = self.session.run(
             [self.policy_loss, self.mse_loss, self.reg_term, self.train_op,
                 self.next_batch],
             feed_dict={self.training: True, self.learning_rate: self.lr, self.handle: self.train_handle})
 
+        # Update steps since training should have incremented it.
         steps = tf.train.global_step(self.session, self.global_step)
 
         # Determine learning rate
@@ -239,31 +248,10 @@ class TFProcess:
             self.time_start = time_end
             self.avg_policy_loss, self.avg_mse_loss, self.avg_reg_term = [], [], []
 
-        if steps % NUM_STEP_TEST == 0:
-            sum_accuracy = 0
-            sum_mse = 0
-            sum_policy = 0
-            for _ in range(0, test_batches):
-                test_policy, test_accuracy, test_mse, _ = self.session.run(
-                    [self.policy_loss, self.accuracy, self.mse_loss,
-                     self.next_batch],
-                    feed_dict={self.training: False,
-                               self.handle: self.test_handle})
-                sum_accuracy += test_accuracy
-                sum_mse += test_mse
-                sum_policy += test_policy
-            sum_accuracy /= test_batches
-            sum_accuracy *= 100
-            sum_policy /= test_batches
-            # Additionally rescale to [0, 1] so divide by 4
-            sum_mse /= (4.0 * test_batches)
-            test_summaries = tf.Summary(value=[
-                tf.Summary.Value(tag="Accuracy", simple_value=sum_accuracy),
-                tf.Summary.Value(tag="Policy Loss", simple_value=sum_policy),
-                tf.Summary.Value(tag="MSE Loss", simple_value=sum_mse)])
-            self.test_writer.add_summary(test_summaries, steps)
-            print("step {}, policy={:g} training accuracy={:g}%, mse={:g}".\
-                format(steps, sum_policy, sum_accuracy, sum_mse))
+        # Calculate test values every 'test_steps', but also ensure there is
+        # one at the final step so the delta to the first step can be calculted.
+        if steps % self.cfg['training']['test_steps'] == 0 or steps % self.cfg['training']['total_steps'] == 0:
+            self.calculate_test_summaries(test_batches, steps)
 
         if steps % self.cfg['training']['total_steps'] == 0:
             path = os.path.join(self.root_dir, self.cfg['name'])
@@ -272,6 +260,32 @@ class TFProcess:
             leela_path = path + "-" + str(steps) + ".txt"
             self.save_leelaz_weights(leela_path) 
             print("Weights saved in file: {}".format(leela_path))
+
+    def calculate_test_summaries(self, test_batches, steps):
+        sum_accuracy = 0
+        sum_mse = 0
+        sum_policy = 0
+        for _ in range(0, test_batches):
+            test_policy, test_accuracy, test_mse, _ = self.session.run(
+                [self.policy_loss, self.accuracy, self.mse_loss,
+                 self.next_batch],
+                feed_dict={self.training: False,
+                           self.handle: self.test_handle})
+            sum_accuracy += test_accuracy
+            sum_mse += test_mse
+            sum_policy += test_policy
+        sum_accuracy /= test_batches
+        sum_accuracy *= 100
+        sum_policy /= test_batches
+        # Additionally rescale to [0, 1] so divide by 4
+        sum_mse /= (4.0 * test_batches)
+        test_summaries = tf.Summary(value=[
+            tf.Summary.Value(tag="Accuracy", simple_value=sum_accuracy),
+            tf.Summary.Value(tag="Policy Loss", simple_value=sum_policy),
+            tf.Summary.Value(tag="MSE Loss", simple_value=sum_mse)])
+        self.test_writer.add_summary(test_summaries, steps)
+        print("step {}, policy={:g} training accuracy={:g}%, mse={:g}".\
+            format(steps, sum_policy, sum_accuracy, sum_mse))
 
     def save_leelaz_weights(self, filename):
         with open(filename, "w") as file:
