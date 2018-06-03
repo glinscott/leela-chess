@@ -6,7 +6,11 @@ gpu: 0                                 # gpu id to process on
 dataset: 
   num_chunks: 100000                   # newest nof chunks to parse
   train_ratio: 0.90                    # trainingset ratio
-  input: '/path/to/chunks/*/draw/'     # supports glob
+  # For separated test and train data.
+  input_train: '/path/to/chunks/*/draw/' # supports glob
+  input_test: '/path/to/chunks/*/draw/'  # supports glob
+  # For a one-shot run with all data in one directory.
+  # input: '/path/to/chunks/*/draw/'
 
 training:
     batch_size: 2048                   # training batch
