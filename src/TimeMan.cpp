@@ -73,5 +73,6 @@ void TimeManagement::init(Color us, int ply) {
     int hypMyTime = std::max (0, Limits.time[us] + (Limits.inc[us] - moveOverhead) * MoveHorizon);
 
     optimumTime = std::min(minThinkingTime + remaining(hypMyTime, MoveHorizon, ply), optimumTime);
+    optimumTime = std::min((int)(optimumTime * 1.5), maximumTime);
     maximumTime = std::min(optimumTime * 7, maximumTime);
 }
