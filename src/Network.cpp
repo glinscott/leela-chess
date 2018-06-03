@@ -1181,8 +1181,9 @@ void Network::gather_features(const BoardHistory& bh, NNPlanes& planes) {
 
     int mc = bh.positions.size() - 1;
     bool flip = us == BLACK;
-    for (int i = 0; i < std::min(T_HISTORY, mc + 1); ++i) {
-        pos = &bh.positions[mc - i];
+    for (int i = 0; i < T_HISTORY; ++i) {
+        // If i exceeds history, copy oldest position at index=0
+        pos = &bh.positions[std::max(mc - i, 0)];
 
         if (m_format_version == 1) {
             us = pos->side_to_move();
