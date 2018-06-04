@@ -27,7 +27,7 @@ Of course, we also appreciate code reviews, pull requests and Windows testers!
 ## Requirements
 
 * GCC, Clang or MSVC, any C++14 compiler
-* boost 1.54.x or later (libboost-all-dev on Debian/Ubuntu)
+* Boost 1.54.x or later, headers, program_options and filesystem libraries (libboost-dev & libboost-program-options-dev & libboost-filesystem-dev on Debian/Ubuntu)
 * BLAS Library: OpenBLAS (libopenblas-dev) or (optionally) Intel MKL
 * zlib library (zlib1g & zlib1g-dev on Debian/Ubuntu)
 * Standard OpenCL C headers (opencl-headers on Debian/Ubuntu, or at
@@ -43,7 +43,7 @@ Of course, we also appreciate code reviews, pull requests and Windows testers!
 ## Example of compiling - Ubuntu 16.04
 
     # Install dependencies
-    sudo apt install cmake g++ git libboost-all-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
+    sudo apt install cmake g++ git libboost-dev libboost-program-options-dev libboost-filesystem-dev libopenblas-dev opencl-headers ocl-icd-libopencl1 ocl-icd-opencl-dev zlib1g-dev
 
     # Test for OpenCL support & compatibility
     sudo apt install clinfo && clinfo
