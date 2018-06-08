@@ -1,29 +1,51 @@
 %YAML 1.2
 ---
+# Training works as follows: one `step` means loading `batch_size`
+# samples into GPU memory, then doing gradient descent on those samples.
+# Leela training is done in discrete cycles (unlike A0's fancy
+# continuous-distributed setup), with the new weights being published
+# after each cycle. A cycle does `total_steps` of training. The
+# samples are selected from `num_chunks` games, at random (controlled
+# by the "shuffle buffer" of size `shuffle_size`). Only `train_ratio`
+# games are used for training, the remainder being used for testing.
+# Thus, the total number of times that a given position is trained on,
+# samples per position, is given by
+# `total_steps` * `batch_size` / (`num_chunks` * `train_ratio` * ply_per_game)
+
 name: 'kb1-64x6'                       # ideally no spaces
 gpu: 0                                 # gpu id to process on
 
 dataset: 
   num_chunks: 100000                   # newest nof chunks to parse
-  train_ratio: 0.90                    # trainingset ratio
-  input: '/path/to/chunks/*/draw/'     # supports glob
+  train_ratio: 0.90                    # fraction of games for training (instead of testing)
+  input: '/path/to/chunks/*/draw/'     # path to data dir; supports glob
 
 training:
-    batch_size: 2048                   # training batch
-    total_steps: 140000                # terminate after these steps
-    shuffle_size: 524288               # size of the shuffle buffer
-    lr_values:                         # list of learning rates
+    batch_size: 2048                   # samples trained in one step
+    total_steps: 140000                # number of training steps per publishing cycle
+    shuffle_size: 524288
+    lr_values:                         # learning rate schedule
         - 0.02
         - 0.002
         - 0.0005
-    lr_boundaries:                     # list of boundaries
+    lr_boundaries:                     # "boundaries" are in units of steps
         - 100000
         - 130000
-    policy_loss_weight: 1.0            # weight of policy loss
-    value_loss_weight: 1.0             # weight of value loss
+    policy_loss_weight: 1.0            # weight of policy head relative to regularization
+    value_loss_weight: 1.0             # weight of value head relative to regularization
     path: '/path/to/store/networks'    # network storage dir
 
 model:
   filters: 64
   residual_blocks: 6
 ...
+
+# `lr_values` is the set of learning rates, used according to the
+# `lr_boundaries` schedule of using a given learning rate for how
+# many training steps. (At lr_bnd_1, switch from lr_1 to lr_2. At
+# lr_bnd_2, switch from lr_2 to lr_3, etc.)
+# `policy_loss_weight` and `value_loss_weight` determine how much
+# either the policy head or value head should be emphasized by the
+# gradient descent, relative to each other and to the regularization
+# (where regularization helps keep weights closer to 0, which helps
+# the network to generalize better to novel positions)
