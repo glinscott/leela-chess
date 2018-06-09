@@ -284,7 +284,7 @@ bool UCTSearch::is_running() const {
 }
 
 int UCTSearch::est_playouts_left() const {
-    auto elapsed_millis = now() - m_start_time;
+    auto elapsed_millis = now() - m_time_after_initial_playouts;
     auto playouts = m_playouts.load();
     if (!Limits.dynamic_controls_set() && !Limits.movetime) {
         // No time control, use playouts or visits.
@@ -292,9 +292,9 @@ int UCTSearch::est_playouts_left() const {
                 std::max(0, std::min(m_maxplayouts - playouts,
                                      m_maxnodes - m_root->get_visits()));
         return playouts_left;
-    } else if (elapsed_millis < 1000 || playouts < 100) {
-        // Until we reach 1 second or 100 playouts playout_rate
-        // is not reliable, so just return max.
+    } else if (elapsed_millis < 10 || playouts < 10 * cfg_num_threads) {
+        // Until we reach 10 millisecond and 10 playouts per thread playout_rate
+        // is too risky to use, so just return max.
         return MAXINT_DIV2;
     } else {
         const auto playout_rate = 1.0f * playouts / elapsed_millis;
@@ -446,6 +446,7 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
 
     bool keeprunning = true;
     int last_update = 0;
+    bool initial_playouts_done = false;
     do {
         auto currstate = bh_.shallow_clone();
         auto result = play_simulation(currstate, m_root.get(), 0);
@@ -458,7 +459,15 @@ Move UCTSearch::think(BoardHistory&& new_bh) {
             last_update = depth;
             dump_analysis(Time.elapsed(), false);
         }
-
+        if (!initial_playouts_done) {
+            // Always update this time stamp so the pruning check is against
+            // an initialized value.
+            m_time_after_initial_playouts = now();
+            // One playout per thread, before we consider things warmed up.
+            if (m_playouts >= cpus) {
+                initial_playouts_done = true;
+            }
+        }
         // check if we should still search
         keeprunning = is_running();
         keeprunning &= !should_halt_search();
