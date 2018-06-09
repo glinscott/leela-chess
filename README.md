@@ -11,6 +11,18 @@ We will need to do this with a distributed project, as it requires a huge amount
 
 Please visit the LCZero forum to discuss: https://groups.google.com/forum/#!forum/lczero, or the github issues.
 
+Reddit subreddit: https://www.reddit.com/r/lczero
+
+# Resources
+
+[How to build your own AlphaZero AI](https://medium.com/applied-data-science/how-to-build-your-own-alphazero-ai-using-python-and-keras-7f664945c188) using python and kera
+
+Another excellent source explaining MCTS 
+
+[What is AlphaZero. How and Why it works](http://tim.hibal.org/blog/alpha-zero-how-and-why-it-works/)
+
+
+
 # Contributing
 
 For precompiled binaries, see:
@@ -148,12 +160,14 @@ The training pipeline will automatically restore from a previous model if it exi
 ## Supervised training
 
 Generating trainingdata from pgn files is currently broken and has low priority, feel free to create a PR.
+Alternatively, you can checkout AiHelloChess which is clone of LeelaChess and has working supervised training.
 
 # Other projects
 
 * [mokemokechicken/reversi-alpha-zero](https://github.com/mokemokechicken/reversi-alpha-zero)
 * [Zeta36/chess-alpha-zero](https://github.com/Zeta36/chess-alpha-zero)
 * [benediamond/chess-alpha-zero](https://github.com/benediamond/chess-alpha-zero/)
+* [AiHelloChess](https://git.aihello.com/aihello/AiHelloChess)
 
 # License
 
