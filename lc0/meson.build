@@ -262,9 +262,16 @@ endif
   ## ~~~~
   ## zlib
   ## ~~~~
-  # Pick latest from https://wrapdb.mesonbuild.com/zlib and put into
-  # subprojects/zlib.wrap
-  deps += subproject('zlib').get_variable('zlib_dep')
+  # Use either native zlib or pick latest from
+  # https://wrapdb.mesonbuild.com/zlib and put into subprojects/zlib.wrap
+
+  zlib_dep = dependency('zlib', required : false)
+  if zlib_dep.found()
+    deps += zlib_dep
+  else
+    deps += subproject('zlib').get_variable('zlib_dep')
+  endif
+ 
 
   ## ~~~~~~~~
   ## Profiler
