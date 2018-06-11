@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.27130.2003
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "leela-chess", "VS2017\leela-chess.vcxproj", "{7B887BFE-8D2C-46CD-B139-5213434BF219}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tests", "tests\tests.vcxproj", "{279B3CA6-408C-4224-95D5-4632E3569C51}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -15,8 +17,15 @@ Global
 		{7B887BFE-8D2C-46CD-B139-5213434BF219}.Debug|x64.Build.0 = Debug|x64
 		{7B887BFE-8D2C-46CD-B139-5213434BF219}.Release|x64.ActiveCfg = Release|x64
 		{7B887BFE-8D2C-46CD-B139-5213434BF219}.Release|x64.Build.0 = Release|x64
+		{279B3CA6-408C-4224-95D5-4632E3569C51}.Debug|x64.ActiveCfg = Debug|x64
+		{279B3CA6-408C-4224-95D5-4632E3569C51}.Debug|x64.Build.0 = Debug|x64
+		{279B3CA6-408C-4224-95D5-4632E3569C51}.Release|x64.ActiveCfg = Release|x64
+		{279B3CA6-408C-4224-95D5-4632E3569C51}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {75CA0CED-6253-402B-B3C2-195546E14FAD}
 	EndGlobalSection
 EndGlobal

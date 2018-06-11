@@ -110,7 +110,14 @@ public:
     static size_t get_hist_planes();
     static size_t get_num_output_policy();
 
+    static constexpr Move flip_move(Move move) {
+      // 07070 is the bit mask for the ranks (in octal), inverting those bits flips the board.
+      return Move(move ^ 07070);
+    }
+
 private:
+    friend class NetworkTest;
+
     static bool initialized;
     static std::pair<int, int> load_network(std::istream& wtfile);
     static std::pair<int, int> load_network_file(std::string filename);
