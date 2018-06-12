@@ -53,7 +53,7 @@ Of course, we also appreciate code reviews, pull requests and Windows testers!
     cd lczero
     git submodule update --init --recursive
     mkdir build && cd build
-    
+
     # Configure
     cmake ..
 
@@ -66,8 +66,8 @@ Of course, we also appreciate code reviews, pull requests and Windows testers!
 
 # Compiling Client
 
-See https://github.com/glinscott/leela-chess/tree/master/go/src/client/README.md.
-This client will produce self-play games and upload them to http://lczero.org. 
+See https://github.com/LeelaChessZero/lczero-client/blob/master/README.md.
+This client will produce self-play games and upload them to http://lczero.org.
 A central server uses these self-play game data as inputs for the training process.
 
 ## Weights
@@ -78,7 +78,7 @@ Weights that we trained to prove the engine was solid are here https://github.co
 
 # Training
 
-The training pipeline resides in `training/tf`, this requires tensorflow running on linux (Ubuntu 16.04 in this case). 
+The training pipeline resides in `training/tf`, this requires tensorflow running on linux (Ubuntu 16.04 in this case).
 
 ## Data preparation
 
@@ -101,7 +101,7 @@ Now that the data is in the right format one can configure a training pipeline. 
 name: 'kb1-64x6'                       # ideally no spaces
 gpu: 0                                 # gpu id to process on
 
-dataset: 
+dataset:
   num_chunks: 100000                   # newest nof chunks to parse
   train_ratio: 0.90                    # trainingset ratio
   input: '/path/to/chunks/*/draw/'     # supports glob
