@@ -14,8 +14,8 @@ Please visit the LCZero forum to discuss: https://groups.google.com/forum/#!foru
 # Contributing
 
 For precompiled binaries, see:
-* [wiki](https://github.com/glinscott/leela-chess/wiki)
-* [wiki/Getting-Started](https://github.com/glinscott/leela-chess/wiki/Getting-Started)
+* [wiki](https://github.com/LeelaChessZero/lc0/wiki)
+* [wiki/Getting-Started](https://github.com/LeelaChessZero/lc0/wiki)
 
 For live status: http://lczero.org
 
