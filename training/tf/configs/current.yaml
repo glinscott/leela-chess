@@ -1,0 +1,27 @@
+%YAML 1.2
+---
+name: 'online-192x15'
+gpu: 0
+
+dataset:
+    num_chunks: 500000
+    train_ratio: 0.90
+    input: '/home/folkert/data/run1/'
+
+training:
+    batch_size: 1024
+    total_steps: 50000
+    shuffle_size: 1000000
+    lr_values:
+        - 0.0005
+        - 0.0001
+    lr_boundaries:
+        - 10000
+    policy_loss_weight: 1.0 
+    value_loss_weight: 0.25
+    path: '/home2/networks'
+
+model:
+    filters: 192 
+    residual_blocks: 15
+...
