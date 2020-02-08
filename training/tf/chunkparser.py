@@ -20,7 +20,7 @@
 import itertools
 import multiprocessing as mp
 import numpy as np
-import random
+from scipy.optimize import minimize_scalar
 import shufflebuffer as sb
 import struct
 import tensorflow as tf
@@ -28,6 +28,54 @@ import unittest
 
 VERSION = struct.pack('i', 3)
 STRUCT_STRING = '4s7432s832sBBBBBBBb'
+
+
+def pseudo_probability(p, seed=123, tol=1e-3, n_samples=100000, **kwargs):
+    """ Determine the pseudo probability numerically by minimizing the
+    squared error to the given probability target.
+
+    The pseudo random distribution reduces the probability of nearby
+    positions from being sampled, by starting with a lower chance and
+    gradually increasing.
+
+    Parameters
+    ----------
+    p : float
+        Probability target
+    seed : int
+        Seed for the random generator
+    tol : float
+        Tolerance for the squared error
+    n_samples : int
+        Number of samples to take to estimate the expected value of the
+        pseudo-random distribution
+    kwargs : dict
+        Parameters passed to the optimizer
+    """
+    def fun(pseudo_p):
+        if pseudo_p < 0 or pseudo_p > 1:
+            return 1.
+        rand = np.random.RandomState(seed)
+        result = np.empty(n_samples)
+        counter = 1
+        for i in range(n_samples):
+            result[i] = rand.binomial(
+                n=1,
+                p=max(min(counter * pseudo_p, 1), 0)
+            )
+            counter += 1
+            if result[i] == 1:
+                counter = 1
+        return np.power(p - result.mean(), 2)
+    res = minimize_scalar(
+        fun,
+        bracket=(0, 1.0),
+        method='brent',
+        tol=tol,
+        **kwargs
+    )
+    return res.x
+
 
 # Interface for a chunk data source.
 class ChunkDataSrc:
@@ -188,11 +236,17 @@ class ChunkParser:
         Randomly sample through the v3 chunk data and select records
         """
         if chunkdata[0:4] == VERSION:
+            counter = 1
             for i in range(0, len(chunkdata), self.v3_struct.size):
                 if self.sample > 1:
-                    # Downsample, using only 1/Nth of the items.
-                    if random.randint(0, self.sample-1) != 0:
-                        continue  # Skip this record.
+                    probability = 1. / self.sample
+                    pseudo_p = pseudo_probability(probability)
+                    pseudo_p = max(min(counter * pseudo_p, 1), 0)
+                    sampleit = np.random.binomial(n=1, p=pseudo_p)
+                    if sampleit == 0
+                        counter += 1
+                        continue
+                    counter = 1
                 yield chunkdata[i:i+self.v3_struct.size]
 
 
