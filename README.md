@@ -82,7 +82,7 @@ The training pipeline resides in `training/tf`, this requires tensorflow running
 
 ## Data preparation
 
-In order to start a training session you first need to download trainingdata from http://lczero.org/training_data. This data is packed in tar.gz balls each containing 10'000 games or chunks as we call them. Preparing data requires the following steps:
+In order to start a training session you first need to download trainingdata from https://training.lczero.org. This data is packed in tar.gz balls each containing 10'000 games or chunks as we call them. Preparing data requires the following steps:
 
 ```
 tar -xzf games11160000.tar.gz
